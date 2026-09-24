@@ -24,7 +24,8 @@ Button {
     rightPadding:       _horizontalMargin
     checkable:          false
 
-    property bool logo: false
+    property bool logo:        false
+    property bool animateLogo: false   // Slow continuous spin, opt-in per instance (main toolbar only)
 
     property real _horizontalMargin: ScreenTools.defaultFontPixelWidth
 
@@ -47,6 +48,14 @@ Button {
             color:                  logo ? "transparent" : (button.checked ? qgcPal.buttonHighlightText : qgcPal.buttonText)
             source:                 button.icon.source
             anchors.verticalCenter: parent.verticalCenter
+
+            RotationAnimation on rotation {
+                running:  button.logo && button.animateLogo
+                from:     0
+                to:       360
+                duration: 60000
+                loops:    Animation.Infinite
+            }
         }
         Label {
             id:                     _label
