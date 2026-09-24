@@ -30,6 +30,7 @@ defaults:
     shell: bash
 
 env:
+  BASE_VERSION: v4.2.3
   ALLOW_NO_VIDEO: ${{ inputs.allow_no_video || false }}
   ANDROID_ABI: armeabi-v7a
   ARTIFACT: QGroundControl32.apk
@@ -53,8 +54,16 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Fetch tags for version determination
-        run: git fetch --tags --force
+      # QGCCommon.pri derives the app version from `git describe`. If the
+      # base tag is missing, recreate it on the upstream import (root) commit.
+      - name: Ensure version tag
+        run: |
+          git fetch --tags --force
+          if ! git describe --tags --match 'v[0-9]*' > /dev/null 2>&1; then
+            git -c user.name=ci -c user.email=ci@localhost \
+              tag -a "${BASE_VERSION}" "$(git rev-list --max-parents=0 HEAD)" -m "QGroundControl ${BASE_VERSION} (upstream import)"
+          fi
+          git describe --tags
 
       # Gradle 5.5.1 bundled with Qt 5.15.2's Android template needs JDK <= 12.
       - name: Set up JDK 11
