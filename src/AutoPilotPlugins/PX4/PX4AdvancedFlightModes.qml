@@ -73,7 +73,7 @@ Item {
                                                         qsTr("Throttle stick controls climb / sink rade. ")
 
     readonly property string missionModeName:           qsTr("Mission")
-    readonly property string missionModeDescription:    qsTr("The aircraft obeys the programmed mission sent by QGroundControl. ")
+    readonly property string missionModeDescription:    qsTr("The aircraft obeys the programmed mission sent by DhakshaGroundControl. ")
 
     readonly property string loiterModeName:            qsTr("Hold")
     readonly property string fwLoiterModeDescription:   qsTr("The aircraft flies in a circle around the current position at the current altitude. ")

@@ -26,7 +26,7 @@ QGC_LOGGING_CATEGORY(MAVLinkLogManagerLog, "MAVLinkLogManagerLog")
 static const char* kMAVLinkLogGroup         = "MAVLinkLogGroup";
 static const char* kEmailAddressKey         = "Email";
 static const char* kDescriptionsKey         = "Description";
-static const char* kDefaultDescr            = "QGroundControl Session";
+static const char* kDefaultDescr            = "DhakshaGroundControl Session";
 static const char* kPx4URLKey               = "LogURL";
 static const char* kDefaultPx4URL           = "https://logs.px4.io/upload";
 static const char* kEnableAutoUploadKey     = "EnableAutoUpload";

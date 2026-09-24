@@ -33,7 +33,7 @@ env:
   BASE_VERSION: v4.2.3
   ALLOW_NO_VIDEO: ${{ inputs.allow_no_video || false }}
   ANDROID_ABI: armeabi-v7a
-  ARTIFACT: QGroundControl32.apk
+  ARTIFACT: DhakshaGroundControl32.apk
   QT_VERSION: 5.15.2
   NDK_VERSION: 21.4.7075529
   SDK_PLATFORM: android-30
@@ -168,6 +168,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: QGroundControl-${{ env.ANDROID_ABI }}-${{ github.sha }}
+          name: DhakshaGroundControl-${{ env.ANDROID_ABI }}-${{ github.sha }}
           path: ${{ runner.temp }}/build/package/${{ env.ARTIFACT }}
           if-no-files-found: error

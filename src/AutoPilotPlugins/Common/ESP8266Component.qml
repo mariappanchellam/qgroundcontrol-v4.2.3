@@ -449,7 +449,7 @@ Item {
                             icon:       StandardIcon.Warning
                             standardButtons: StandardButton.Yes | StandardButton.No
                             title:      qsTr("Reboot WiFi Bridge")
-                            text:       qsTr("This will restart the WiFi Bridge so the settings you've changed can take effect. Note that you may have to change your computer WiFi settings and QGroundControl link settings to match these changes. Are you sure you want to restart it?")
+                            text:       qsTr("This will restart the WiFi Bridge so the settings you've changed can take effect. Note that you may have to change your computer WiFi settings and DhakshaGroundControl link settings to match these changes. Are you sure you want to restart it?")
                             onYes: {
                                 controller.reboot()
                                 rebootDialog.visible = false

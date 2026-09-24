@@ -71,7 +71,7 @@ void SubtitleWriter::startCapturingTelemetry(const QString& videoFile)
     // This is file header
     stream << QStringLiteral(
         "[Script Info]\n"
-        "Title: QGroundControl Subtitle Telemetry file\n"
+        "Title: DhakshaGroundControl Subtitle Telemetry file\n"
         "ScriptType: v4.00+\n"
         "WrapStyle: 0\n"
         "ScaledBorderAndShadow: yes\n"
