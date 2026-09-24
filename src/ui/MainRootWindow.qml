@@ -37,8 +37,33 @@ ApplicationWindow {
             height  = ScreenTools.isMobile ? Screen.height : Math.min(150 * Screen.pixelDensity, Screen.height)
         }
 
-        // Start the sequence of first run prompt(s)
-        firstRunPromptManager.nextPrompt()
+        // First run prompt(s) start once the boot animation has finished
+    }
+
+    // Animated boot screen, shown above everything (including the toolbar)
+    Loader {
+        id:             bootSplashLoader
+        parent:         Overlay.overlay
+        anchors.fill:   parent
+        z:              1000000
+        source:         "qrc:/qml/DhakshaBootSplash.qml"
+
+        function done() {
+            active = false
+            // Start the sequence of first run prompt(s)
+            firstRunPromptManager.nextPrompt()
+        }
+
+        onStatusChanged: {
+            if (status === Loader.Error) {
+                done()
+            }
+        }
+    }
+
+    Connections {
+        target:     bootSplashLoader.item
+        onFinished: bootSplashLoader.done()
     }
 
     QtObject {
