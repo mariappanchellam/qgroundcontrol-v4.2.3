@@ -53,32 +53,36 @@ APMCopterMode::APMCopterMode(uint32_t mode, bool settable) :
 
 ArduCopterFirmwarePlugin::ArduCopterFirmwarePlugin(void)
 {
+    // DhakshaGroundControl: only Loiter, Guided, Auto, Altitude Hold, RTL and Stabilize
+    // are offered in the flight mode menu, in this order. The other modes stay listed (not
+    // settable) so they are still named correctly when the vehicle reports them and so the
+    // Land/Brake/Smart RTL actions keep working.
     setSupportedModes({
-        APMCopterMode(APMCopterMode::STABILIZE,     true),
-        APMCopterMode(APMCopterMode::ACRO,          true),
-        APMCopterMode(APMCopterMode::ALT_HOLD,      true),
-        APMCopterMode(APMCopterMode::AUTO,          true),
-        APMCopterMode(APMCopterMode::GUIDED,        true),
         APMCopterMode(APMCopterMode::LOITER,        true),
+        APMCopterMode(APMCopterMode::GUIDED,        true),
+        APMCopterMode(APMCopterMode::AUTO,          true),
+        APMCopterMode(APMCopterMode::ALT_HOLD,      true),
         APMCopterMode(APMCopterMode::RTL,           true),
-        APMCopterMode(APMCopterMode::CIRCLE,        true),
-        APMCopterMode(APMCopterMode::LAND,          true),
-        APMCopterMode(APMCopterMode::DRIFT,         true),
-        APMCopterMode(APMCopterMode::SPORT,         true),
-        APMCopterMode(APMCopterMode::FLIP,          true),
-        APMCopterMode(APMCopterMode::AUTOTUNE,      true),
-        APMCopterMode(APMCopterMode::POS_HOLD,      true),
-        APMCopterMode(APMCopterMode::BRAKE,         true),
-        APMCopterMode(APMCopterMode::THROW,         true),
-        APMCopterMode(APMCopterMode::AVOID_ADSB,    true),
-        APMCopterMode(APMCopterMode::GUIDED_NOGPS,  true),
-        APMCopterMode(APMCopterMode::SMART_RTL,     true),
-        APMCopterMode(APMCopterMode::FLOWHOLD,      true),
+        APMCopterMode(APMCopterMode::STABILIZE,     true),
+        APMCopterMode(APMCopterMode::ACRO,          false),
+        APMCopterMode(APMCopterMode::CIRCLE,        false),
+        APMCopterMode(APMCopterMode::LAND,          false),
+        APMCopterMode(APMCopterMode::DRIFT,         false),
+        APMCopterMode(APMCopterMode::SPORT,         false),
+        APMCopterMode(APMCopterMode::FLIP,          false),
+        APMCopterMode(APMCopterMode::AUTOTUNE,      false),
+        APMCopterMode(APMCopterMode::POS_HOLD,      false),
+        APMCopterMode(APMCopterMode::BRAKE,         false),
+        APMCopterMode(APMCopterMode::THROW,         false),
+        APMCopterMode(APMCopterMode::AVOID_ADSB,    false),
+        APMCopterMode(APMCopterMode::GUIDED_NOGPS,  false),
+        APMCopterMode(APMCopterMode::SMART_RTL,     false),
+        APMCopterMode(APMCopterMode::FLOWHOLD,      false),
 #if 0
     // Follow me not ready for Stable
-        APMCopterMode(APMCopterMode::FOLLOW,        true),
+        APMCopterMode(APMCopterMode::FOLLOW,        false),
 #endif
-        APMCopterMode(APMCopterMode::ZIGZAG,        true),
+        APMCopterMode(APMCopterMode::ZIGZAG,        false),
     });
 
     if (!_remapParamNameIntialized) {
