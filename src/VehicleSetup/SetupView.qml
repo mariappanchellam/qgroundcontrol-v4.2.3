@@ -27,6 +27,12 @@ Rectangle {
 
     ExclusiveGroup { id: setupButtonGroup }
 
+    // Parameters page is password protected
+    ParameterPasswordDialog {
+        id:                 parameterPasswordDialog
+        onPasswordAccepted: showPanel(parametersButton, "SetupParameterEditor.qml")
+    }
+
     readonly property real      _defaultTextHeight: ScreenTools.defaultFontPixelHeight
     readonly property real      _defaultTextWidth:  ScreenTools.defaultFontPixelWidth
     readonly property real      _horizontalMargin:  _defaultTextWidth / 2
@@ -285,6 +291,7 @@ Rectangle {
             }
 
             SubMenuButton {
+                id:                 parametersButton
                 setupIndicator:     false
                 exclusiveGroup:     setupButtonGroup
                 visible:            QGroundControl.multiVehicleManager.parameterReadyVehicleAvailable &&
@@ -292,7 +299,12 @@ Rectangle {
                                     _corePlugin.showAdvancedUI
                 text:               qsTr("Parameters")
                 Layout.fillWidth:   true
-                onClicked:          showPanel(this, "SetupParameterEditor.qml")
+                onClicked: {
+                    if (checked || mainWindow.preventViewSwitch()) {
+                        return
+                    }
+                    parameterPasswordDialog.open()
+                }
             }
 
         }
