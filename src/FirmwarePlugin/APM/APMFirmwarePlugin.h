@@ -83,6 +83,7 @@ protected:
     APMFirmwarePlugin(void);
 
     void setSupportedModes  (QList<APMCustomMode> supportedModes);
+    const QList<APMCustomMode>& supportedModes(void) const { return _supportedModes; }
     void _sendGCSMotionReport(Vehicle* vehicle, FollowMe::GCSMotionReport& motionReport, uint8_t estimatationCapabilities);
 
     bool                _coaxialMotors;

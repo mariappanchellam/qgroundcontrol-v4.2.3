@@ -16,6 +16,8 @@
 #include "MissionManager.h"
 #include "ParameterManager.h"
 
+#include <QRegularExpression>
+
 bool ArduCopterFirmwarePlugin::_remapParamNameIntialized = false;
 FirmwarePlugin::remapParamNameMajorVersionMap_t ArduCopterFirmwarePlugin::_remapParamName;
 
@@ -114,6 +116,40 @@ ArduCopterFirmwarePlugin::ArduCopterFirmwarePlugin(void)
 
         _remapParamNameIntialized = true;
     }
+}
+
+/// Restrict the FLTMODE1..FLTMODE6 parameter choices (Vehicle Setup > Flight Modes and any other
+/// editor of these parameters) to the settable flight modes, in the same order and with the same
+/// names as the toolbar flight mode menu.
+FactMetaData* ArduCopterFirmwarePlugin::_getMetaDataForFact(QObject* parameterMetaData, const QString& name, FactMetaData::ValueType_t type, MAV_TYPE vehicleType)
+{
+    FactMetaData* metaData = APMFirmwarePlugin::_getMetaDataForFact(parameterMetaData, name, type, vehicleType);
+
+    static const QRegularExpression flightModeParamRegExp(QStringLiteral("^FLTMODE[1-6]$"));
+    if (!metaData || !flightModeParamRegExp.match(name).hasMatch() || metaData->enumValues().isEmpty()) {
+        return metaData;
+    }
+
+    const QVariantList allValues = metaData->enumValues();
+    QStringList  strings;
+    QVariantList values;
+    for (const APMCustomMode& mode : supportedModes()) {
+        if (!mode.canBeSet()) {
+            continue;
+        }
+        for (const QVariant& value : allValues) {
+            if (value.toUInt() == mode.modeAsInt()) {
+                strings << mode.modeString();
+                values  << value;
+                break;
+            }
+        }
+    }
+    if (!values.isEmpty()) {
+        metaData->setEnumInfo(strings, values);
+    }
+
+    return metaData;
 }
 
 int ArduCopterFirmwarePlugin::remapParamNameHigestMinorVersionNumber(int majorVersionNumber) const
