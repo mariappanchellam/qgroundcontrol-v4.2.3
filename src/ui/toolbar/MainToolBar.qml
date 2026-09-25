@@ -69,7 +69,6 @@ Rectangle {
             Layout.preferredHeight: viewButtonRow.height
             icon.source:            "/res/QGCLogoFull"
             logo:                   true
-            animateLogo:            true
             onClicked:              mainWindow.showToolSelectDialog()
         }
 
