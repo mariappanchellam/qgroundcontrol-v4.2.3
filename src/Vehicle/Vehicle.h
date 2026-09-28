@@ -405,6 +405,12 @@ public:
     ///     @param timeoutSec Disabled motor after this amount of time
     Q_INVOKABLE void motorTest(int motor, int percent, int timeoutSecs, bool showError);
 
+    /// Motor test using the autopilot's motor test sequence order (A, B, C... on ArduPilot).
+    ///     @param motor        1-based position in the test sequence (1 = A)
+    ///     @param motorCount   0/1 tests just this motor; > 1 has the autopilot test this many motors
+    ///                         in sequence, each for timeoutSecs
+    Q_INVOKABLE void motorTestSequence(int motor, int percent, int timeoutSecs, int motorCount);
+
     enum PIDTuningTelemetryMode {
         ModeDisabled,
         ModeRateAndAttitude,
