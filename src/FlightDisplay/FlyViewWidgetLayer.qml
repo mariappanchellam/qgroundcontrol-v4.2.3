@@ -119,8 +119,11 @@ Item {
         property real rightInset: visible ? parent.width - x : 0
     }
 
+    // DhakshaGroundControl: camera/record panel hidden. The telemetry bar below already
+    // positions itself for the not-visible case.
     PhotoVideoControl {
         id:                     photoVideoControl
+        visible:                false
         anchors.margins:        _toolsMargin
         anchors.right:          parent.right
         width:                  _rightPanelWidth

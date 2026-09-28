@@ -175,7 +175,7 @@ Rectangle {
 
                             FactCheckBox {
                                 text:       qsTr("Show simple camera controls (DIGICAM_CONTROL)")
-                                visible:    _showDumbCameraControl.visible
+                                visible:    false   // DhakshaGroundControl: the camera panel it controls is hidden
                                 fact:       _showDumbCameraControl
 
                                 property Fact _showDumbCameraControl: QGroundControl.settingsManager.flyViewSettings.showSimpleCameraControl
