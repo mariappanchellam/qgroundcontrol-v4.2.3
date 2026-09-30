@@ -63,8 +63,9 @@ private slots:
     void _resendGimbalSpeed ();
 
 private:
-    void _send              (char address, bool write, const char* id, quint8 data);
-    void _sendGimbalSpeed   ();
+    /// Sends one frame; a non-empty description is added to the command log (polls and resends are not logged)
+    void _send              (char address, bool write, const char* id, quint8 data, const QString& description = QString());
+    void _sendGimbalSpeed   (bool log);
     void _handleFrame       (const QByteArray& id, const QByteArray& data);
 
     static int _percentToSpeed(int percent);

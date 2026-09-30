@@ -65,52 +65,55 @@ QByteArray SkydroidGimbalCamera::buildFrame(char address, bool write, const char
     return frame;
 }
 
-void SkydroidGimbalCamera::_send(char address, bool write, const char* id, quint8 data)
+void SkydroidGimbalCamera::_send(char address, bool write, const char* id, quint8 data, const QString& description)
 {
-    if (_cameraAddress.isNull()) {
-        return;
+    const QByteArray frame = buildFrame(address, write, id, data);
+    const bool sent = !_cameraAddress.isNull() && _socket->writeDatagram(frame, _cameraAddress, kControlPort) == frame.size();
+
+    if (!description.isEmpty()) {
+        _logCommand(QStringLiteral("%1 %2  %3").arg(sent ? QStringLiteral("TX") : tr("TX FAILED"), QString::fromLatin1(frame), description));
     }
-    _socket->writeDatagram(buildFrame(address, write, id, data), _cameraAddress, kControlPort);
 }
 
 // ---------------------------------------------------------------------------- Camera
 
 void SkydroidGimbalCamera::takePhoto()
 {
-    _send(kAddressImage, true, kIdCapture, 0x01);
+    _send(kAddressImage, true, kIdCapture, 0x01, tr("Take photo"));
 }
 
 void SkydroidGimbalCamera::startRecording()
 {
-    _send(kAddressImage, true, kIdRecord, 0x01);
+    _send(kAddressImage, true, kIdRecord, 0x01, tr("Start recording"));
     _setRecording(true);    // confirmed or corrected by the next status poll
 }
 
 void SkydroidGimbalCamera::stopRecording()
 {
-    _send(kAddressImage, true, kIdRecord, 0x00);
+    _send(kAddressImage, true, kIdRecord, 0x00, tr("Stop recording"));
     _setRecording(false);
 }
 
 void SkydroidGimbalCamera::toggleDayNight()
 {
-    _send(kAddressImage, true, kIdDayNight, 0x0A);
+    _send(kAddressImage, true, kIdDayNight, 0x0A, tr("Day / night toggle"));
 }
 
 void SkydroidGimbalCamera::setPipMode(int mode)
 {
-    _send(kAddressImage, true, kIdPip, static_cast<quint8>(qBound(0, mode, 3)));
+    const int pipMode = qBound(0, mode, 3);
+    _send(kAddressImage, true, kIdPip, static_cast<quint8>(pipMode), tr("PIP mode %1").arg(pipMode));
 }
 
 // ---------------------------------------------------------------------------- Lens
 
-void SkydroidGimbalCamera::zoomIn()     { _send(kAddressLens, true, kIdZoom, 0x02); }
-void SkydroidGimbalCamera::zoomOut()    { _send(kAddressLens, true, kIdZoom, 0x01); }
-void SkydroidGimbalCamera::zoomStop()   { _send(kAddressLens, true, kIdZoom, 0x00); }
-void SkydroidGimbalCamera::focusIn()    { _send(kAddressLens, true, kIdFocus, 0x01); }
-void SkydroidGimbalCamera::focusOut()   { _send(kAddressLens, true, kIdFocus, 0x02); }
-void SkydroidGimbalCamera::focusStop()  { _send(kAddressLens, true, kIdFocus, 0x00); }
-void SkydroidGimbalCamera::autoFocus()  { _send(kAddressLens, true, kIdFocus, 0x10); }
+void SkydroidGimbalCamera::zoomIn()     { _send(kAddressLens, true, kIdZoom, 0x02, tr("Zoom in")); }
+void SkydroidGimbalCamera::zoomOut()    { _send(kAddressLens, true, kIdZoom, 0x01, tr("Zoom out")); }
+void SkydroidGimbalCamera::zoomStop()   { _send(kAddressLens, true, kIdZoom, 0x00, tr("Zoom stop")); }
+void SkydroidGimbalCamera::focusIn()    { _send(kAddressLens, true, kIdFocus, 0x01, tr("Focus near")); }
+void SkydroidGimbalCamera::focusOut()   { _send(kAddressLens, true, kIdFocus, 0x02, tr("Focus far")); }
+void SkydroidGimbalCamera::focusStop()  { _send(kAddressLens, true, kIdFocus, 0x00, tr("Focus stop")); }
+void SkydroidGimbalCamera::autoFocus()  { _send(kAddressLens, true, kIdFocus, 0x10, tr("Auto focus")); }
 
 // ---------------------------------------------------------------------------- Gimbal
 
@@ -128,19 +131,19 @@ void SkydroidGimbalCamera::gimbalSpeed(int yawPercent, int pitchPercent)
         gimbalStop();
         return;
     }
-    _sendGimbalSpeed();
+    _sendGimbalSpeed(true);
     _gimbalTimer.start();
 }
 
-void SkydroidGimbalCamera::_sendGimbalSpeed()
+void SkydroidGimbalCamera::_sendGimbalSpeed(bool log)
 {
-    _send(kAddressGimbal, true, kIdYawSpeed,   static_cast<quint8>(static_cast<qint8>(_yawSpeed)));
-    _send(kAddressGimbal, true, kIdPitchSpeed, static_cast<quint8>(static_cast<qint8>(_pitchSpeed)));
+    _send(kAddressGimbal, true, kIdYawSpeed,   static_cast<quint8>(static_cast<qint8>(_yawSpeed)),   log ? tr("Gimbal yaw speed %1").arg(_yawSpeed) : QString());
+    _send(kAddressGimbal, true, kIdPitchSpeed, static_cast<quint8>(static_cast<qint8>(_pitchSpeed)), log ? tr("Gimbal pitch speed %1").arg(_pitchSpeed) : QString());
 }
 
 void SkydroidGimbalCamera::_resendGimbalSpeed()
 {
-    _sendGimbalSpeed();
+    _sendGimbalSpeed(false);
 }
 
 void SkydroidGimbalCamera::gimbalStop()
@@ -148,24 +151,24 @@ void SkydroidGimbalCamera::gimbalStop()
     _gimbalTimer.stop();
     _yawSpeed   = 0;
     _pitchSpeed = 0;
-    _sendGimbalSpeed();
-    _send(kAddressGimbal, true, kIdGimbalMode, 0x00);
+    _sendGimbalSpeed(true);
+    _send(kAddressGimbal, true, kIdGimbalMode, 0x00, tr("Gimbal stop"));
 }
 
 void SkydroidGimbalCamera::gimbalCenter()
 {
     _gimbalTimer.stop();
-    _send(kAddressGimbal, true, kIdGimbalMode, 0x05);
+    _send(kAddressGimbal, true, kIdGimbalMode, 0x05, tr("Gimbal centre"));
 }
 
 void SkydroidGimbalCamera::gimbalLock()
 {
-    _send(kAddressGimbal, true, kIdGimbalMode, 0x06);
+    _send(kAddressGimbal, true, kIdGimbalMode, 0x06, tr("Gimbal lock"));
 }
 
 void SkydroidGimbalCamera::gimbalFollow()
 {
-    _send(kAddressGimbal, true, kIdGimbalMode, 0x07);
+    _send(kAddressGimbal, true, kIdGimbalMode, 0x07, tr("Gimbal follow"));
 }
 
 // ---------------------------------------------------------------------------- Status

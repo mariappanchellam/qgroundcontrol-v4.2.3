@@ -14,6 +14,7 @@
 
 #include <QObject>
 #include <QString>
+#include <QStringList>
 
 class DhakshaGimbalCamera : public QObject
 {
@@ -27,13 +28,17 @@ public:
     Q_PROPERTY(bool     controlSupported    READ controlSupported   CONSTANT)   ///< false: video stream only
     Q_PROPERTY(bool     connected           READ connected          NOTIFY connectedChanged)
     Q_PROPERTY(bool     recording           READ recording          NOTIFY recordingChanged)
+    Q_PROPERTY(QStringList commandLog       READ commandLog         NOTIFY commandLogChanged)  ///< Newest first; lets the operator verify commands without the camera
 
     QString vendorName  () const { return _vendorName; }
     QString rtspUrl     () const { return _rtspUrl; }
     bool    connected   () const { return _connected; }
     bool    recording   () const { return _recording; }
+    QStringList commandLog() const { return _commandLog; }
 
     virtual bool controlSupported() const { return false; }
+
+    Q_INVOKABLE void clearCommandLog();
 
     // Camera
     Q_INVOKABLE virtual void takePhoto          () {}
@@ -64,14 +69,19 @@ public:
 signals:
     void connectedChanged   ();
     void recordingChanged   ();
+    void commandLogChanged  ();
 
 protected:
     void _setConnected(bool connected);
     void _setRecording(bool recording);
+    void _logCommand(const QString& entry);
 
 private:
     QString _vendorName;
     QString _rtspUrl;
     bool    _connected = false;
     bool    _recording = false;
+    QStringList _commandLog;
+
+    static constexpr int kMaxLogEntries = 50;
 };

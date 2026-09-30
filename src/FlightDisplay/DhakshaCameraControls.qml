@@ -5,7 +5,8 @@
  * Works with any DhakshaGimbalCamera (SIYI, ViewPro, Skydroid); the vendor
  * specific protocol lives in the C++ camera classes. Hold the arrow, zoom
  * and focus buttons; releasing them stops the movement. Tap the title to
- * collapse / expand the panel.
+ * collapse / expand the panel. "Log" shows the commands sent to the camera,
+ * so the controls can be checked without the camera attached.
  *
  ****************************************************************************/
 
@@ -32,6 +33,8 @@ Rectangle {
     property int    _gimbalSpeed:   50      // percent of maximum rotation speed
     property int    _pipMode:       0
     property bool   _expanded:      true
+    property bool   _showLog:       false
+    property int    _logLines:      6
 
     QGCPalette { id: qgcPal; colorGroupEnabled: true }
 
@@ -72,9 +75,15 @@ Rectangle {
                     onClicked:      _expanded = !_expanded
                 }
             }
+            QGCButton {
+                text:       _showLog ? qsTr("Hide Log") : qsTr("Log")
+                visible:    _expanded
+                onClicked:  _showLog = !_showLog
+            }
         }
 
         RowLayout {
+            id:         controlsRow
             visible:    _expanded
             spacing:    _margins
 
@@ -207,6 +216,44 @@ Rectangle {
                         _camera.setPipMode(_pipMode)
                     }
                 }
+            }
+        }
+
+        // Command log, newest first
+        ColumnLayout {
+            Layout.preferredWidth:  controlsRow.implicitWidth
+            Layout.maximumWidth:    controlsRow.implicitWidth
+            visible:                _expanded && _showLog
+            spacing:            0
+
+            RowLayout {
+                Layout.fillWidth: true
+                QGCLabel {
+                    Layout.fillWidth:   true
+                    text:               qsTr("Commands sent (newest first)")
+                    color:              "white"
+                }
+                QGCButton {
+                    text:       qsTr("Clear")
+                    onClicked:  _camera.clearCommandLog()
+                }
+            }
+            Repeater {
+                model: _camera ? _camera.commandLog.slice(0, _logLines) : []
+                QGCLabel {
+                    Layout.fillWidth:   true
+                    text:               modelData
+                    color:              "white"
+                    font.family:        ScreenTools.fixedFontFamily
+                    font.pointSize:     ScreenTools.smallFontPointSize
+                    wrapMode:           Text.WrapAtWordBoundaryOrAnywhere
+                }
+            }
+            QGCLabel {
+                visible:        _camera && _camera.commandLog.length === 0
+                text:           qsTr("No commands sent yet")
+                color:          "white"
+                font.pointSize: ScreenTools.smallFontPointSize
             }
         }
     }
