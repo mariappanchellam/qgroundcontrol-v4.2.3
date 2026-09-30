@@ -23,6 +23,7 @@ import QGroundControl.MultiVehicleManager   1.0
 import QGroundControl.Palette               1.0
 import QGroundControl.Controllers           1.0
 import QGroundControl.SettingsManager       1.0
+import QGroundControl.DhakshaCamera         1.0
 
 Rectangle {
     id:                 _root
@@ -346,6 +347,75 @@ Rectangle {
                                     fact:       _videoSettings.enableStorageLimit
                                     visible:    _showSaveVideoSettings && fact.visible
                                 }
+                            }
+                        }
+                    }
+
+                    // DhakshaGroundControl: gimbal camera vendor / stream selection
+                    Item { width: 1; height: _margins }
+                    QGCLabel {
+                        id:         gimbalCameraSectionLabel
+                        text:       qsTr("Gimbal Camera")
+                    }
+                    Rectangle {
+                        Layout.preferredHeight: gimbalCameraGrid.height + (_margins * 2)
+                        Layout.preferredWidth:  gimbalCameraGrid.width + (_margins * 2)
+                        color:                  qgcPal.windowShade
+                        Layout.fillWidth:       true
+
+                        GridLayout {
+                            id:                         gimbalCameraGrid
+                            anchors.margins:            _margins
+                            anchors.top:                parent.top
+                            anchors.horizontalCenter:   parent.horizontalCenter
+                            columns:                    2
+                            rowSpacing:                 _margins
+                            columnSpacing:              _margins
+
+                            QGCLabel { text: qsTr("Camera Vendor") }
+                            QGCComboBox {
+                                Layout.preferredWidth:  _comboFieldWidth
+                                model:                  DhakshaCameraManager.vendorNames
+                                currentIndex:           DhakshaCameraManager.vendor
+                                onActivated:            DhakshaCameraManager.vendor = index
+                            }
+
+                            QGCLabel { text: qsTr("Camera IP") }
+                            QGCTextField {
+                                Layout.preferredWidth:  _comboFieldWidth
+                                text:                   DhakshaCameraManager.cameraIp
+                                enabled:                DhakshaCameraManager.vendor !== 0
+                                onEditingFinished:      DhakshaCameraManager.cameraIp = text
+                            }
+
+                            QGCLabel { text: qsTr("RTSP URL") }
+                            QGCTextField {
+                                Layout.preferredWidth:  _comboFieldWidth * 1.6
+                                text:                   DhakshaCameraManager.rtspUrl
+                                enabled:                DhakshaCameraManager.vendor !== 0
+                                onEditingFinished:      DhakshaCameraManager.rtspUrl = text
+                            }
+
+                            QGCLabel {
+                                text:   qsTr("Status")
+                            }
+                            QGCLabel {
+                                property var _camera: DhakshaCameraManager.camera
+                                text: !_camera ? qsTr("No camera selected")
+                                    : !_camera.controlSupported ? qsTr("%1: video stream only").arg(_camera.vendorName)
+                                    : _camera.connected ? qsTr("%1: connected").arg(_camera.vendorName)
+                                    : qsTr("%1: no reply from camera").arg(_camera.vendorName)
+                            }
+
+                            QGCButton {
+                                text:       qsTr("Restore Defaults")
+                                enabled:    DhakshaCameraManager.vendor !== 0
+                                onClicked:  DhakshaCameraManager.restoreVendorDefaults()
+                            }
+                            QGCButton {
+                                text:       qsTr("Apply and Start Video")
+                                primary:    true
+                                onClicked:  DhakshaCameraManager.apply()
                             }
                         }
                     }

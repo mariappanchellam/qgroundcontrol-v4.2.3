@@ -386,6 +386,7 @@ INCLUDEPATH += \
     src/api \
     src/AnalyzeView \
     src/Camera \
+    src/Dhaksha/Camera \
     src/Compression \
     src/AutoPilotPlugins \
     src/FlightDisplay \
@@ -576,6 +577,9 @@ HEADERS += \
     src/Camera/QGCCameraControl.h \
     src/Camera/QGCCameraIO.h \
     src/Camera/QGCCameraManager.h \
+    src/Dhaksha/Camera/DhakshaCameraManager.h \
+    src/Dhaksha/Camera/DhakshaGimbalCamera.h \
+    src/Dhaksha/Camera/SkydroidGimbalCamera.h \
     src/CmdLineOptParser.h \
     src/Compression/QGCLZMA.h \
     src/Compression/QGCZlib.h \
@@ -831,6 +835,9 @@ SOURCES += \
     src/Camera/QGCCameraControl.cc \
     src/Camera/QGCCameraIO.cc \
     src/Camera/QGCCameraManager.cc \
+    src/Dhaksha/Camera/DhakshaCameraManager.cc \
+    src/Dhaksha/Camera/DhakshaGimbalCamera.cc \
+    src/Dhaksha/Camera/SkydroidGimbalCamera.cc \
     src/CmdLineOptParser.cc \
     src/Compression/QGCLZMA.cc \
     src/Compression/QGCZlib.cc \

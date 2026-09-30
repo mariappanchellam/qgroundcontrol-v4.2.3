@@ -87,6 +87,7 @@
 #include "EditPositionDialogController.h"
 #include "FactValueSliderListModel.h"
 #include "ShapeFileHelper.h"
+#include "DhakshaCameraManager.h"
 #include "QGCFileDownload.h"
 #include "FirmwareImage.h"
 #include "MavlinkConsoleController.h"
@@ -532,6 +533,8 @@ void QGCApplication::_initCommon()
     qmlRegisterSingletonType<ScreenToolsController>     ("QGroundControl.ScreenToolsController",    1, 0, "ScreenToolsController",  screenToolsControllerSingletonFactory);
     qmlRegisterSingletonType<ShapeFileHelper>           ("QGroundControl.ShapeFileHelper",          1, 0, "ShapeFileHelper",        shapeFileHelperSingletonFactory);
     qmlRegisterSingletonType<ShapeFileHelper>           ("MAVLink",                                 1, 0, "MAVLink",                mavlinkSingletonFactory);
+    qmlRegisterSingletonType<DhakshaCameraManager>      ("QGroundControl.DhakshaCamera",            1, 0, "DhakshaCameraManager",   DhakshaCameraManager::qmlSingletonFactory);
+    qmlRegisterUncreatableType<DhakshaGimbalCamera>     ("QGroundControl.DhakshaCamera",            1, 0, "DhakshaGimbalCamera",    kRefOnly);
 
     // Although this should really be in _initForNormalAppBoot putting it here allowws us to create unit tests which pop up more easily
     if(QFontDatabase::addApplicationFont(":/fonts/opensans") < 0) {
@@ -545,6 +548,9 @@ void QGCApplication::_initCommon()
 bool QGCApplication::_initForNormalAppBoot()
 {
     QSettings settings;
+
+    // Load the configured gimbal camera and point the video stream at its RTSP URL before the UI starts
+    DhakshaCameraManager::instance()->apply();
 
     _qmlAppEngine = toolbox()->corePlugin()->createQmlApplicationEngine(this);
     toolbox()->corePlugin()->createRootWindow(_qmlAppEngine);

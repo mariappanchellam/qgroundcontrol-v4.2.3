@@ -150,6 +150,14 @@ Item {
         property bool _verticalCenter: !QGroundControl.settingsManager.flyViewSettings.alternateInstrumentPanel.rawValue
     }
 
+    // DhakshaGroundControl: gimbal camera controls (SIYI / ViewPro / Skydroid)
+    DhakshaCameraControls {
+        id:                 cameraControls
+        anchors.margins:    _toolsMargin
+        anchors.right:      parent.right
+        anchors.top:        instrumentPanel.visible ? instrumentPanel.bottom : parent.top
+    }
+
     TelemetryValuesBar {
         id:                 telemetryPanel
         x:                  recalcXPosition()
@@ -177,11 +185,11 @@ Item {
 
             State {
                 name: "right-video"
-                when: !telemetryPanel.bottomMode && photoVideoControl.visible
+                when: !telemetryPanel.bottomMode && cameraControls.visible
 
                 AnchorChanges {
                     target: telemetryPanel
-                    anchors.top: photoVideoControl.bottom
+                    anchors.top: cameraControls.bottom
                     anchors.bottom: undefined
                     anchors.right: parent.right
                     anchors.verticalCenter: undefined
@@ -190,7 +198,7 @@ Item {
 
             State {
                 name: "right-novideo"
-                when: !telemetryPanel.bottomMode && !photoVideoControl.visible
+                when: !telemetryPanel.bottomMode && !cameraControls.visible
 
                 AnchorChanges {
                     target: telemetryPanel
