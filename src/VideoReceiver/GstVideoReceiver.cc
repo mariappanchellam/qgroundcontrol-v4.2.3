@@ -650,6 +650,14 @@ GstVideoReceiver::setStreamForwardUrl(const QString& url)
     });
 }
 
+void
+GstVideoReceiver::setStreamMetadata(const QJsonObject& metadata)
+{
+    if (_forwarder != nullptr) {
+        _forwarder->setMetadata(metadata);
+    }
+}
+
 bool
 GstVideoReceiver::_addForwardBranch(void)
 {

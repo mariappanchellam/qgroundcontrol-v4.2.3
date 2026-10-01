@@ -98,6 +98,7 @@ public slots:
     virtual void stopRecording(void);
     virtual void takeScreenshot(const QString& imageFile);
     virtual void setStreamForwardUrl(const QString& url);
+    virtual void setStreamMetadata(const QJsonObject& metadata);
 
 protected slots:
     virtual void _watchdog(void);

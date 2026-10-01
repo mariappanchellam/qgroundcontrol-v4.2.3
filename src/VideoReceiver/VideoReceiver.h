@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include <QJsonObject>
 #include <QObject>
 #include <QSize>
 
@@ -80,4 +81,6 @@ public slots:
     virtual void takeScreenshot(const QString& imageFile) = 0;
     /// Forwards the received video to the given URL (rtmp://...); empty stops forwarding
     virtual void setStreamForwardUrl(const QString& url) { Q_UNUSED(url) }
+    /// Telemetry embedded into every forwarded video frame
+    virtual void setStreamMetadata(const QJsonObject& metadata) { Q_UNUSED(metadata) }
 };

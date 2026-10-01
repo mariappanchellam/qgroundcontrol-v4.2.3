@@ -7,12 +7,16 @@
 #include "GstStreamForwarder.h"
 #include "QGCLoggingCategory.h"
 
+#include <QDateTime>
+#include <QJsonDocument>
 #include <QMetaObject>
 #include <QMutexLocker>
 
 #include <gst/app/gstappsrc.h>
 
 QGC_LOGGING_CATEGORY(StreamForwarderLog, "StreamForwarderLog")
+
+const QByteArray GstStreamForwarder::kSeiUuid("DHAKSHA-GCS-TLM1", 16);
 
 GstStreamForwarder::GstStreamForwarder(QObject* parent)
     : QObject(parent)
@@ -50,6 +54,97 @@ void GstStreamForwarder::resetTimestamps()
 {
     QMutexLocker locker(&_lock);
     _baseTime = GST_CLOCK_TIME_NONE;
+}
+
+void GstStreamForwarder::setMetadata(const QJsonObject& metadata)
+{
+    QMutexLocker locker(&_metadataLock);
+    _metadata = metadata;
+}
+
+QByteArray GstStreamForwarder::buildSeiNal(const QByteArray& payload)
+{
+    // SEI message: payloadType 5 (user data unregistered), payloadSize, UUID, data
+    QByteArray rbsp;
+    rbsp.append(char(5));
+    int size = kSeiUuid.size() + payload.size();
+    while (size >= 255) {
+        rbsp.append(char(0xFF));
+        size -= 255;
+    }
+    rbsp.append(char(size));
+    rbsp.append(kSeiUuid);
+    rbsp.append(payload);
+    rbsp.append(char(0x80));                        // rbsp_trailing_bits
+
+    QByteArray nal("\x00\x00\x00\x01\x06", 5);   // start code, nal_unit_type 6 (SEI)
+    int zeros = 0;
+    for (const char c : rbsp) {
+        const quint8 byte = static_cast<quint8>(c);
+        if (zeros >= 2 && byte <= 3) {
+            nal.append(char(0x03));                 // emulation prevention
+            zeros = 0;
+        }
+        nal.append(c);
+        zeros = byte == 0 ? zeros + 1 : 0;
+    }
+    return nal;
+}
+
+QByteArray GstStreamForwarder::insertBeforeFirstSlice(const QByteArray& accessUnit, const QByteArray& sei)
+{
+    const int size = accessUnit.size();
+    for (int i = 0; i + 3 < size; i++) {
+        if (accessUnit.at(i) == 0 && accessUnit.at(i + 1) == 0 && accessUnit.at(i + 2) == 1) {
+            const int nalType = accessUnit.at(i + 3) & 0x1F;
+            if (nalType == 1 || nalType == 5) {
+                const int start = (i > 0 && accessUnit.at(i - 1) == 0) ? i - 1 : i;
+                return accessUnit.left(start) + sei + accessUnit.mid(start);
+            }
+            i += 2;
+        }
+    }
+    return accessUnit;      // no slice found: leave the buffer untouched
+}
+
+GstBuffer* GstStreamForwarder::_addMetadata(GstBuffer* buffer)
+{
+    QJsonObject metadata;
+    {
+        QMutexLocker locker(&_metadataLock);
+        metadata = _metadata;
+    }
+    metadata[QStringLiteral("frame")] = static_cast<qint64>(_frameNumber++);
+    metadata[QStringLiteral("frame_ts")] = QDateTime::currentMSecsSinceEpoch();
+    if (GST_BUFFER_PTS_IS_VALID(buffer)) {
+        metadata[QStringLiteral("pts_ms")] = static_cast<qint64>(GST_BUFFER_PTS(buffer) / GST_MSECOND);
+    }
+    const QByteArray sei = buildSeiNal(QJsonDocument(metadata).toJson(QJsonDocument::Compact));
+
+    GstMapInfo map;
+    if (!gst_buffer_map(buffer, &map, GST_MAP_READ)) {
+        return buffer;
+    }
+    const QByteArray withSei = insertBeforeFirstSlice(QByteArray::fromRawData(reinterpret_cast<const char*>(map.data), static_cast<int>(map.size)), sei);
+    gst_buffer_unmap(buffer, &map);
+
+    GstBuffer* output = gst_buffer_new_allocate(nullptr, static_cast<gsize>(withSei.size()), nullptr);
+    if (output == nullptr) {
+        return buffer;
+    }
+    gst_buffer_fill(output, 0, withSei.constData(), static_cast<gsize>(withSei.size()));
+    gst_buffer_copy_into(output, buffer, GST_BUFFER_COPY_METADATA, 0, static_cast<gsize>(-1));
+    gst_buffer_unref(buffer);
+    return output;
+}
+
+GstPadProbeReturn GstStreamForwarder::_onMetadataProbe(GstPad* /*pad*/, GstPadProbeInfo* info, gpointer user_data)
+{
+    GstBuffer* buffer = GST_PAD_PROBE_INFO_BUFFER(info);
+    if (buffer != nullptr) {
+        GST_PAD_PROBE_INFO_DATA(info) = static_cast<GstStreamForwarder*>(user_data)->_addMetadata(buffer);
+    }
+    return GST_PAD_PROBE_OK;
 }
 
 void GstStreamForwarder::pushSample(GstSample* sample)
@@ -119,6 +214,8 @@ void GstStreamForwarder::_startPipeline()
         "appsrc name=src is-live=true format=time do-timestamp=false max-bytes=4000000 "
         "! queue leaky=downstream max-size-buffers=0 max-size-bytes=0 max-size-time=2000000000 "
         "! h264parse config-interval=-1 "
+        "! capsfilter name=meta caps=\"video/x-h264,stream-format=byte-stream,alignment=au\" "
+        "! h264parse "
         "! flvmux streamable=true "
         "! rtmp2sink name=sink sync=false async=false");
 
@@ -136,6 +233,13 @@ void GstStreamForwarder::_startPipeline()
         _setStatus(false, tr("RTMP streaming is not available in this build (%1)").arg(reason));
         return;
     }
+
+    GstElement* meta = gst_bin_get_by_name(GST_BIN(pipeline), "meta");
+    GstPad* metaPad = gst_element_get_static_pad(meta, "src");
+    gst_pad_add_probe(metaPad, GST_PAD_PROBE_TYPE_BUFFER, _onMetadataProbe, this, nullptr);
+    gst_object_unref(metaPad);
+    gst_object_unref(meta);
+    _frameNumber = 0;
 
     GstElement* sink = gst_bin_get_by_name(GST_BIN(pipeline), "sink");
     g_object_set(sink, "location", _url.toUtf8().constData(), nullptr);

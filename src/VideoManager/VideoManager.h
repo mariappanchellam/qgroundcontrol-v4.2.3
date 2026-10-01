@@ -145,6 +145,7 @@ protected slots:
     void _setActiveVehicle          (Vehicle* vehicle);
     void _aspectRatioChanged        ();
     void _communicationLostChanged  (bool communicationLost);
+    void _sendStreamTelemetry       ();
 
 protected:
     friend class FinishVideoInitialization;
@@ -181,6 +182,7 @@ protected:
     QString                 _videoSourceID;
     bool                    _fullScreen             = false;
     bool                    _streamForwardActive    = false;
+    QTimer                  _streamTelemetryTimer;
     QString                 _streamForwardStatus;
     Vehicle*                _activeVehicle          = nullptr;
 };
