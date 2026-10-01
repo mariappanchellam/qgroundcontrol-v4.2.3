@@ -5,7 +5,8 @@
  * The operator picks the vendor (SIYI, ViewPro, Skydroid) plus its IP and
  * RTSP URL once; the choice is stored and, on every start-up, the manager
  * creates the matching DhakshaGimbalCamera and points QGC's video stream at
- * the camera's RTSP URL so video starts automatically.
+ * the camera's RTSP URL so video starts automatically. Optionally the video
+ * is also forwarded to a remote RTMP server.
  *
  ****************************************************************************/
 
@@ -38,6 +39,8 @@ public:
     Q_PROPERTY(QString              cameraIp    READ cameraIp   WRITE setCameraIp   NOTIFY cameraIpChanged)
     Q_PROPERTY(QString              rtspUrl     READ rtspUrl    WRITE setRtspUrl    NOTIFY rtspUrlChanged)
     Q_PROPERTY(DhakshaGimbalCamera* camera      READ camera                         NOTIFY cameraChanged)
+    Q_PROPERTY(bool     streamForwardEnabled    READ streamForwardEnabled   WRITE setStreamForwardEnabled   NOTIFY streamForwardEnabledChanged)
+    Q_PROPERTY(QString  streamForwardUrl        READ streamForwardUrl       WRITE setStreamForwardUrl       NOTIFY streamForwardUrlChanged)
 
     static DhakshaCameraManager* instance();
     static QObject* qmlSingletonFactory(QQmlEngine*, QJSEngine*);
@@ -47,13 +50,17 @@ public:
     QString                 cameraIp    () const { return _cameraIp; }
     QString                 rtspUrl     () const { return _rtspUrl; }
     DhakshaGimbalCamera*    camera      () const { return _camera; }
+    bool                    streamForwardEnabled() const { return _streamForwardEnabled; }
+    QString                 streamForwardUrl    () const { return _streamForwardUrl; }
 
     /// Changing the vendor loads that vendor's saved IP / RTSP URL; call apply() to use them.
     void setVendor      (int vendor);
     void setCameraIp    (const QString& cameraIp);
     void setRtspUrl     (const QString& rtspUrl);
+    void setStreamForwardEnabled(bool enabled);
+    void setStreamForwardUrl    (const QString& url);
 
-    /// Saves the settings, (re)creates the camera instance and starts its RTSP video stream.
+    /// Saves the settings, (re)creates the camera instance, starts its RTSP video stream and the server forwarding.
     Q_INVOKABLE void apply();
 
     /// Restores the selected vendor's default IP and RTSP URL (not saved until apply()).
@@ -67,6 +74,8 @@ signals:
     void cameraIpChanged();
     void rtspUrlChanged ();
     void cameraChanged  ();
+    void streamForwardEnabledChanged();
+    void streamForwardUrlChanged    ();
 
 private:
     explicit DhakshaCameraManager(QObject* parent = nullptr);
@@ -75,9 +84,12 @@ private:
     void _saveSettings          ();
     void _createCamera          ();
     void _startVideoStream      ();
+    void _applyStreamForward    ();
 
     int                     _vendor     = VendorSkydroid;
     QString                 _cameraIp;
     QString                 _rtspUrl;
     DhakshaGimbalCamera*    _camera     = nullptr;
+    bool                    _streamForwardEnabled = false;
+    QString                 _streamForwardUrl;
 };

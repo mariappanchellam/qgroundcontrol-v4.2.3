@@ -21,6 +21,8 @@
 #include <QDateTime>
 #include <QSysInfo>
 
+#include <gst/app/gstappsink.h>
+
 QGC_LOGGING_CATEGORY(VideoReceiverLog, "VideoReceiverLog")
 
 //-----------------------------------------------------------------------------
@@ -31,6 +33,8 @@ QGC_LOGGING_CATEGORY(VideoReceiverLog, "VideoReceiverLog")
 // _source-->_tee
 //              |
 //              +-->queue-->_recorderValve[-->_fileSink]
+//              |
+//              +[-->queue(leaky)-->appsink]--> GstStreamForwarder (own pipeline, RTMP)
 //
 
 GstVideoReceiver::GstVideoReceiver(QObject* parent)
@@ -201,6 +205,12 @@ GstVideoReceiver::start(const QString& uri, unsigned timeout, int buffer)
             break;
         }
 
+        // Forwarding is optional: a failure here must not stop the local video
+        if (_forwarder != nullptr) {
+            _forwarder->resetTimestamps();
+            _addForwardBranch();
+        }
+
         GstBus* bus = nullptr;
 
         if ((bus = gst_pipeline_get_bus(GST_PIPELINE(_pipeline))) != nullptr) {
@@ -342,6 +352,7 @@ GstVideoReceiver::stop(void)
 
         _recorderValve = nullptr;
         _decoderValve = nullptr;
+        _forwardBranch = nullptr;
         _tee = nullptr;
         _source = nullptr;
 
@@ -616,6 +627,81 @@ GstVideoReceiver::takeScreenshot(const QString& imageFile)
     _dispatchSignal([this](){
         emit onTakeScreenshotComplete(STATUS_NOT_IMPLEMENTED);
     });
+}
+
+void
+GstVideoReceiver::setStreamForwardUrl(const QString& url)
+{
+    if (_forwarder == nullptr) {
+        if (url.trimmed().isEmpty()) {
+            return;
+        }
+        _forwarder = new GstStreamForwarder(this);
+        connect(_forwarder, &GstStreamForwarder::statusChanged, this, &VideoReceiver::streamForwardStatusChanged);
+    }
+
+    _forwarder->setUrl(url);
+
+    // The branch is added when the stream starts; add it now if the stream is already running
+    _slotHandler.dispatch([this]() {
+        if (_pipeline != nullptr && _forwardBranch == nullptr) {
+            _addForwardBranch();
+        }
+    });
+}
+
+bool
+GstVideoReceiver::_addForwardBranch(void)
+{
+    GError* error = nullptr;
+    GstElement* branch = gst_parse_bin_from_description(
+        "queue leaky=downstream max-size-buffers=0 max-size-bytes=0 max-size-time=1000000000 "
+        "! appsink name=forwardsink sync=false async=false emit-signals=true max-buffers=60 drop=true",
+        TRUE, &error);
+
+    if (branch == nullptr || error != nullptr) {
+        qCWarning(VideoReceiverLog) << "Video forwarding not available:" << (error != nullptr ? error->message : "");
+        if (error != nullptr) {
+            g_error_free(error);
+        }
+        if (branch != nullptr) {
+            gst_object_unref(branch);
+        }
+        return false;
+    }
+
+    GstElement* appsink = gst_bin_get_by_name(GST_BIN(branch), "forwardsink");
+    g_signal_connect(appsink, "new-sample", G_CALLBACK(_onForwardSample), this);
+    gst_object_unref(appsink);
+
+    gst_bin_add(GST_BIN(_pipeline), branch);
+
+    if (!gst_element_link(_tee, branch)) {
+        qCWarning(VideoReceiverLog) << "Unable to link video forwarding branch";
+        gst_bin_remove(GST_BIN(_pipeline), branch);
+        return false;
+    }
+
+    gst_element_sync_state_with_parent(branch);
+    _forwardBranch = branch;
+    qCDebug(VideoReceiverLog) << "Video forwarding branch added";
+    return true;
+}
+
+GstFlowReturn
+GstVideoReceiver::_onForwardSample(GstElement* appsink, gpointer user_data)
+{
+    GstVideoReceiver* pThis = static_cast<GstVideoReceiver*>(user_data);
+    GstSample* sample = gst_app_sink_pull_sample(GST_APP_SINK(appsink));
+
+    if (sample != nullptr) {
+        if (pThis->_forwarder != nullptr) {
+            pThis->_forwarder->pushSample(sample);
+        }
+        gst_sample_unref(sample);
+    }
+
+    return GST_FLOW_OK;
 }
 
 const char* GstVideoReceiver::_kFileMux[FILE_FORMAT_MAX - FILE_FORMAT_MIN] = {

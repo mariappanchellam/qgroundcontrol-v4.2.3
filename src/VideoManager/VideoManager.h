@@ -55,6 +55,8 @@ public:
     Q_PROPERTY(bool             decoding                READ    decoding                                    NOTIFY decodingChanged)
     Q_PROPERTY(bool             recording               READ    recording                                   NOTIFY recordingChanged)
     Q_PROPERTY(QSize            videoSize               READ    videoSize                                   NOTIFY videoSizeChanged)
+    Q_PROPERTY(bool             streamForwardActive     READ    streamForwardActive                         NOTIFY streamForwardStatusChanged)
+    Q_PROPERTY(QString          streamForwardStatus     READ    streamForwardStatus                         NOTIFY streamForwardStatusChanged)
 
     virtual bool        hasVideo            ();
     virtual bool        isGStreamer         ();
@@ -111,6 +113,11 @@ public:
 
     Q_INVOKABLE void grabImage(const QString& imageFile = QString());
 
+    /// Forwards the main camera video to a remote server (rtmp://...); empty stops forwarding
+    Q_INVOKABLE void setStreamForwardUrl(const QString& url);
+    bool    streamForwardActive () const { return _streamForwardActive; }
+    QString streamForwardStatus () const { return _streamForwardStatus; }
+
 signals:
     void hasVideoChanged            ();
     void isGStreamerChanged         ();
@@ -126,6 +133,7 @@ signals:
     void recordingChanged           ();
     void recordingStarted           ();
     void videoSizeChanged           ();
+    void streamForwardStatusChanged ();
 
 protected slots:
     void _videoSourceChanged        ();
@@ -172,6 +180,8 @@ protected:
     VideoSettings*          _videoSettings          = nullptr;
     QString                 _videoSourceID;
     bool                    _fullScreen             = false;
+    bool                    _streamForwardActive    = false;
+    QString                 _streamForwardStatus;
     Vehicle*                _activeVehicle          = nullptr;
 };
 

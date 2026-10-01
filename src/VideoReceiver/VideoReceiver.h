@@ -63,6 +63,9 @@ signals:
     void onStopRecordingComplete(STATUS status);
     void onTakeScreenshotComplete(STATUS status);
 
+    /// Forwarding of the received video to a remote (RTMP) server
+    void streamForwardStatusChanged(bool active, const QString& message);
+
 public slots:
     // buffer:
     //      -1 - disable buffer and video sync
@@ -75,4 +78,6 @@ public slots:
     virtual void startRecording(const QString& videoFile, FILE_FORMAT format) = 0;
     virtual void stopRecording(void) = 0;
     virtual void takeScreenshot(const QString& imageFile) = 0;
+    /// Forwards the received video to the given URL (rtmp://...); empty stops forwarding
+    virtual void setStreamForwardUrl(const QString& url) { Q_UNUSED(url) }
 };

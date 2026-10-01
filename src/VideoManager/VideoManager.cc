@@ -168,6 +168,12 @@ VideoManager::setToolbox(QGCToolbox *toolbox)
         emit videoSizeChanged();
     });
 
+    connect(_videoReceiver[0], &VideoReceiver::streamForwardStatusChanged, this, [this](bool active, const QString& message){
+        _streamForwardActive = active;
+        _streamForwardStatus = message;
+        emit streamForwardStatusChanged();
+    });
+
     //connect(_videoReceiver, &VideoReceiver::onTakeScreenshotComplete, this, [this](VideoReceiver::STATUS status){
     //    if (status == VideoReceiver::STATUS_OK) {
     //    }
@@ -861,4 +867,21 @@ void
 VideoManager::_aspectRatioChanged()
 {
     emit aspectRatioChanged();
+}
+
+//-----------------------------------------------------------------------------
+void
+VideoManager::setStreamForwardUrl(const QString& url)
+{
+#if defined(QGC_GST_STREAMING)
+    if (_videoReceiver[0] != nullptr) {
+        _videoReceiver[0]->setStreamForwardUrl(url);
+        return;
+    }
+#endif
+    if (!url.trimmed().isEmpty()) {
+        _streamForwardActive = false;
+        _streamForwardStatus = tr("Video streaming is not supported in this build");
+        emit streamForwardStatusChanged();
+    }
 }

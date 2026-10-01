@@ -11,6 +11,7 @@
 #include "QGCApplication.h"
 #include "QGCToolbox.h"
 #include "SettingsManager.h"
+#include "VideoManager.h"
 #include "VideoSettings.h"
 #endif
 
@@ -22,6 +23,8 @@ namespace {
     const char* kVendorKey      = "vendor";
     const char* kIpKey          = "ip";
     const char* kRtspKey        = "rtspUrl";
+    const char* kForwardKey     = "streamForwardEnabled";
+    const char* kForwardUrlKey  = "streamForwardUrl";
 
     QString vendorKey(int vendor)
     {
@@ -48,6 +51,8 @@ DhakshaCameraManager::DhakshaCameraManager(QObject* parent)
     QSettings settings;
     settings.beginGroup(kSettingsGroup);
     _vendor = qBound(0, settings.value(kVendorKey, VendorSkydroid).toInt(), VendorCount - 1);
+    _streamForwardEnabled = settings.value(kForwardKey, false).toBool();
+    _streamForwardUrl = settings.value(kForwardUrlKey).toString();
     settings.endGroup();
     _loadVendorSettings();
 }
@@ -89,6 +94,8 @@ void DhakshaCameraManager::_saveSettings()
     QSettings settings;
     settings.beginGroup(kSettingsGroup);
     settings.setValue(kVendorKey, _vendor);
+    settings.setValue(kForwardKey, _streamForwardEnabled);
+    settings.setValue(kForwardUrlKey, _streamForwardUrl);
     settings.beginGroup(vendorKey(_vendor));
     settings.setValue(kIpKey, _cameraIp);
     settings.setValue(kRtspKey, _rtspUrl);
@@ -122,6 +129,23 @@ void DhakshaCameraManager::setRtspUrl(const QString& rtspUrl)
     }
 }
 
+void DhakshaCameraManager::setStreamForwardEnabled(bool enabled)
+{
+    if (enabled != _streamForwardEnabled) {
+        _streamForwardEnabled = enabled;
+        emit streamForwardEnabledChanged();
+    }
+}
+
+void DhakshaCameraManager::setStreamForwardUrl(const QString& url)
+{
+    const QString trimmed = url.trimmed();
+    if (trimmed != _streamForwardUrl) {
+        _streamForwardUrl = trimmed;
+        emit streamForwardUrlChanged();
+    }
+}
+
 void DhakshaCameraManager::restoreVendorDefaults()
 {
     setCameraIp(defaultCameraIp(_vendor));
@@ -133,6 +157,7 @@ void DhakshaCameraManager::apply()
     _saveSettings();
     _createCamera();
     _startVideoStream();
+    _applyStreamForward();
 }
 
 void DhakshaCameraManager::_createCamera()
@@ -167,5 +192,15 @@ void DhakshaCameraManager::_startVideoStream()
     VideoSettings* videoSettings = qgcApp()->toolbox()->settingsManager()->videoSettings();
     videoSettings->rtspUrl()->setRawValue(_rtspUrl);
     videoSettings->videoSource()->setRawValue(VideoSettings::videoSourceRTSP);
+#endif
+}
+
+void DhakshaCameraManager::_applyStreamForward()
+{
+#ifndef DHAKSHA_CAMERA_NO_QGC
+    VideoManager* videoManager = qgcApp()->toolbox()->videoManager();
+    if (videoManager) {
+        videoManager->setStreamForwardUrl(_streamForwardEnabled ? _streamForwardUrl : QString());
+    }
 #endif
 }

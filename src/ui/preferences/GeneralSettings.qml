@@ -396,6 +396,30 @@ Rectangle {
                                 onEditingFinished:      DhakshaCameraManager.rtspUrl = text
                             }
 
+                            QGCLabel { text: qsTr("Stream to Server") }
+                            QGCCheckBox {
+                                text:       qsTr("Send camera video to a remote RTMP server")
+                                checked:    DhakshaCameraManager.streamForwardEnabled
+                                onClicked:  DhakshaCameraManager.streamForwardEnabled = checked
+                            }
+
+                            QGCLabel { text: qsTr("Server URL") }
+                            QGCTextField {
+                                Layout.preferredWidth:  _comboFieldWidth * 1.6
+                                text:                   DhakshaCameraManager.streamForwardUrl
+                                placeholderText:        "rtmp://server:1935/live/drone1"
+                                enabled:                DhakshaCameraManager.streamForwardEnabled
+                                onEditingFinished:      DhakshaCameraManager.streamForwardUrl = text
+                            }
+
+                            QGCLabel { text: qsTr("Server Status") }
+                            QGCLabel {
+                                text: !DhakshaCameraManager.streamForwardEnabled ? qsTr("Off")
+                                    : QGroundControl.videoManager.streamForwardStatus !== "" ? QGroundControl.videoManager.streamForwardStatus
+                                    : qsTr("Press Apply to start")
+                                color: QGroundControl.videoManager.streamForwardActive ? "lime" : qgcPal.text
+                            }
+
                             QGCLabel {
                                 text:   qsTr("Status")
                             }

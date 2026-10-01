@@ -24,6 +24,7 @@
 #include <QQuickItem>
 
 #include "VideoReceiver.h"
+#include "GstStreamForwarder.h"
 
 #include <gst/gst.h>
 
@@ -96,6 +97,7 @@ public slots:
     virtual void startRecording(const QString& videoFile, FILE_FORMAT format);
     virtual void stopRecording(void);
     virtual void takeScreenshot(const QString& imageFile);
+    void setStreamForwardUrl(const QString& url) override;
 
 protected slots:
     virtual void _watchdog(void);
@@ -116,6 +118,7 @@ protected:
     virtual bool _unlinkBranch(GstElement* from);
     virtual void _shutdownDecodingBranch (void);
     virtual void _shutdownRecordingBranch(void);
+    bool _addForwardBranch(void);
 
     bool _needDispatch(void);
     void _dispatchSignal(std::function<void()> emitter);
@@ -129,6 +132,7 @@ protected:
     static GstPadProbeReturn _videoSinkProbe(GstPad* pad, GstPadProbeInfo* info, gpointer user_data);
     static GstPadProbeReturn _eosProbe(GstPad* pad, GstPadProbeInfo* info, gpointer user_data);
     static GstPadProbeReturn _keyframeWatch(GstPad* pad, GstPadProbeInfo* info, gpointer user_data);
+    static GstFlowReturn _onForwardSample(GstElement* appsink, gpointer user_data);
 
     bool                _streaming;
     bool                _decoding;
@@ -143,6 +147,8 @@ protected:
     GstElement*         _videoSink;
     GstElement*         _fileSink;
     GstElement*         _pipeline;
+    GstElement*         _forwardBranch      = nullptr;
+    GstStreamForwarder* _forwarder          = nullptr;
 
     qint64              _lastSourceFrameTime;
     qint64              _lastVideoFrameTime;
