@@ -160,6 +160,17 @@ void GstStreamForwarder::pushSample(GstSample* sample)
         return;
     }
 
+    // Right after the stream starts the parser can announce AVC before it has seen SPS/PPS;
+    // such caps cannot be negotiated, so wait for caps that carry codec_data
+    GstCaps* caps = gst_sample_get_caps(sample);
+    if (caps == nullptr || gst_caps_is_empty(caps)) {
+        return;
+    }
+    const GstStructure* structure = gst_caps_get_structure(caps, 0);
+    if (g_strcmp0(gst_structure_get_string(structure, "stream-format"), "avc") == 0 && !gst_structure_has_field(structure, "codec_data")) {
+        return;
+    }
+
     GstBuffer* buffer = gst_sample_get_buffer(sample);
     if (buffer == nullptr) {
         return;
@@ -189,9 +200,12 @@ void GstStreamForwarder::pushSample(GstSample* sample)
         GST_BUFFER_DTS(copy) = dts >= _baseTime ? dts - _baseTime : 0;
     }
 
-    GstCaps* caps = gst_sample_get_caps(sample);
-    if (caps != nullptr) {
+    GstCaps* currentCaps = gst_app_src_get_caps(GST_APP_SRC(_appsrc));
+    if (currentCaps == nullptr || !gst_caps_is_equal(currentCaps, caps)) {
         gst_app_src_set_caps(GST_APP_SRC(_appsrc), caps);
+    }
+    if (currentCaps != nullptr) {
+        gst_caps_unref(currentCaps);
     }
 
     if (gst_app_src_push_buffer(GST_APP_SRC(_appsrc), copy) == GST_FLOW_OK) {
