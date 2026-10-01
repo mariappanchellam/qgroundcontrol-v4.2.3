@@ -97,7 +97,7 @@ public slots:
     virtual void startRecording(const QString& videoFile, FILE_FORMAT format);
     virtual void stopRecording(void);
     virtual void takeScreenshot(const QString& imageFile);
-    void setStreamForwardUrl(const QString& url) override;
+    virtual void setStreamForwardUrl(const QString& url);
 
 protected slots:
     virtual void _watchdog(void);
