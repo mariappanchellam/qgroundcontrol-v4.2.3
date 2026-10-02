@@ -20,6 +20,7 @@
 
 namespace {
     const char* kSettingsGroup  = "DhakshaCamera";
+    const char* kConfiguredKey  = "configured";     // set once the operator applied a camera
     const char* kVendorKey      = "vendor";
     const char* kIpKey          = "ip";
     const char* kRtspKey        = "rtspUrl";
@@ -50,7 +51,11 @@ DhakshaCameraManager::DhakshaCameraManager(QObject* parent)
 {
     QSettings settings;
     settings.beginGroup(kSettingsGroup);
-    _vendor = qBound(0, settings.value(kVendorKey, VendorSkydroid).toInt(), VendorCount - 1);
+    // Builds before kConfiguredKey saved the default vendor at every start-up, so only a
+    // vendor the operator applied is trusted; otherwise leave QGC's video settings alone
+    if (settings.value(kConfiguredKey, false).toBool()) {
+        _vendor = qBound(0, settings.value(kVendorKey, VendorNone).toInt(), VendorCount - 1);
+    }
     _streamForwardEnabled = settings.value(kForwardKey, false).toBool();
     _streamForwardUrl = settings.value(kForwardUrlKey).toString();
     settings.endGroup();
@@ -93,6 +98,7 @@ void DhakshaCameraManager::_saveSettings()
 {
     QSettings settings;
     settings.beginGroup(kSettingsGroup);
+    settings.setValue(kConfiguredKey, true);
     settings.setValue(kVendorKey, _vendor);
     settings.setValue(kForwardKey, _streamForwardEnabled);
     settings.setValue(kForwardUrlKey, _streamForwardUrl);
@@ -155,6 +161,11 @@ void DhakshaCameraManager::restoreVendorDefaults()
 void DhakshaCameraManager::apply()
 {
     _saveSettings();
+    start();
+}
+
+void DhakshaCameraManager::start()
+{
     _createCamera();
     _startVideoStream();
     _applyStreamForward();

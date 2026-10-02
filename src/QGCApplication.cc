@@ -550,7 +550,7 @@ bool QGCApplication::_initForNormalAppBoot()
     QSettings settings;
 
     // Load the configured gimbal camera and point the video stream at its RTSP URL before the UI starts
-    DhakshaCameraManager::instance()->apply();
+    DhakshaCameraManager::instance()->start();
 
     _qmlAppEngine = toolbox()->corePlugin()->createQmlApplicationEngine(this);
     toolbox()->corePlugin()->createRootWindow(_qmlAppEngine);
