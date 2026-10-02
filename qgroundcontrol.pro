@@ -213,6 +213,11 @@ contains (DEFINES, QGC_DISABLE_UVC) {
         message("Skipping support for UVC devices (conflict with Qt 5.5.1 on Ubuntu)")
         DEFINES += QGC_DISABLE_UVC
     }
+} else:AndroidBuild {
+    # Video comes from network cameras; enumerating the handset's own camera devices
+    # only produces "/dev/videoNN: permission denied" errors on ground stations such as the MK15
+    message("Skipping support for UVC devices (Android ground station)")
+    DEFINES += QGC_DISABLE_UVC
 }
 
 LinuxBuild {
