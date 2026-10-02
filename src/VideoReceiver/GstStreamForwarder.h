@@ -48,6 +48,12 @@ public:
     /// Restarts the timeline; call when the source stream (re)starts.
     void resetTimestamps();
 
+    /// Stops forwarding for good; later samples are ignored. Call before the source pipeline goes away.
+    void shutdown();
+
+    /// appsink "new-sample" callback; user_data is the GstStreamForwarder.
+    static GstFlowReturn onNewSample(GstElement* appsink, gpointer user_data);
+
     /// Telemetry embedded into every forwarded frame from now on. Thread safe.
     void setMetadata(const QJsonObject& metadata);
 
@@ -82,6 +88,7 @@ private:
     GstElement*     _pipeline   = nullptr;
     GstElement*     _appsrc     = nullptr;
     bool            _startQueued = false;
+    bool            _closing    = false;
     bool            _sentFirstFrame = false;
     GstClockTime    _baseTime   = GST_CLOCK_TIME_NONE;
     QElapsedTimer   _retryTimer;

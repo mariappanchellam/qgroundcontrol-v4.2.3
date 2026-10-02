@@ -21,8 +21,6 @@
 #include <QDateTime>
 #include <QSysInfo>
 
-#include <gst/app/gstappsink.h>
-
 QGC_LOGGING_CATEGORY(VideoReceiverLog, "VideoReceiverLog")
 
 //-----------------------------------------------------------------------------
@@ -68,6 +66,14 @@ GstVideoReceiver::GstVideoReceiver(QObject* parent)
 GstVideoReceiver::~GstVideoReceiver(void)
 {
     _slotHandler.shutdown();
+
+    if (_forwarder != nullptr) {
+        // The pipeline is not stopped here and its appsink can still deliver a sample:
+        // stop forwarding and keep the forwarder object alive for such late callbacks
+        _forwarder->shutdown();
+        _forwarder->setParent(nullptr);
+        _forwarder = nullptr;
+    }
 }
 
 void
@@ -679,7 +685,7 @@ GstVideoReceiver::_addForwardBranch(void)
     }
 
     GstElement* appsink = gst_bin_get_by_name(GST_BIN(branch), "forwardsink");
-    g_signal_connect(appsink, "new-sample", G_CALLBACK(_onForwardSample), this);
+    g_signal_connect(appsink, "new-sample", G_CALLBACK(GstStreamForwarder::onNewSample), _forwarder);
     gst_object_unref(appsink);
 
     gst_bin_add(GST_BIN(_pipeline), branch);
@@ -694,22 +700,6 @@ GstVideoReceiver::_addForwardBranch(void)
     _forwardBranch = branch;
     qCDebug(VideoReceiverLog) << "Video forwarding branch added";
     return true;
-}
-
-GstFlowReturn
-GstVideoReceiver::_onForwardSample(GstElement* appsink, gpointer user_data)
-{
-    GstVideoReceiver* pThis = static_cast<GstVideoReceiver*>(user_data);
-    GstSample* sample = gst_app_sink_pull_sample(GST_APP_SINK(appsink));
-
-    if (sample != nullptr) {
-        if (pThis->_forwarder != nullptr) {
-            pThis->_forwarder->pushSample(sample);
-        }
-        gst_sample_unref(sample);
-    }
-
-    return GST_FLOW_OK;
 }
 
 const char* GstVideoReceiver::_kFileMux[FILE_FORMAT_MAX - FILE_FORMAT_MIN] = {

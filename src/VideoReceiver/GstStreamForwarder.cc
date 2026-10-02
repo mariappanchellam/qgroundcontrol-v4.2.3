@@ -12,6 +12,7 @@
 #include <QMetaObject>
 #include <QMutexLocker>
 
+#include <gst/app/gstappsink.h>
 #include <gst/app/gstappsrc.h>
 
 QGC_LOGGING_CATEGORY(StreamForwarderLog, "StreamForwarderLog")
@@ -48,6 +49,25 @@ void GstStreamForwarder::setUrl(const QString& url)
     } else {
         _setStatus(false, tr("Waiting for video"));
     }
+}
+
+void GstStreamForwarder::shutdown()
+{
+    {
+        QMutexLocker locker(&_lock);
+        _closing = true;
+    }
+    _stopPipeline();
+}
+
+GstFlowReturn GstStreamForwarder::onNewSample(GstElement* appsink, gpointer user_data)
+{
+    GstSample* sample = gst_app_sink_pull_sample(GST_APP_SINK(appsink));
+    if (sample != nullptr) {
+        static_cast<GstStreamForwarder*>(user_data)->pushSample(sample);
+        gst_sample_unref(sample);
+    }
+    return GST_FLOW_OK;
 }
 
 void GstStreamForwarder::resetTimestamps()
@@ -151,6 +171,10 @@ void GstStreamForwarder::pushSample(GstSample* sample)
 {
     QMutexLocker locker(&_lock);
 
+    if (_closing) {
+        return;
+    }
+
     if (_appsrc == nullptr) {
         // Not running: (re)start from the Qt thread once the retry interval has passed
         if (!_startQueued && (!_retryTimer.isValid() || _retryTimer.elapsed() >= kRetryIntervalMs)) {
@@ -218,7 +242,7 @@ void GstStreamForwarder::_startPipeline()
     {
         QMutexLocker locker(&_lock);
         _startQueued = false;
-        if (_pipeline != nullptr || _url.isEmpty()) {
+        if (_closing || _pipeline != nullptr || _url.isEmpty()) {
             return;
         }
         _retryTimer.restart();
