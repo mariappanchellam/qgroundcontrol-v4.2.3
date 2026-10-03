@@ -112,6 +112,15 @@ LinuxBuild {
             message("Skipping RTMP video forwarding (app, flv or rtmp2 GStreamer plugin missing)")
         }
 
+        # Video forwarding to an RTSP server (RTSP RECORD)
+        exists($$GST_ROOT/lib/gstreamer-1.0/libgstrtspclientsink.a):exists($$GST_ROOT/lib/libgstrtspserver-1.0.a) {
+            message("Including support for RTSP video forwarding")
+            DEFINES += QGC_GST_STATIC_RTSP_FORWARDING
+            LIBS += -lgstrtspclientsink -L$$GST_ROOT/lib -lgstrtspserver-1.0
+        } else {
+            message("Skipping RTSP video forwarding (rtspclientsink GStreamer plugin missing)")
+        }
+
         # Rest of GStreamer dependencies
         LIBS += -L$$GST_ROOT/lib \
             -lgraphene-1.0 -ljpeg -lpng16 \

@@ -93,6 +93,9 @@ G_BEGIN_DECLS
     GST_PLUGIN_STATIC_DECLARE(flv);
     GST_PLUGIN_STATIC_DECLARE(rtmp2);
 #endif
+#if defined(QGC_GST_STATIC_RTSP_FORWARDING)
+    GST_PLUGIN_STATIC_DECLARE(rtspclientsink);
+#endif
 #if defined(__android__)
     GST_PLUGIN_STATIC_DECLARE(androidmedia);
 #elif defined(__ios__)
@@ -226,6 +229,9 @@ GStreamer::initialize(int argc, char* argv[], int debuglevel)
     GST_PLUGIN_STATIC_REGISTER(app);
     GST_PLUGIN_STATIC_REGISTER(flv);
     GST_PLUGIN_STATIC_REGISTER(rtmp2);
+#endif
+#if defined(QGC_GST_STATIC_RTSP_FORWARDING)
+    GST_PLUGIN_STATIC_REGISTER(rtspclientsink);
 #endif
 
 #if defined(__android__)
