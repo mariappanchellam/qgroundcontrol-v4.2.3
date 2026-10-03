@@ -162,10 +162,7 @@ GstPadProbeReturn GstStreamForwarder::_onMetadataProbe(GstPad* /*pad*/, GstPadPr
 {
     GstBuffer* buffer = GST_PAD_PROBE_INFO_BUFFER(info);
     if (buffer != nullptr) {
-        GstStreamForwarder* self = static_cast<GstStreamForwarder*>(user_data);
-        GstBuffer* output = self->_addMetadata(buffer);
-        self->_bytesToSink += gst_buffer_get_size(output);
-        GST_PAD_PROBE_INFO_DATA(info) = output;
+        GST_PAD_PROBE_INFO_DATA(info) = static_cast<GstStreamForwarder*>(user_data)->_addMetadata(buffer);
     }
     return GST_PAD_PROBE_OK;
 }
@@ -251,15 +248,14 @@ void GstStreamForwarder::_startPipeline()
         _retryTimer.restart();
     }
 
-    // rtsp:// publishes with RTSP RECORD over TCP: the same GStreamer networking as the camera input
-    const bool rtsp = _url.startsWith(QStringLiteral("rtsp://"), Qt::CaseInsensitive);
     const QString description = QStringLiteral(
         "appsrc name=src is-live=true format=time do-timestamp=false max-bytes=4000000 "
         "! queue leaky=downstream max-size-buffers=0 max-size-bytes=0 max-size-time=2000000000 "
         "! h264parse config-interval=-1 "
-        "! capsfilter name=meta caps=\"video/x-h264,stream-format=byte-stream,alignment=au\" ")
-        + (rtsp ? QStringLiteral("! rtspclientsink name=sink protocols=tcp latency=0")
-                : QStringLiteral("! h264parse ! flvmux streamable=true ! rtmp2sink name=sink sync=false async=false"));
+        "! capsfilter name=meta caps=\"video/x-h264,stream-format=byte-stream,alignment=au\" "
+        "! h264parse "
+        "! flvmux streamable=true "
+        "! rtmp2sink name=sink sync=false async=false");
 
     GError* error = nullptr;
     GstElement* pipeline = gst_parse_launch(description.toUtf8().constData(), &error);
@@ -302,7 +298,6 @@ void GstStreamForwarder::_startPipeline()
     _setStatus(false, tr("Connecting to %1").arg(_url));
 
     _lastSentBytes = 0;
-    _bytesToSink = 0;
     _statusTimer.start();
 
     QMutexLocker locker(&_lock);
@@ -357,13 +352,11 @@ void GstStreamForwarder::_checkDelivery()
         return;
     }
 
-    // rtmp2sink "stats" holds the bytes written to the server; growth means the stream is live.
-    // rtspclientsink has no such counter: count the bytes it accepts (it stops accepting when the server stalls).
-    guint64 sentBytes = _bytesToSink;
+    // rtmp2sink "stats" holds the bytes written to the server; growth means the stream is live
+    guint64 sentBytes = 0;
     GstElement* sink = gst_bin_get_by_name(GST_BIN(_pipeline), "sink");
     if (sink != nullptr) {
         if (g_object_class_find_property(G_OBJECT_GET_CLASS(sink), "stats") != nullptr) {
-            sentBytes = 0;
             GstStructure* stats = nullptr;
             g_object_get(sink, "stats", &stats, nullptr);
             if (stats != nullptr) {

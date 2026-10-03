@@ -31,8 +31,6 @@
 
 #include <gst/gst.h>
 
-#include <atomic>
-
 class GstStreamForwarder : public QObject
 {
     Q_OBJECT
@@ -96,7 +94,6 @@ private:
     QElapsedTimer   _retryTimer;
     QTimer          _statusTimer;
     guint64         _lastSentBytes = 0;
-    std::atomic<quint64> _bytesToSink{0};   ///< Video bytes handed to sinks without delivery stats (RTSP)
 
     QMutex          _metadataLock;
     QJsonObject     _metadata;
