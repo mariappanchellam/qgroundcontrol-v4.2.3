@@ -69,6 +69,10 @@ linux {
             CONFIG += Androidx86Build
             DEFINES += __androidx86__
             message("Android x86 build")
+        } else:equals(ANDROID_TARGET_ARCH, x86_64)  {
+            # For the Android emulator on PCs
+            DEFINES += __androidx86_64__
+            message("Android x86_64 build")
         } else {
             error("Unsupported Android architecture: $${ANDROID_TARGET_ARCH}")
         }

@@ -1,7 +1,16 @@
-# Builds this repository's QGroundControl 4.2.x as a 32-bit ARM (armeabi-v7a)
-# Android APK. Mirrors upstream's v4.2.x android_32_release.yml toolchain
+# Builds this repository's QGroundControl 4.2.x as Android APKs:
+#   armeabi-v7a - 32-bit ARM, for the SIYI MK15 and phones
+#   x86_64      - for the Android emulator on PCs
+# Mirrors upstream's v4.2.x android_32_release.yml toolchain
 # (Qt 5.15.2, qmake, NDK r21, GStreamer 1.18.x) on a current Linux runner.
-name: Android 32-bit
+#
+# Signing: set the repository secrets ANDROID_KEYSTORE_BASE64 (base64 of a
+# keystore whose key alias is "qgc", key password = store password) and
+# ANDROID_KEYSTORE_PASSWORD so every build is signed with the same key and
+# installs over the previous one.
+# Without them each build gets a throwaway key and must replace an earlier
+# install by uninstalling it first.
+name: Android
 
 on:
   push:
@@ -32,8 +41,6 @@ defaults:
 env:
   BASE_VERSION: v4.2.3
   ALLOW_NO_VIDEO: ${{ inputs.allow_no_video || false }}
-  ANDROID_ABI: armeabi-v7a
-  ARTIFACT: DhakshaGroundControl32.apk
   QT_VERSION: 5.15.2
   NDK_VERSION: 21.4.7075529
   SDK_PLATFORM: android-30
@@ -42,9 +49,16 @@ env:
 
 jobs:
   build:
-    name: Android 32-bit ARM (armeabi-v7a)
+    name: Android ${{ matrix.abi }}
     runs-on: ubuntu-22.04
     timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        abi: [armeabi-v7a, x86_64]
+    env:
+      ANDROID_ABI: ${{ matrix.abi }}
+      ARTIFACT: DhakshaGroundControl-${{ matrix.abi }}.apk
 
     steps:
       - name: Checkout repo
@@ -144,16 +158,25 @@ jobs:
         working-directory: ${{ runner.temp }}/build
         run: make -j"$(nproc)"
 
-      # Upstream's release keystore password is not available here, so sign
-      # with a throwaway key. Uninstall any Play Store QGC before installing.
+      # Sign with the repository keystore when configured, otherwise with a
+      # throwaway key. Uninstall any Play Store QGC before installing.
       - name: Package and sign APK
         working-directory: ${{ runner.temp }}/build
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
-          storepass="$(openssl rand -hex 16)"
-          keytool -genkeypair -noprompt -keystore qgc.keystore -alias qgc \
-            -keyalg RSA -keysize 2048 -validity 10000 \
-            -dname "CN=QGroundControl CI" \
-            -storepass "$storepass" -keypass "$storepass"
+          if [ -n "$KEYSTORE_BASE64" ] && [ -n "$KEYSTORE_PASSWORD" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > qgc.keystore
+            storepass="$KEYSTORE_PASSWORD"
+          else
+            echo "::warning::No signing keystore secret; signing with a throwaway key (uninstall the previous build before installing this one)."
+            storepass="$(openssl rand -hex 16)"
+            keytool -genkeypair -noprompt -keystore qgc.keystore -alias qgc \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=QGroundControl CI" \
+              -storepass "$storepass" -keypass "$storepass"
+          fi
           make apk_install_target INSTALL_ROOT=android-build
           androiddeployqt --verbose \
             --input android-QGroundControl-deployment-settings.json \
