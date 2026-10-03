@@ -10,6 +10,7 @@
 #   DhakshaGroundControl --> rtmp://<this-pc>:1935/live/drone1 --> phone / browser
 #
 # Usage:   ./fake_camera.sh [video file]     (no file: a generated test pattern)
+#          HLS_VARIANT=mpegts ./fake_camera.sh [video file]   if a phone browser does not play HLS
 # Needs:   ffmpeg (sudo apt install ffmpeg), Linux x86_64 or arm64, internet once
 #          to download MediaMTX. Stop with Ctrl+C.
 
@@ -25,12 +26,15 @@ command -v ffmpeg >/dev/null || die "ffmpeg is not installed. Run: sudo apt inst
 if [[ $# -ge 1 ]]; then
     VIDEO="$(realpath "$1")"
     [[ -f "$VIDEO" ]] || die "video file not found: $1"
-    INPUT="-re -stream_loop -1 -i \"$VIDEO\""
+    INPUT=(-re -stream_loop -1 -i "$VIDEO")
     SOURCE_TEXT="$VIDEO (looped)"
 else
-    INPUT="-re -f lavfi -i testsrc2=size=1280x720:rate=30"
+    INPUT=(-re -f lavfi -i testsrc2=size=1280x720:rate=30)
     SOURCE_TEXT="generated test pattern"
 fi
+
+# HLS for phone browsers: lowLatency (about 1-2 s behind) or mpegts (3-6 s, plays everywhere)
+HLS_VARIANT="${HLS_VARIANT:-lowLatency}"
 
 # MediaMTX: use one on the PATH, otherwise download it once into the cache
 if command -v mediamtx >/dev/null; then
@@ -50,18 +54,33 @@ else
     fi
 fi
 
-# H.264 with a keyframe every second: what the camera sends and what RTMP can carry
-CONFIG="$CACHE_DIR/mediamtx.yml"
 mkdir -p "$CACHE_DIR"
+
+# The camera feed: 720p30 H.264 with a keyframe every second (what the camera sends and what
+# RTMP can carry), stamped with this computer's clock so the delay can be read off any screen
+FEED="$CACHE_DIR/camera_feed.sh"
+{
+    echo '#!/usr/bin/env bash'
+    printf 'exec ffmpeg -loglevel error'
+    printf ' %q' "${INPUT[@]}"
+    printf ' \\\n'
+    cat <<'FEED_EOF'
+    -an -vf "scale=1280:720,fps=30,drawtext=text='%{localtime\:%H\\\\\:%M\\\\\:%S}':x=(w-tw)/2:y=h-th-40:fontsize=64:fontcolor=white:box=1:boxcolor=black@0.6:boxborderw=12" \
+    -c:v libx264 -preset veryfast -tune zerolatency -pix_fmt yuv420p -g 30 -b:v 2M \
+    -f rtsp -rtsp_transport tcp "rtsp://localhost:$RTSP_PORT/$MTX_PATH"
+FEED_EOF
+} > "$FEED"
+chmod +x "$FEED"
+
+CONFIG="$CACHE_DIR/mediamtx.yml"
 cat > "$CONFIG" <<EOF
-logLevel: warn
-# Plain MPEG-TS HLS plays on every phone browser (the low-latency variant breaks on iPhones)
-hlsVariant: mpegts
+logLevel: info
+hlsVariant: $HLS_VARIANT
 # TCP only: the Android emulator's network drops the incoming UDP that RTSP uses by default
 rtspTransports: [tcp]
 paths:
   cam:
-    runOnInit: 'ffmpeg -loglevel error $INPUT -an -c:v libx264 -preset veryfast -tune zerolatency -pix_fmt yuv420p -g 30 -b:v 2M -f rtsp -rtsp_transport tcp rtsp://localhost:\$RTSP_PORT/\$MTX_PATH'
+    runOnInit: $FEED
     runOnInitRestart: yes
   all_others:
 EOF
