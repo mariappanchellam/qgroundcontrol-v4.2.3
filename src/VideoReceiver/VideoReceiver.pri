@@ -72,6 +72,9 @@ LinuxBuild {
         GST_ROOT = $$PWD/../../gstreamer-1.0-android-universal-1.18.5/arm64
     } else:contains(ANDROID_TARGET_ARCH, x86_64) {
         GST_ROOT = $$PWD/../../gstreamer-1.0-android-universal-1.18.5/x86_64
+        # libavcodec's x86_64 assembly is not position independent; GStreamer's own
+        # Android build links x86_64 with -Bsymbolic for the same reason
+        QMAKE_LFLAGS += -Wl,-Bsymbolic
     } else {
         message(Unknown ANDROID_TARGET_ARCH $$ANDROID_TARGET_ARCH)
         GST_ROOT = $$PWD/../../gstreamer-1.0-android-universal-1.18.5/x86
