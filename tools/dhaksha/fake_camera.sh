@@ -57,9 +57,11 @@ cat > "$CONFIG" <<EOF
 logLevel: warn
 # Plain MPEG-TS HLS plays on every phone browser (the low-latency variant breaks on iPhones)
 hlsVariant: mpegts
+# TCP only: the Android emulator's network drops the incoming UDP that RTSP uses by default
+rtspTransports: [tcp]
 paths:
   cam:
-    runOnInit: 'ffmpeg -loglevel error $INPUT -an -c:v libx264 -preset veryfast -tune zerolatency -pix_fmt yuv420p -g 30 -b:v 2M -f rtsp rtsp://localhost:\$RTSP_PORT/\$MTX_PATH'
+    runOnInit: 'ffmpeg -loglevel error $INPUT -an -c:v libx264 -preset veryfast -tune zerolatency -pix_fmt yuv420p -g 30 -b:v 2M -f rtsp -rtsp_transport tcp rtsp://localhost:\$RTSP_PORT/\$MTX_PATH'
     runOnInitRestart: yes
   all_others:
 EOF

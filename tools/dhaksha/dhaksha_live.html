@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dhaksha Live</title>
+<style>
+/* Layout: video left with the position panel beside it on wide screens; stacked on phones. */
+:root {
+  --bg: #eef1f0; --surface: #ffffff; --fg: #142019; --muted: #5d6b64; --line: #d3dbd7;
+  --accent: #0a7a57; --live: #128a3e; --wait: #a86a00; --track: #0a7a57; --grid: #e2e8e5;
+  --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, sans-serif;
+  --font-data: ui-monospace, "SFMono-Regular", "Ubuntu Mono", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #0d1411; --surface: #151f1b; --fg: #e3ebe7; --muted: #8e9d96; --line: #26332d;
+          --accent: #38c793; --live: #4ad37a; --wait: #e0a23a; --track: #38c793; --grid: #1d2925; color-scheme: dark; }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-ui); font-size: 15px; line-height: 1.45;
+       padding: max(12px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom)); }
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin: 0 auto 14px; max-width: 1280px; }
+h1 { font-size: 1.25rem; font-weight: 700; letter-spacing: 0.01em; margin: 0; }
+.pill { display: inline-flex; align-items: center; gap: 8px; padding: 4px 10px; border-radius: 999px; font-size: 0.82rem;
+        font-weight: 600; border: 1px solid var(--line); background: var(--surface); }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--wait); }
+.pill.live .dot { background: var(--live); box-shadow: 0 0 0 3px color-mix(in srgb, var(--live) 25%, transparent); }
+.meta { color: var(--muted); font-size: 0.85rem; font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+main { display: grid; grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); gap: 16px; max-width: 1280px; margin: 0 auto; }
+@media (max-width: 860px) { main { grid-template-columns: minmax(0, 1fr); } }
+.video { position: relative; aspect-ratio: 16 / 9; max-width: 100%; background: #000; border-radius: 8px; overflow: hidden; }
+.video iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.start { position: absolute; inset: 0; display: grid; place-items: center; gap: 10px; align-content: center; color: #fff; text-align: center; }
+.start button { font: inherit; font-weight: 700; font-size: 1rem; padding: 12px 26px; border-radius: 999px; border: 0;
+                background: var(--accent); color: #fff; cursor: pointer; }
+.start button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+.start p { margin: 0; color: #c8d3ce; font-size: 0.88rem; max-width: 40ch; }
+aside { display: grid; gap: 16px; align-content: start; min-width: 0; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px; min-width: 0; }
+.panel h2 { font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 14px; }
+.k { font-size: 0.72rem; color: var(--muted); letter-spacing: 0.04em; text-transform: uppercase; }
+.v { font-family: var(--font-data); font-size: 1.05rem; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.v.big { font-size: 1.2rem; }
+.wide { grid-column: 1 / -1; }
+canvas { width: 100%; aspect-ratio: 4 / 3; max-width: 100%; display: block; border-radius: 6px; background: var(--bg); }
+.links { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 10px; font-size: 0.88rem; }
+a { color: var(--accent); }
+.note { color: var(--muted); font-size: 0.85rem; margin: 8px 0 0; }
+@media (prefers-reduced-motion: reduce) { .pill.live .dot { box-shadow: none; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Dhaksha Live</h1>
+  <span class="pill" id="status"><span class="dot"></span><span id="statusText">Waiting for drone stream</span></span>
+  <span class="meta" id="rate"></span>
+</header>
+
+<main>
+  <section>
+    <div class="video" id="video">
+      <div class="start" id="start">
+        <button type="button" id="startButton">Start video</button>
+        <p>Plays the live video from the ground station. It starts as soon as DhakshaGroundControl streams to this server.</p>
+      </div>
+    </div>
+    <div class="links">
+      <a id="videoTab" href="#" target="_blank" rel="noopener">Open video in a new tab</a>
+      <a id="hlsLink" href="#" target="_blank" rel="noopener">Backup player (HLS, a few seconds behind)</a>
+    </div>
+    <p class="note">If the video stays black, use the backup player. The browser must support H.264 (Chrome, Edge, Firefox, Safari do).</p>
+  </section>
+
+  <aside>
+    <div class="panel">
+      <h2>Position in the current frame</h2>
+      <div class="grid">
+        <div><div class="k">Latitude</div><div class="v big" id="lat">–</div></div>
+        <div><div class="k">Longitude</div><div class="v big" id="lon">–</div></div>
+        <div><div class="k">Alt above home</div><div class="v" id="altRel">–</div></div>
+        <div><div class="k">Alt MSL</div><div class="v" id="altMsl">–</div></div>
+        <div><div class="k">Heading</div><div class="v" id="hdg">–</div></div>
+        <div><div class="k">Frame</div><div class="v" id="frame">–</div></div>
+        <div class="wide"><div class="k">Position age at the frame</div><div class="v" id="age">–</div></div>
+      </div>
+      <div class="links"><a id="osm" href="#" target="_blank" rel="noopener" hidden>Open position in OpenStreetMap</a></div>
+    </div>
+
+    <div class="panel">
+      <h2>Track</h2>
+      <canvas id="track" width="480" height="360" aria-label="Flown track"></canvas>
+      <p class="note" id="trackNote">The track appears once frames carry a position.</p>
+    </div>
+  </aside>
+</main>
+
+<script>
+const STREAM_PATH = "__STREAM_PATH__";
+const WEBRTC_PORT = "__WEBRTC_PORT__";
+const HLS_PORT = "__HLS_PORT__";
+const videoUrl = `${location.protocol}//${location.hostname}:${WEBRTC_PORT}/${STREAM_PATH}`;
+document.getElementById("videoTab").href = videoUrl;
+document.getElementById("hlsLink").href = `${location.protocol}//${location.hostname}:${HLS_PORT}/${STREAM_PATH}`;
+
+const $ = (id) => document.getElementById(id);
+let track = [];
+
+$("startButton").addEventListener("click", () => {
+  const frame = document.createElement("iframe");
+  frame.src = `${videoUrl}?controls=true&muted=true&autoplay=true&playsinline=true`;
+  frame.allow = "autoplay; fullscreen";
+  frame.title = "Live drone video";
+  $("video").appendChild(frame);
+  $("start").hidden = true;
+});
+
+function fmt(value, digits, unit) {
+  return typeof value === "number" ? value.toFixed(digits) + (unit || "") : "–";
+}
+
+function render(state) {
+  const live = state.stream === "live";
+  $("status").classList.toggle("live", live);
+  $("statusText").textContent = live ? "Live" : "Waiting for drone stream";
+  $("rate").textContent = live ? `${state.fps} fps · ${state.frames} frames` : "";
+
+  const p = state.last;
+  if (!p) return;
+  $("frame").textContent = p.frame ?? "–";
+  if (p.no_position) {
+    ["lat", "lon", "altRel", "altMsl", "hdg", "age"].forEach((id) => { $(id).textContent = "–"; });
+    $("trackNote").textContent = "Frames arrive without a position: no vehicle is connected to the ground station.";
+    $("osm").hidden = true;
+    return;
+  }
+  $("lat").textContent = fmt(p.lat, 7);
+  $("lon").textContent = fmt(p.lon, 7);
+  $("altRel").textContent = fmt(p.alt_rel, 1, " m");
+  $("altMsl").textContent = fmt(p.alt_msl, 1, " m");
+  $("hdg").textContent = fmt(p.hdg, 0, "°");
+  $("age").textContent = (p.frame_ts && p.ts) ? `${p.frame_ts - p.ts} ms` : "–";
+  $("osm").href = `https://www.openstreetmap.org/?mlat=${p.lat}&mlon=${p.lon}#map=18/${p.lat}/${p.lon}`;
+  $("osm").hidden = false;
+  $("trackNote").textContent = `${track.length} positions · north is up`;
+}
+
+function drawTrack(heading) {
+  const canvas = $("track");
+  const ctx = canvas.getContext("2d");
+  const css = getComputedStyle(document.documentElement);
+  const w = canvas.width, h = canvas.height, pad = 28;
+  ctx.clearRect(0, 0, w, h);
+  if (track.length === 0) return;
+
+  // Equirectangular projection in metres around the track's centre
+  const lat0 = track.reduce((s, p) => s + p[0], 0) / track.length;
+  const mPerDegLat = 111320, mPerDegLon = 111320 * Math.cos(lat0 * Math.PI / 180);
+  const pts = track.map(([la, lo]) => [lo * mPerDegLon, la * mPerDegLat]);
+  const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  const span = Math.max(maxX - minX, maxY - minY, 20);
+  const scale = Math.min(w - 2 * pad, h - 2 * pad) / span;
+  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+  const toPx = ([x, y]) => [w / 2 + (x - cx) * scale, h / 2 - (y - cy) * scale];
+
+  // 10 / 50 / 100 m grid depending on the extent
+  const step = span > 400 ? 100 : span > 80 ? 50 : 10;
+  ctx.strokeStyle = css.getPropertyValue("--grid"); ctx.lineWidth = 1;
+  for (let gx = Math.floor((cx - w / scale) / step) * step; gx < cx + w / scale; gx += step) {
+    const [px] = toPx([gx, cy]); ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, h); ctx.stroke();
+  }
+  for (let gy = Math.floor((cy - h / scale) / step) * step; gy < cy + h / scale; gy += step) {
+    const [, py] = toPx([cx, gy]); ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(w, py); ctx.stroke();
+  }
+
+  ctx.strokeStyle = css.getPropertyValue("--track"); ctx.lineWidth = 3; ctx.lineJoin = "round";
+  ctx.beginPath();
+  pts.forEach((p, i) => { const [x, y] = toPx(p); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+  ctx.stroke();
+
+  // Current position with heading
+  const [x, y] = toPx(pts[pts.length - 1]);
+  const a = ((heading || 0) - 90) * Math.PI / 180;
+  ctx.fillStyle = css.getPropertyValue("--fg");
+  ctx.beginPath();
+  ctx.moveTo(x + 11 * Math.cos(a), y + 11 * Math.sin(a));
+  ctx.lineTo(x + 7 * Math.cos(a + 2.5), y + 7 * Math.sin(a + 2.5));
+  ctx.lineTo(x + 7 * Math.cos(a - 2.5), y + 7 * Math.sin(a - 2.5));
+  ctx.closePath(); ctx.fill();
+
+  ctx.fillStyle = css.getPropertyValue("--muted");
+  ctx.font = "12px " + css.getPropertyValue("--font-data");
+  ctx.fillText(`grid ${step} m`, 8, h - 8);
+}
+
+function apply(state, fullTrack) {
+  if (fullTrack) track = state.track;
+  else if (state.track && state.track.length) {
+    const p = state.track[0];
+    const last = track[track.length - 1];
+    if (!last || last[0] !== p[0] || last[1] !== p[1]) track.push(p);
+    if (track.length > 3000) track.shift();
+  }
+  render(state);
+  drawTrack(state.last && state.last.hdg);
+}
+
+fetch("/state").then((r) => r.json()).then((s) => apply(s, true)).catch(() => {});
+const events = new EventSource("/events");
+events.onmessage = (e) => apply(JSON.parse(e.data), false);
+</script>
+</body>
+</html>
