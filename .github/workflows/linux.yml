@@ -1,0 +1,111 @@
+# Builds DhakshaGroundControl for 64-bit Linux desktops (Ubuntu 22.04 or newer),
+# using upstream v4.2.x's Linux toolchain (Qt 5.15.2, qmake, system GStreamer).
+# The artifact is QGC's own installer tarball: Qt is bundled, GStreamer comes
+# from the system (the run summary lists the packages to install).
+name: Linux
+
+on:
+  push:
+    branches:
+      - main
+      - 'build/**'
+    tags:
+      - 'v*'
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  BASE_VERSION: v4.2.3
+  QT_VERSION: 5.15.2
+
+jobs:
+  build:
+    name: Linux x86_64
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+          persist-credentials: false
+
+      # QGCCommon.pri derives the app version from `git describe`. If the
+      # base tag is missing, recreate it on the upstream import (root) commit.
+      - name: Ensure version tag
+        run: |
+          git fetch --tags --force
+          if ! git describe --tags --match 'v[0-9]*' > /dev/null 2>&1; then
+            git -c user.name=ci -c user.email=ci@localhost \
+              tag -a "${BASE_VERSION}" "$(git rev-list --max-parents=0 HEAD)" -m "QGroundControl ${BASE_VERSION} (upstream import)"
+          fi
+          git describe --tags
+
+      - name: Install Qt ${{ env.QT_VERSION }}
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: linux
+          target: desktop
+          arch: gcc_64
+          dir: ${{ runner.temp }}
+          modules: qtcharts
+          cache: true
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          # The runner's preinstalled libunwind-14-dev blocks libgstreamer1.0-dev's libunwind-dev
+          sudo apt-get remove -y libunwind-14-dev || true
+          sudo apt-get install -y --no-install-recommends \
+            libsdl2-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+            libegl1-mesa-dev libxkbcommon-x11-0 patchelf
+
+      - name: qmake
+        run: |
+          mkdir -p "${RUNNER_TEMP}/build"
+          cd "${RUNNER_TEMP}/build"
+          # AirMap: its SDK download (github.com/airmap/platform-sdk) no longer exists.
+          # -Werror: v4.2.x was written for GCC 7; GCC 11 warns on upstream code (e.g. MAVLink).
+          # GLIB_VERSION_MIN_REQUIRED: glib >= 2.68 rejects qmlglsink's `volatile gsize` in g_once_init_enter under C++.
+          qmake -r "${GITHUB_WORKSPACE}/qgroundcontrol.pro" CONFIG+=installer CONFIG+=StableBuild DEFINES+=DISABLE_AIRMAP \
+            DEFINES+=GLIB_VERSION_MIN_REQUIRED=GLIB_VERSION_2_66 \
+            -after "QMAKE_CXXFLAGS_WARN_ON -= -Werror" "QMAKE_CFLAGS_WARN_ON -= -Werror"
+
+      - name: Build
+        working-directory: ${{ runner.temp }}/build
+        run: make -j"$(nproc)"
+
+      - name: Package
+        working-directory: ${{ runner.temp }}/build
+        run: |
+          ls -la package
+          mv package/QGroundControl.tar.bz2 package/DhakshaGroundControl-linux-x86_64.tar.bz2
+          cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
+          ### Run DhakshaGroundControl on Linux
+          ```
+          sudo apt install gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav gstreamer1.0-gl
+          tar -xjf DhakshaGroundControl-linux-x86_64.tar.bz2
+          ./qgroundcontrol/qgroundcontrol-start.sh
+          ```
+          EOF
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: DhakshaGroundControl-linux-x86_64-${{ github.sha }}
+          path: ${{ runner.temp }}/build/package/DhakshaGroundControl-linux-x86_64.tar.bz2
+          if-no-files-found: error
