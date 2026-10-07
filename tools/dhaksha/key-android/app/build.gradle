@@ -1,0 +1,27 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.dhaksha.key'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.dhaksha.key'
+        minSdk 21
+        targetSdk 28
+        versionCode 1
+        versionName '1.0'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    lint {
+        // targetSdk 28: Termux's RunCommandService is started from the foreground app,
+        // which newer background-service limits would complicate on the MK15 (Android 9)
+        disable 'ExpiredTargetSdkVersion', 'OldTargetApi'
+    }
+}
