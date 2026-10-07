@@ -73,6 +73,7 @@ private slots:
     void _startPipeline();
     void _handleError(const QString& message);
     void _checkDelivery();
+    void _reportUnsupportedCodec(const QString& mediaType);
 
 private:
     void _stopPipeline();
@@ -90,6 +91,7 @@ private:
     bool            _startQueued = false;
     bool            _closing    = false;
     bool            _sentFirstFrame = false;
+    bool            _codecReported = false;
     GstClockTime    _baseTime   = GST_CLOCK_TIME_NONE;
     QElapsedTimer   _retryTimer;
     QTimer          _statusTimer;

@@ -42,6 +42,7 @@ void GstStreamForwarder::setUrl(const QString& url)
     {
         QMutexLocker locker(&_lock);
         _retryTimer.invalidate();
+        _codecReported = false;
     }
 
     if (_url.isEmpty()) {
@@ -74,6 +75,7 @@ void GstStreamForwarder::resetTimestamps()
 {
     QMutexLocker locker(&_lock);
     _baseTime = GST_CLOCK_TIME_NONE;
+    _codecReported = false;
 }
 
 void GstStreamForwarder::setMetadata(const QJsonObject& metadata)
@@ -175,6 +177,22 @@ void GstStreamForwarder::pushSample(GstSample* sample)
         return;
     }
 
+    GstCaps* caps = gst_sample_get_caps(sample);
+    if (caps == nullptr || gst_caps_is_empty(caps)) {
+        return;
+    }
+    const GstStructure* structure = gst_caps_get_structure(caps, 0);
+
+    // The RTMP pipeline (h264parse, flvmux) only carries H.264; never start it for another codec
+    if (!gst_structure_has_name(structure, "video/x-h264")) {
+        if (!_codecReported) {
+            _codecReported = true;
+            QMetaObject::invokeMethod(this, "_reportUnsupportedCodec", Qt::QueuedConnection,
+                                      Q_ARG(QString, QString::fromUtf8(gst_structure_get_name(structure))));
+        }
+        return;
+    }
+
     if (_appsrc == nullptr) {
         // Not running: (re)start from the Qt thread once the retry interval has passed
         if (!_startQueued && (!_retryTimer.isValid() || _retryTimer.elapsed() >= kRetryIntervalMs)) {
@@ -186,11 +204,6 @@ void GstStreamForwarder::pushSample(GstSample* sample)
 
     // Right after the stream starts the parser can announce AVC before it has seen SPS/PPS;
     // such caps cannot be negotiated, so wait for caps that carry codec_data
-    GstCaps* caps = gst_sample_get_caps(sample);
-    if (caps == nullptr || gst_caps_is_empty(caps)) {
-        return;
-    }
-    const GstStructure* structure = gst_caps_get_structure(caps, 0);
     if (g_strcmp0(gst_structure_get_string(structure, "stream-format"), "avc") == 0 && !gst_structure_has_field(structure, "codec_data")) {
         return;
     }
@@ -346,6 +359,14 @@ void GstStreamForwarder::_handleError(const QString& message)
     _setStatus(false, tr("Error: %1 (retrying)").arg(message));
 }
 
+void GstStreamForwarder::_reportUnsupportedCodec(const QString& mediaType)
+{
+    _stopPipeline();
+    const QString codec = mediaType == QLatin1String("video/x-h265") ? QStringLiteral("H.265") : mediaType;
+    qCWarning(StreamForwarderLog) << "Not forwarding" << mediaType << "video, RTMP forwarding needs H.264";
+    _setStatus(false, tr("Not streaming: the camera sends %1 video, server streaming needs H.264. Set the camera's encoding to H.264.").arg(codec));
+}
+
 void GstStreamForwarder::_checkDelivery()
 {
     if (_pipeline == nullptr) {
@@ -406,5 +427,7 @@ GstBusSyncReply GstStreamForwarder::_onBusMessage(GstBus* /*bus*/, GstMessage* m
         break;
     }
 
+    // A sync handler that drops a message owns it
+    gst_message_unref(message);
     return GST_BUS_DROP;
 }
