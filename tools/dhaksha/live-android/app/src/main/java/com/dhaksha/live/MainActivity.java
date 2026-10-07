@@ -7,8 +7,6 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
 import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
@@ -21,33 +19,25 @@ import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
-
-import androidx.media3.common.MediaItem;
-import androidx.media3.common.MimeTypes;
-import androidx.media3.common.PlaybackException;
-import androidx.media3.common.Player;
-import androidx.media3.exoplayer.ExoPlayer;
-import androidx.media3.ui.AspectRatioFrameLayout;
-import androidx.media3.ui.PlayerView;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
 
 /**
- * Dhaksha Live: watches up to eight drone streams at once.
+ * Dhaksha Live: watches up to four drone streams from Livepush at once.
  *
- * The first page takes eight stream addresses (remembered between runs). OK opens the grid, where
- * every box with a live stream plays it and every other box shows the Dhaksha logo; boxes whose
- * stream is not (yet) live keep retrying, so a drone that starts streaming later appears by itself.
- * Back returns to the addresses; OK again restarts all players with the new addresses.
+ * The first page takes four Livepush player links (remembered between runs). OK opens a 2 x 2 grid
+ * where every box with a Livepush link shows that player; empty boxes, and boxes whose address is not
+ * a Livepush player link, show the Dhaksha logo. Back returns to the addresses; OK again reloads all
+ * players with the new links.
  */
 public class MainActivity extends Activity {
 
-    static final int STREAMS = 8;
+    static final int STREAMS = 4;
 
     private static final String PREFS = "dhaksha_live";
-    private static final String DEFAULT_PATH = "/live/drone1";
-    private static final long RETRY_DELAY_MS = 3000;
-    private static final long LIVE_OFFSET_MS = 1500;
+    private static final String LIVEPUSH_HOST = "player.livepush.io";
 
-    private final Handler handler = new Handler(Looper.getMainLooper());
     private final EditText[] addressFields = new EditText[STREAMS];
     private final Cell[] cells = new Cell[STREAMS];
 
@@ -66,7 +56,7 @@ public class MainActivity extends Activity {
 
         for (int i = 0; i < STREAMS; i++) {
             cells[i] = new Cell(i);
-            cells[i].url = normalize(prefs.getString("url" + (i + 1), i == 0 ? legacy : ""));
+            cells[i].setAddress(prefs.getString("url" + (i + 1), i == 0 ? legacy : ""));
         }
 
         setupPage = buildSetupPage();
@@ -76,7 +66,7 @@ public class MainActivity extends Activity {
 
         boolean anyAddress = false;
         for (Cell cell : cells) {
-            anyAddress |= !cell.url.isEmpty();
+            anyAddress |= !cell.text.isEmpty();
         }
         show(anyAddress);
     }
@@ -136,7 +126,7 @@ public class MainActivity extends Activity {
         column.addView(title);
 
         TextView help = new TextView(this);
-        help.setText("Enter up to eight stream addresses (https://..., http://...:8888/live/drone1 or rtsp://...). "
+        help.setText("Paste up to four Livepush player links, like https://player.livepush.io/live/emYdk2WzYx3kNdaO. "
                 + "Empty boxes show the Dhaksha logo. Press OK to watch; Back returns here.");
         help.setTextColor(Color.LTGRAY);
         help.setPadding(0, dp(4), 0, dp(12));
@@ -155,9 +145,9 @@ public class MainActivity extends Activity {
 
             EditText field = new EditText(this);
             field.setSingleLine(true);
-            field.setHint("https://xxxx.trycloudflare.com/live/drone" + (i + 1));
+            field.setHint("https://player.livepush.io/live/...");
             field.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
-            field.setText(cells[i].url);
+            field.setText(cells[i].text);
             field.setTextColor(Color.WHITE);
             field.setHintTextColor(Color.GRAY);
             row.addView(field, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
@@ -188,10 +178,12 @@ public class MainActivity extends Activity {
     private void applyAddresses() {
         SharedPreferences.Editor prefs = getSharedPreferences(PREFS, MODE_PRIVATE).edit();
         for (int i = 0; i < STREAMS; i++) {
-            String url = normalize(addressFields[i].getText().toString());
-            addressFields[i].setText(url);
-            cells[i].url = url;
-            prefs.putString("url" + (i + 1), url);
+            String typed = addressFields[i].getText().toString().trim();
+            String url = livepushUrl(typed);
+            String text = url == null ? typed : url;
+            addressFields[i].setText(text);
+            cells[i].setAddress(text);
+            prefs.putString("url" + (i + 1), text);
         }
         prefs.remove("url").apply();
 
@@ -217,10 +209,9 @@ public class MainActivity extends Activity {
         }
     }
 
-    /** Arranges the eight boxes: 4 x 2 in landscape, 2 x 4 in portrait. */
+    /** Arranges the four boxes 2 x 2. */
     private void layoutGrid() {
-        boolean landscape = getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE;
-        int columns = landscape ? 4 : 2;
+        int columns = 2;
         int rows = STREAMS / columns;
 
         LinearLayout grid = new LinearLayout(this);
@@ -273,49 +264,26 @@ public class MainActivity extends Activity {
 
     // ---- One box of the grid ------------------------------------------------------------
 
-    /** A player box: plays its stream when it is live, otherwise shows the Dhaksha logo and retries. */
+    /** A player box: shows the Livepush player for its link, or the Dhaksha logo. */
     private final class Cell {
         final int index;
         final FrameLayout root;
-        final PlayerView playerView;
         final View logo;
+        final TextView note;
         final TextView label;
-        final Runnable retry = this::play;
+        String text = "";
         String url = "";
-        ExoPlayer player;
+        WebView web;
 
         Cell(int index) {
             this.index = index;
             root = new FrameLayout(MainActivity.this);
             root.setBackgroundColor(Color.BLACK);
 
-            playerView = new PlayerView(MainActivity.this);
-            playerView.setUseController(false);
-            playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT);
-            playerView.setVisibility(View.INVISIBLE);
-            root.addView(playerView, new FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-
-            logo = buildLogo();
-            root.addView(logo, new FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-
-            label = new TextView(MainActivity.this);
-            label.setTextColor(Color.WHITE);
-            label.setTextSize(11);
-            label.setBackgroundColor(0x99000000);
-            label.setPadding(dp(6), dp(2), dp(6), dp(2));
-            root.addView(label, new FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.START));
-            setState("");
-        }
-
-        private View buildLogo() {
             LinearLayout box = new LinearLayout(MainActivity.this);
             box.setOrientation(LinearLayout.VERTICAL);
             box.setGravity(Gravity.CENTER);
             box.setBackgroundColor(Color.rgb(12, 24, 48));
-
             TextView name = new TextView(MainActivity.this);
             name.setText("DHAKSHA");
             name.setTextColor(Color.rgb(255, 160, 0));
@@ -323,13 +291,34 @@ public class MainActivity extends Activity {
             name.setTypeface(Typeface.DEFAULT_BOLD);
             name.setLetterSpacing(0.15f);
             box.addView(name);
-
             TextView sub = new TextView(MainActivity.this);
             sub.setText("Drone " + (index + 1));
             sub.setTextColor(Color.LTGRAY);
             sub.setTextSize(12);
             box.addView(sub);
-            return box;
+            note = new TextView(MainActivity.this);
+            note.setTextColor(Color.rgb(255, 138, 128));
+            note.setTextSize(12);
+            box.addView(note);
+            logo = box;
+            root.addView(logo, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+            label = new TextView(MainActivity.this);
+            label.setText(String.valueOf(index + 1));
+            label.setTextColor(Color.WHITE);
+            label.setTextSize(11);
+            label.setBackgroundColor(0x99000000);
+            label.setPadding(dp(6), dp(2), dp(6), dp(2));
+            root.addView(label, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.START));
+        }
+
+        void setAddress(String typed) {
+            text = typed.trim();
+            String link = livepushUrl(text);
+            url = link == null ? "" : link;
+            note.setText(link == null ? "Not a Livepush player link" : "");
         }
 
         void start() {
@@ -337,113 +326,52 @@ public class MainActivity extends Activity {
             if (url.isEmpty()) {
                 return;
             }
-            player = new ExoPlayer.Builder(MainActivity.this).build();
-            player.setVolume(0f);
-            player.addListener(new Player.Listener() {
-                @Override
-                public void onPlaybackStateChanged(int state) {
-                    if (state == Player.STATE_READY) {
-                        playerView.setVisibility(View.VISIBLE);
-                        logo.setVisibility(View.INVISIBLE);
-                        setState("LIVE");
-                    } else if (state == Player.STATE_ENDED) {
-                        showLogo("waiting");
-                        scheduleRetry();
-                    }
-                }
-
-                @Override
-                public void onPlayerError(PlaybackException error) {
-                    showLogo("waiting");
-                    scheduleRetry();
-                }
-            });
-            playerView.setPlayer(player);
-            play();
+            web = new WebView(MainActivity.this);
+            web.setBackgroundColor(Color.BLACK);
+            WebSettings settings = web.getSettings();
+            settings.setJavaScriptEnabled(true);
+            settings.setDomStorageEnabled(true);
+            settings.setMediaPlaybackRequiresUserGesture(false);
+            settings.setLoadWithOverviewMode(true);
+            settings.setUseWideViewPort(true);
+            // Pages opened from the player stay inside its box
+            web.setWebViewClient(new WebViewClient());
+            root.addView(web, 1, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            web.loadUrl(url);
+            logo.setVisibility(View.INVISIBLE);
         }
 
         void stop() {
-            handler.removeCallbacks(retry);
-            playerView.setPlayer(null);
-            if (player != null) {
-                player.release();
-                player = null;
+            if (web != null) {
+                root.removeView(web);
+                web.loadUrl("about:blank");
+                web.destroy();
+                web = null;
             }
-            showLogo(url.isEmpty() ? "" : "waiting");
-        }
-
-        private void play() {
-            handler.removeCallbacks(retry);
-            if (player == null || url.isEmpty()) {
-                return;
-            }
-            MediaItem.Builder item = new MediaItem.Builder()
-                    .setUri(url)
-                    .setLiveConfiguration(new MediaItem.LiveConfiguration.Builder()
-                            .setTargetOffsetMs(LIVE_OFFSET_MS)
-                            .build());
-            String scheme = Uri.parse(url).getScheme();
-            if ("http".equals(scheme) || "https".equals(scheme)) {
-                item.setMimeType(MimeTypes.APPLICATION_M3U8);
-            }
-            setState("connecting");
-            player.setMediaItem(item.build());
-            player.prepare();
-            player.setPlayWhenReady(true);
-        }
-
-        private void scheduleRetry() {
-            handler.removeCallbacks(retry);
-            handler.postDelayed(retry, RETRY_DELAY_MS);
-        }
-
-        private void showLogo(String state) {
-            playerView.setVisibility(View.INVISIBLE);
             logo.setVisibility(View.VISIBLE);
-            setState(state);
-        }
-
-        private void setState(String state) {
-            StringBuilder text = new StringBuilder().append(index + 1);
-            if (!state.isEmpty()) {
-                text.append("  ").append(state);
-            }
-            if (state.equals("LIVE") && Uri.parse(url).getHost() != null) {
-                text.append("  ").append(Uri.parse(url).getHost());
-            }
-            label.setText(text);
         }
     }
 
     // ---- Addresses ----------------------------------------------------------------------
 
     /**
-     * Accepts what people paste: the browser address of the stream (with or without https://),
-     * a server address without a path, or a direct .m3u8 / rtsp:// URL.
+     * The Livepush player link in a standard form (https:// added when missing), "" for an empty box,
+     * or null when the text is not a Livepush player link.
      */
-    static String normalize(String input) {
-        String text = input.trim();
+    static String livepushUrl(String input) {
+        String text = input == null ? "" : input.trim();
         if (text.isEmpty()) {
-            return text;
+            return "";
         }
         if (!text.contains("://")) {
             text = "https://" + text;
         }
         Uri uri = Uri.parse(text);
-        String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase();
-        if (!scheme.equals("http") && !scheme.equals("https")) {
-            return text;
+        String path = uri.getPath() == null ? "" : uri.getPath().replace("/", "");
+        if (!"https".equalsIgnoreCase(uri.getScheme()) || !LIVEPUSH_HOST.equalsIgnoreCase(uri.getHost()) || path.isEmpty()) {
+            return null;
         }
-        String path = uri.getPath() == null ? "" : uri.getPath().replaceAll("/{2,}", "/");
-        while (path.endsWith("/")) {
-            path = path.substring(0, path.length() - 1);
-        }
-        if (path.isEmpty()) {
-            path = DEFAULT_PATH;
-        }
-        if (!path.endsWith(".m3u8")) {
-            path += "/index.m3u8";
-        }
-        return uri.buildUpon().scheme(scheme).path(path).build().toString();
+        return uri.toString();
     }
 }

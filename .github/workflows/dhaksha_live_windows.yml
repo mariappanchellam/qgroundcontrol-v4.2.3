@@ -1,0 +1,54 @@
+# Builds the Windows version of Dhaksha Live, the Livepush multi-drone viewer (tools/dhaksha/live-windows),
+# as a single portable .exe.
+name: Dhaksha Live Windows
+
+on:
+  push:
+    branches:
+      - main
+      - 'build/**'
+    paths:
+      - 'tools/dhaksha/live-windows/**'
+      - '.github/workflows/dhaksha_live_windows.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Dhaksha Live Windows exe
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: tools/dhaksha/live-windows/package-lock.json
+
+      - name: Build exe
+        working-directory: tools/dhaksha/live-windows
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: |
+          npm ci
+          npm run dist
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: DhakshaLive-Windows-${{ github.sha }}
+          path: tools/dhaksha/live-windows/dist/*.exe
+          if-no-files-found: error

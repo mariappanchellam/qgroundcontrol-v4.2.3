@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; frame-src https://player.livepush.io">
+  <title>Dhaksha Live</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <section id="setup" class="page">
+    <header>
+      <h1><span class="brand">DHAKSHA</span> Live</h1>
+      <p>Paste up to eight Livepush player links (for example <code>https://player.livepush.io/live/emYdk2WzYx3kNdaO</code>).
+         Empty boxes show the Dhaksha logo. Press OK to watch; "Addresses" in the grid returns here.</p>
+    </header>
+    <form id="addresses" autocomplete="off"></form>
+    <div class="actions">
+      <button id="ok" class="primary" type="button">OK: show all streams</button>
+    </div>
+  </section>
+
+  <section id="grid-page" class="page hidden">
+    <div class="toolbar">
+      <button id="back" type="button">&#8592; Addresses</button>
+      <span class="hint">Hover a box for controls &middot; Enlarge shows one drone &middot; Esc to return &middot; F11 full screen</span>
+    </div>
+    <div id="grid"></div>
+  </section>
+
+  <script src="app.js"></script>
+</body>
+</html>
