@@ -49,6 +49,63 @@ function saveUrls(urls) {
   }
 }
 
+const DRONE_SVG =
+  '<svg viewBox="0 0 120 50" xmlns="http://www.w3.org/2000/svg">' +
+  '<rect x="20" y="19" width="80" height="5" rx="2" fill="#ffa000"/>' +
+  '<rect x="46" y="14" width="28" height="15" rx="5" fill="#ffa000"/>' +
+  '<rect x="53" y="29" width="14" height="7" rx="2" fill="#2b2f38"/>' +
+  '<circle cx="60" cy="33" r="2.6" fill="#6cf"/>' +
+  '<rect x="18" y="11" width="4" height="10" fill="#c9d2dc"/>' +
+  '<rect x="98" y="11" width="4" height="10" fill="#c9d2dc"/>' +
+  '<ellipse class="rotor" cx="20" cy="10" rx="19" ry="3" fill="#dfe6ee" opacity=".85"/>' +
+  '<ellipse class="rotor" cx="100" cy="10" rx="19" ry="3" fill="#dfe6ee" opacity=".85"/>' +
+  '<rect x="41" y="29" width="3" height="12" fill="#c9d2dc"/>' +
+  '<rect x="76" y="29" width="3" height="12" fill="#c9d2dc"/>' +
+  '<rect x="34" y="41" width="16" height="2.5" rx="1" fill="#c9d2dc"/>' +
+  '<rect x="70" y="41" width="16" height="2.5" rx="1" fill="#c9d2dc"/>' +
+  '</svg>';
+
+/** The Dhaksha logo: a big D and a smaller "haksha" whose letters fade in. Clicking it flies a drone across `area`. */
+function makeLogo(area) {
+  const logo = document.createElement('span');
+  logo.className = 'dlogo';
+  logo.title = 'Dhaksha';
+  const big = document.createElement('span');
+  big.className = 'D';
+  big.textContent = 'D';
+  const word = document.createElement('span');
+  word.className = 'haksha';
+  for (const letter of 'haksha') {
+    const span = document.createElement('span');
+    span.textContent = letter;
+    word.appendChild(span);
+  }
+  logo.append(big, word);
+  if (area) {
+    logo.addEventListener('click', (e) => {
+      e.stopPropagation();
+      flyDrone(area);
+    });
+  }
+  return logo;
+}
+
+/** Sends a quadcopter across `area` once; the element removes itself when it has flown out. */
+function flyDrone(area) {
+  if (area.querySelector('.drone')) {
+    return;
+  }
+  const drone = document.createElement('div');
+  drone.className = 'drone';
+  drone.innerHTML = DRONE_SVG;
+  drone.addEventListener('animationend', (e) => {
+    if (e.target === drone) {
+      drone.remove();
+    }
+  });
+  area.appendChild(drone);
+}
+
 class Tile {
   constructor(index, grid) {
     this.index = index;
@@ -61,9 +118,7 @@ class Tile {
 
     const logo = document.createElement('div');
     logo.className = 'logo';
-    const name = document.createElement('div');
-    name.className = 'name';
-    name.textContent = 'DHAKSHA';
+    const name = makeLogo(logo);
     const sub = document.createElement('div');
     sub.className = 'sub';
     sub.textContent = 'Drone ' + (index + 1);
@@ -160,6 +215,8 @@ function buildAddressForm(urls) {
 }
 
 function showPage(gridPage) {
+  // Hidden pages pause their animations, so a drone still in flight would wait there: land it now
+  document.querySelectorAll('#setup .drone, #grid .drone').forEach((drone) => drone.remove());
   document.getElementById('setup').classList.toggle('hidden', gridPage);
   document.getElementById('grid-page').classList.toggle('hidden', !gridPage);
   if (!gridPage) {
@@ -196,6 +253,17 @@ function setFocus(tile) {
 function toggleFocus(tile) {
   setFocus(focused === tile ? null : tile);
 }
+
+// Start-up splash: the logo animates and a drone flies past, then the splash fades (a click skips it)
+const splash = document.getElementById('splash');
+splash.insertBefore(makeLogo(null), splash.firstChild);
+flyDrone(splash);
+const hideSplash = () => splash.classList.add('done');
+splash.addEventListener('click', hideSplash);
+setTimeout(hideSplash, 2600);
+
+const title = document.getElementById('title');
+title.insertBefore(makeLogo(document.getElementById('header')), title.firstChild);
 
 const saved = loadUrls();
 buildAddressForm(saved);
