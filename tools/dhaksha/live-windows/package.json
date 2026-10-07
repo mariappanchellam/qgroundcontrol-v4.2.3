@@ -7,7 +7,7 @@
   "private": true,
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --win portable --x64 --publish never"
+    "dist": "electron-builder --win --x64 --publish never"
   },
   "devDependencies": {
     "electron": "33.4.11",
@@ -21,10 +21,28 @@
       "package.json"
     ],
     "win": {
-      "target": "portable"
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "resources/icon.ico"
     },
     "portable": {
-      "artifactName": "DhakshaLive-${version}.exe"
+      "artifactName": "DhakshaLive-Portable-${version}.exe"
+    },
+    "directories": {
+      "buildResources": "resources",
+      "output": "dist"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Dhaksha Live",
+      "uninstallDisplayName": "Dhaksha Live",
+      "artifactName": "DhakshaLive-Setup-${version}.exe"
     }
   }
 }
