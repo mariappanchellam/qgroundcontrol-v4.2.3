@@ -4,7 +4,7 @@ What has been built for Dhaksha Drones in this repository (`mariappanchellam/qgr
 in the order it was done, with a download link for every build.
 Keep this file up to date at the end of every working session (see "Keeping the history" below).
 
-Last updated: 2026-10-08.
+Last updated: 2026-10-09.
 
 ## Keeping the history between Claude sessions
 
@@ -30,6 +30,7 @@ so details can be lost. To keep the context:
 | **Dhaksha Live (desktop)** | Windows / Linux viewer, 25 boxes, plays the Dhaksha video server (HLS or WebRTC) and Livepush | `tools/dhaksha/live-windows` | `build/dhaksha-live-grid` |
 | **DhakshaKey** | Android helper: checks the camera feed and writes/starts the ffmpeg scripts in Termux | `tools/dhaksha/key-android` | `build/dhaksha-key` |
 | **Video server** | MediaMTX on AWS Lightsail: MK15 sends RTMP, viewers get HLS (:8888) or WebRTC (:8889) | `tools/dhaksha/stream_server.sh` | `main` |
+| **Server test drones** | Sends looping test video as drone1..droneN from the server itself, to try Dhaksha Live with many boxes | `tools/dhaksha/server/stream_aws_test.sh` | `build/dhaksha-live-grid` |
 | **Termux scripts** | ffmpeg commands that run on the MK15 (Livepush or own server, 144p to 720p) | `tools/dhaksha/termux` | `build/dhaksha-live-grid` |
 
 ## What was done, in order
@@ -78,6 +79,12 @@ so details can be lost. To keep the context:
   inside the app, keeps the Dhaksha logo until the video plays, start-up splash shows only the logo on
   dark blue.
 
+### 9 Oct 2026: test drones on the server
+- `tools/dhaksha/server/stream_aws_test.sh`: runs on the AWS server in a second SSH session and sends
+  10 test drones (labelled "TEST DRONE n" with a running clock; or your own .mp4) to the server's own
+  MediaMTX. The video is prepared once and then copied in a loop, so it hardly uses the server's CPU.
+  `stream_aws.sh` on the MK15 is unchanged.
+
 ## Open items
 - Find what blocks WebRTC (Lightsail UDP 8189 rule, TCP fallback, office/laptop network).
 - Test Dhaksha Live 3.0 with the real server and several MK15s; check the delay with a stopwatch.
@@ -97,6 +104,11 @@ real values, because this repository is public. Put the real values in your copy
 | `stream_<size>.sh` | Livepush, restarts when the stream drops | same |
 | `autostart_<size>.sh` | Termux:Boot (copy only one into `~/.termux/boot/`) | runs `stream_<size>.sh` |
 | `stream_aws.sh` | Own server: `bash ~/stream_aws.sh <SERVER_IP>` | 360p 150k, 15 fps; watch `http://<SERVER_IP>:8888/live/drone1` |
+
+Test drones on the server (second SSH session on the AWS server):
+`curl -fsSL -o stream_aws_test.sh https://raw.githubusercontent.com/mariappanchellam/qgroundcontrol-v4.2.3/build/dhaksha-live-grid/tools/dhaksha/server/stream_aws_test.sh`
+then `PASSWORD=<server password> bash stream_aws_test.sh 10 2` (drone2..drone11, leaving drone1 for the MK15)
+or `... 10 1` (drone1..drone10). Watch `http://<SERVER_IP>:8888/live/droneN`.
 
 Copy to Termux: put the files in the MK15's Download folder, then
 `termux-setup-storage; cp ~/storage/shared/Download/*.sh ~/; chmod +x ~/*.sh`.
