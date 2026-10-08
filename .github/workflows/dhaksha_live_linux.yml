@@ -55,12 +55,18 @@ jobs:
           npm ci
           npm run "$SCRIPT"
 
-      - name: Upload
+      - name: Upload deb
         uses: actions/upload-artifact@v4
         with:
-          name: DhakshaLive-Linux-${{ matrix.bits }}bit-${{ github.sha }}
+          name: DhakshaLive-Linux-${{ matrix.bits }}bit-deb-${{ github.sha }}
+          path: tools/dhaksha/live-windows/dist/*.deb
+          if-no-files-found: error
+
+      - name: Upload AppImage and tar.gz
+        uses: actions/upload-artifact@v4
+        with:
+          name: DhakshaLive-Linux-${{ matrix.bits }}bit-other-${{ github.sha }}
           path: |
-            tools/dhaksha/live-windows/dist/*.deb
             tools/dhaksha/live-windows/dist/*.AppImage
             tools/dhaksha/live-windows/dist/*.tar.gz
           if-no-files-found: error
