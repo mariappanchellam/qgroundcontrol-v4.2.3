@@ -84,6 +84,8 @@ so details can be lost. To keep the context:
   10 test drones (labelled "TEST DRONE n" with a running clock; or your own .mp4) to the server's own
   MediaMTX. The video is prepared once and then copied in a loop, so it hardly uses the server's CPU.
   `stream_aws.sh` on the MK15 is unchanged.
+- Dhaksha Live desktop 3.1: a tick box per drone. Only ticked drones get a box and a player (unticked ones
+  use no CPU or network), and the grid sizes itself to the ticked drones (1 = full window, 4 = 2 x 2, 9 = 3 x 3).
 
 ## Open items
 - Find what blocks WebRTC (Lightsail UDP 8189 rule, TCP fallback, office/laptop network).

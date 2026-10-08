@@ -6,6 +6,7 @@
 
 const STREAMS = 25;
 const STORAGE_KEY = 'dhakshaLive.urls';
+const SHOW_KEY = 'dhakshaLive.show';
 const MODE_KEY = 'dhakshaLive.mode';
 const SERVER_KEY = 'dhakshaLive.server';
 const LIVEPUSH_HOST = 'player.livepush.io';
@@ -110,6 +111,19 @@ function loadUrls() {
   } catch (e) {
     return new Array(STREAMS).fill('');
   }
+}
+
+/** Which drones are ticked to be shown; the first time, every drone that has an address. */
+function loadShown(urls) {
+  try {
+    const saved = JSON.parse(load(SHOW_KEY, 'null'));
+    if (Array.isArray(saved)) {
+      return Array.from({ length: STREAMS }, (_, i) => saved[i] === true);
+    }
+  } catch (e) {
+    // Fall through to the default
+  }
+  return urls.map((text) => !!text);
 }
 
 const DRONE_SVG =
@@ -404,12 +418,24 @@ const modeSelect = document.getElementById('mode');
 const modeToggle = document.getElementById('mode-toggle');
 const tiles = [];
 const fields = [];
+const checks = [];
+const shownCount = document.getElementById('shown-count');
 let focused = null;
 
-function buildAddressForm(urls) {
+function updateShownCount() {
+  const n = checks.filter((check) => check.checked).length;
+  shownCount.textContent = n === 1 ? '1 drone ticked' : n + ' drones ticked';
+}
+
+function buildAddressForm(urls, shown) {
   for (let i = 0; i < STREAMS; i++) {
     const row = document.createElement('div');
     row.className = 'row';
+    const check = document.createElement('input');
+    check.type = 'checkbox';
+    check.checked = shown[i];
+    check.title = 'Show this drone (unticked drones use no CPU or network)';
+    check.addEventListener('change', updateShownCount);
     const label = document.createElement('label');
     label.textContent = 'Drone ' + (i + 1);
     label.htmlFor = 'url' + i;
@@ -419,6 +445,16 @@ function buildAddressForm(urls) {
     input.spellcheck = false;
     input.placeholder = 'http://SERVER_IP:8888/live/drone' + (i + 1);
     input.value = urls[i];
+    // Typing an address into an empty row ticks it
+    let wasEmpty = !input.value.trim();
+    input.addEventListener('input', () => {
+      const empty = !input.value.trim();
+      if (wasEmpty && !empty && !check.checked) {
+        check.checked = true;
+        updateShownCount();
+      }
+      wasEmpty = empty;
+    });
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         applyAddresses();
@@ -427,10 +463,16 @@ function buildAddressForm(urls) {
     const clear = document.createElement('button');
     clear.type = 'button';
     clear.textContent = 'Clear';
-    clear.addEventListener('click', () => { input.value = ''; input.focus(); });
-    row.append(label, input, clear);
+    clear.addEventListener('click', () => {
+      input.value = '';
+      check.checked = false;
+      updateShownCount();
+      input.focus();
+    });
+    row.append(check, label, input, clear);
     form.appendChild(row);
     fields.push(input);
+    checks.push(check);
   }
 }
 
@@ -469,14 +511,32 @@ function showPage(gridPage) {
   }
 }
 
+/** Shows only the ticked drones; unticked boxes are removed from the grid and run no player at all. */
 function applyAddresses() {
   const texts = fields.map((field) => field.value.trim());
   texts.forEach((text, i) => { fields[i].value = text; });
+  const shown = checks.map((check) => check.checked);
   store(STORAGE_KEY, JSON.stringify(texts));
+  store(SHOW_KEY, JSON.stringify(shown));
+  const count = shown.filter(Boolean).length;
+  const okNote = document.getElementById('ok-note');
+  okNote.textContent = count ? '' : 'Tick at least one drone to show.';
+  if (!count) {
+    return;
+  }
+  // As square as possible: 1 drone fills the window, 4 make 2 x 2, 9 make 3 x 3, 25 make 5 x 5
+  const columns = Math.ceil(Math.sqrt(count));
+  grid.style.setProperty('--columns', columns);
+  grid.style.setProperty('--rows', Math.ceil(count / columns));
   showPage(true);
   tiles.forEach((tile, i) => {
-    tile.setAddress(texts[i]);
-    tile.start();
+    tile.el.classList.toggle('hidden', !shown[i]);
+    tile.setAddress(shown[i] ? texts[i] : '');
+    if (shown[i]) {
+      tile.start();
+    } else {
+      tile.stop();
+    }
   });
 }
 
@@ -504,7 +564,17 @@ setTimeout(hideSplash, 2600);
 document.querySelector('.title-logo').addEventListener('click', () => flyDrone(document.getElementById('header')));
 
 const saved = loadUrls();
-buildAddressForm(saved);
+const savedShown = loadShown(saved);
+buildAddressForm(saved, savedShown);
+updateShownCount();
+document.getElementById('tick-all').addEventListener('click', () => {
+  checks.forEach((check, i) => { check.checked = !!fields[i].value.trim(); });
+  updateShownCount();
+});
+document.getElementById('tick-none').addEventListener('click', () => {
+  checks.forEach((check) => { check.checked = false; });
+  updateShownCount();
+});
 for (let i = 0; i < STREAMS; i++) {
   tiles.push(new Tile(i, grid));
 }
@@ -515,7 +585,7 @@ modeToggle.addEventListener('click', () => {
   setGlobalMode(globalMode === 'hls' ? 'webrtc' : 'hls');
   tiles.forEach((tile) => {
     tile.modeOverride = null;
-    if (tile.source && tile.source.kind === 'server') {
+    if (!tile.el.classList.contains('hidden') && tile.source && tile.source.kind === 'server') {
       tile.start();
     }
   });
@@ -539,6 +609,6 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-if (saved.some((text) => text)) {
+if (savedShown.some((on, i) => on && saved[i])) {
   applyAddresses();
 }

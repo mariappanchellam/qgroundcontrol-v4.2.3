@@ -12,7 +12,7 @@
   <section id="setup" class="page">
     <header id="header" class="flight-area">
       <h1 id="title"><img class="title-logo" src="logo.svg" alt="Dhaksha Drones"><span class="live-word">Live</span></h1>
-      <p>Up to 25 drones. Each box takes a link from your own video server
+      <p>Up to 25 drones; tick the ones to watch. Each box takes a link from your own video server
          (<code>http://SERVER_IP:8888/live/drone1</code>, <code>:8889</code>, <code>rtsp://</code>, <code>rtmp://</code> or <code>.m3u8</code>)
          or a Livepush player link. Boxes show the Dhaksha logo until their video arrives.</p>
     </header>
@@ -26,9 +26,16 @@
         <option value="webrtc">WebRTC (about 1 second delay)</option>
       </select>
     </div>
+    <div class="select">
+      <span>Tick the drones to show; unticked drones use no CPU or network.</span>
+      <button id="tick-all" type="button">Tick all with an address</button>
+      <button id="tick-none" type="button">Untick all</button>
+      <span id="shown-count"></span>
+    </div>
     <form id="addresses" autocomplete="off"></form>
     <div class="actions">
-      <button id="ok" class="primary" type="button">OK: show all streams</button>
+      <button id="ok" class="primary" type="button">OK: show the ticked drones</button>
+      <div id="ok-note"></div>
     </div>
   </section>
 

@@ -37,7 +37,12 @@ code { color: var(--text); }
 .row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; padding: 3px 6px; border-radius: 6px;
   transition: background .15s; }
 .row:hover { background: #1a1d24; }
-.row label { width: 64px; color: var(--muted); font-size: 14px; }
+.row label { width: 66px; flex: none; white-space: nowrap; color: var(--muted); font-size: 14px; }
+.row input[type="checkbox"] { flex: none; width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; }
+.select { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 10px; color: var(--muted); }
+.select button { padding: 4px 12px; }
+#shown-count { color: var(--accent); }
+#ok-note { color: #ff8a80; margin-top: 8px; min-height: 1em; }
 .row input { flex: 1; min-width: 0; padding: 6px 8px; }
 .row button { padding: 4px 10px; }
 .actions { margin-top: 16px; }
@@ -47,7 +52,7 @@ code { color: var(--text); }
 #grid-page { display: flex; flex-direction: column; height: 100vh; }
 .toolbar { display: flex; align-items: center; gap: 12px; padding: 6px 8px; background: #0b0b0b; }
 .hint { color: var(--muted); font-size: 12px; }
-#grid { flex: 1; display: grid; grid-template-columns: repeat(5, 1fr); grid-template-rows: repeat(5, 1fr);
+#grid { flex: 1; display: grid; grid-template-columns: repeat(var(--columns, 5), 1fr); grid-template-rows: repeat(var(--rows, 5), 1fr);
   gap: 3px; padding: 3px; min-height: 0; }
 #grid.focus { grid-template-columns: 1fr; grid-template-rows: 1fr; }
 #grid.focus .tile:not(.focused) { display: none; }
