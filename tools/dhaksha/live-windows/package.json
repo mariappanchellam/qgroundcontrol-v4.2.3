@@ -7,7 +7,9 @@
   "private": true,
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --win --x64 --publish never"
+    "dist": "electron-builder --win --x64 --publish never",
+    "dist:linux": "electron-builder --linux --x64 --publish never",
+    "dist:linux32": "electron-builder --linux --ia32 --publish never -c.electronVersion=18.3.15"
   },
   "devDependencies": {
     "electron": "33.4.11",
@@ -30,6 +32,19 @@
     "portable": {
       "artifactName": "DhakshaLive-Portable-${version}.exe"
     },
+    "linux": {
+      "target": [
+        "deb",
+        "AppImage",
+        "tar.gz"
+      ],
+      "icon": "resources/icon.png",
+      "category": "Video",
+      "executableName": "dhaksha-live",
+      "maintainer": "Dhaksha",
+      "synopsis": "Watch Dhaksha drone streams from Livepush",
+      "artifactName": "DhakshaLive-${version}-linux-${arch}.${ext}"
+    },
     "directories": {
       "buildResources": "resources",
       "output": "dist"
@@ -43,6 +58,11 @@
       "shortcutName": "Dhaksha Live",
       "uninstallDisplayName": "Dhaksha Live",
       "artifactName": "DhakshaLive-Setup-${version}.exe"
-    }
-  }
+    },
+    "publish": null
+  },
+  "author": {
+    "name": "Dhaksha"
+  },
+  "homepage": "https://github.com/mariappanchellam/qgroundcontrol-v4.2.3"
 }

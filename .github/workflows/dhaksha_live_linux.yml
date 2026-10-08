@@ -1,0 +1,66 @@
+# Builds the Linux version of Dhaksha Live, the Livepush multi-drone viewer (tools/dhaksha/live-windows),
+# as .deb, AppImage and .tar.gz for 64-bit and 32-bit PCs. Electron dropped 32-bit Linux after
+# version 18, so the 32-bit packages use Electron 18.
+name: Dhaksha Live Linux
+
+on:
+  push:
+    branches:
+      - main
+      - 'build/**'
+    paths:
+      - 'tools/dhaksha/live-windows/**'
+      - '.github/workflows/dhaksha_live_linux.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Dhaksha Live Linux ${{ matrix.bits }}-bit
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - bits: 64
+            script: dist:linux
+          - bits: 32
+            script: dist:linux32
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: tools/dhaksha/live-windows/package-lock.json
+
+      - name: Build packages
+        working-directory: tools/dhaksha/live-windows
+        env:
+          SCRIPT: ${{ matrix.script }}
+        run: |
+          npm ci
+          npm run "$SCRIPT"
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: DhakshaLive-Linux-${{ matrix.bits }}bit-${{ github.sha }}
+          path: |
+            tools/dhaksha/live-windows/dist/*.deb
+            tools/dhaksha/live-windows/dist/*.AppImage
+            tools/dhaksha/live-windows/dist/*.tar.gz
+          if-no-files-found: error
