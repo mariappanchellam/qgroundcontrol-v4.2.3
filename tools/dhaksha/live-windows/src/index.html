@@ -3,18 +3,29 @@
 <head>
   <meta charset="utf-8">
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; frame-src https://player.livepush.io">
+        content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self' blob: http: https:; connect-src http: https:; frame-src http: https:">
   <title>Dhaksha Live</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div id="splash"><div class="tagline">LIVE DRONE VIEW</div></div>
+  <div id="splash"><img class="splash-logo" src="logo.svg" alt="Dhaksha Drones"></div>
   <section id="setup" class="page">
     <header id="header" class="flight-area">
-      <h1 id="title"><span class="live-word">Live</span></h1>
-      <p>Paste up to eight Livepush player links (for example <code>https://player.livepush.io/live/emYdk2WzYx3kNdaO</code>).
-         Empty boxes show the Dhaksha logo. Press OK to watch; "Addresses" in the grid returns here.</p>
+      <h1 id="title"><img class="title-logo" src="logo.svg" alt="Dhaksha Drones"><span class="live-word">Live</span></h1>
+      <p>Up to 25 drones. Each box takes a link from your own video server
+         (<code>http://SERVER_IP:8888/live/drone1</code>, <code>:8889</code>, <code>rtsp://</code>, <code>rtmp://</code> or <code>.m3u8</code>)
+         or a Livepush player link. Boxes show the Dhaksha logo until their video arrives.</p>
     </header>
+    <div class="server">
+      <label for="server-ip">Server address</label>
+      <input id="server-ip" type="text" spellcheck="false" placeholder="e.g. 13.233.10.20">
+      <button id="fill" type="button">Fill empty boxes with drone1&ndash;drone25</button>
+      <label for="mode">Play server streams as</label>
+      <select id="mode">
+        <option value="hls">HLS (reliable, a few seconds delay)</option>
+        <option value="webrtc">WebRTC (about 1 second delay)</option>
+      </select>
+    </div>
     <form id="addresses" autocomplete="off"></form>
     <div class="actions">
       <button id="ok" class="primary" type="button">OK: show all streams</button>
@@ -24,11 +35,13 @@
   <section id="grid-page" class="page hidden">
     <div class="toolbar">
       <button id="back" type="button">&#8592; Addresses</button>
+      <button id="mode-toggle" type="button"></button>
       <span class="hint">Hover a box for controls &middot; Enlarge shows one drone &middot; Esc to return &middot; F11 full screen</span>
     </div>
     <div id="grid"></div>
   </section>
 
+  <script src="../node_modules/hls.js/dist/hls.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

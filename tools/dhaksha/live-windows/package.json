@@ -1,8 +1,8 @@
 {
   "name": "dhaksha-live",
   "productName": "Dhaksha Live",
-  "version": "2.1.0",
-  "description": "Watch up to eight Dhaksha drone streams from Livepush at once",
+  "version": "3.0.0",
+  "description": "Watch up to 25 Dhaksha drone streams at once from the Dhaksha video server or Livepush",
   "main": "src/main.js",
   "private": true,
   "scripts": {
@@ -64,5 +64,8 @@
   "author": {
     "name": "Dhaksha"
   },
-  "homepage": "https://github.com/mariappanchellam/qgroundcontrol-v4.2.3"
+  "homepage": "https://github.com/mariappanchellam/qgroundcontrol-v4.2.3",
+  "dependencies": {
+    "hls.js": "1.5.20"
+  }
 }
