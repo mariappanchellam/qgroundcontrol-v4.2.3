@@ -87,7 +87,8 @@ so details can be lost. To keep the context:
 - Dhaksha Live desktop 3.1: a tick box per drone. Only ticked drones get a box and a player (unticked ones
   use no CPU or network), and the grid sizes itself to the ticked drones (1 = full window, 4 = 2 x 2, 9 = 3 x 3).
 
-- `stream_aws.sh` 2.0 (MK15): choose the quality, `bash ~/stream_aws.sh <SERVER_IP> [auto|720|480|360|240|copy] [drone]`.
+- `stream_aws_internetspeed.sh` (MK15; `stream_aws.sh` stays as the fixed 360p version): choose the quality,
+  `bash ~/stream_aws_internetspeed.sh <SERVER_IP> [auto|720|480|360|240|copy] [drone]`.
   `auto` (default) starts at 480p, steps down within seconds when video starts queuing in the phone's upload
   (read from the kernel's connection table, so the delay is measured directly) and tries one step up after
   3 minutes of smooth sending (10 minutes after it had to step down). Sizes: 720p 20 fps 1000k, 480p 15 fps 500k,
@@ -111,7 +112,8 @@ real values, because this repository is public. Put the real values in your copy
 | `startgen_<size>.sh` | Livepush, one ffmpeg run | 144p 60k, 240p 100k, 360p 150k, 480p 180k, 720p 200k (10 fps) |
 | `stream_<size>.sh` | Livepush, restarts when the stream drops | same |
 | `autostart_<size>.sh` | Termux:Boot (copy only one into `~/.termux/boot/`) | runs `stream_<size>.sh` |
-| `stream_aws.sh` | Own server: `bash ~/stream_aws.sh <SERVER_IP> [auto\|720\|480\|360\|240\|copy] [drone]` | auto (default) adapts to the internet; watch `http://<SERVER_IP>:8888/live/drone1` |
+| `stream_aws.sh` | Own server: `bash ~/stream_aws.sh <SERVER_IP>` | 360p 150k, 15 fps; watch `http://<SERVER_IP>:8888/live/drone1` |
+| `stream_aws_internetspeed.sh` | Own server: `bash ~/stream_aws_internetspeed.sh <SERVER_IP> [auto\|720\|480\|360\|240\|copy] [drone]` | auto (default) adapts to the internet speed |
 
 Test drones on the server (second SSH session on the AWS server):
 `curl -fsSL -o stream_aws_test.sh https://raw.githubusercontent.com/mariappanchellam/qgroundcontrol-v4.2.3/build/dhaksha-live-grid/tools/dhaksha/server/stream_aws_test.sh`

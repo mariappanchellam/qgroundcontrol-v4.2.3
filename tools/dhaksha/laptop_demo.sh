@@ -1,46 +1,68 @@
 #!/usr/bin/env bash
-# DhakshaGroundControl: the whole video chain on one Linux laptop, no drone or camera needed.
-#
-#   video file --RTSP--> MediaMTX --> DhakshaGroundControl (desktop build or Android emulator)
-#   DhakshaGroundControl --RTMP--> MediaMTX --> Dhaksha Live in the browser (http://localhost:8080)
-#
-# Usage:   ./laptop_demo.sh [video file]      (no file: a generated test pattern)
-# Needs:   ffmpeg, python3. Stop with Ctrl+C.
+# laptop_demo.sh - MediaMTX server for receiving RTMP from MK15 with real drone camera
+# Usage: ./laptop_demo.sh
+# Receives RTMP stream from MK15, outputs HLS for viewers (no fake camera)
 
-set -euo pipefail
+echo "=== MediaMTX Streaming Server ==="
+echo ""
 
-HERE="$(dirname "$(realpath "$0")")"
-LOG="${XDG_CACHE_HOME:-$HOME/.cache}/dhaksha-fake-camera/camera.log"
-mkdir -p "$(dirname "$LOG")"
+# Check if MediaMTX is installed
+if ! command -v mediamtx &> /dev/null; then
+    echo "Error: mediamtx not found"
+    echo "Install with: sudo apt-get install mediamtx"
+    echo "Or download from: https://github.com/bluenviron/mediamtx/releases"
+    exit 1
+fi
 
-"$HERE/fake_camera.sh" "$@" > "$LOG" 2>&1 &
-CAMERA_PID=$!
-trap 'kill "$CAMERA_PID" 2>/dev/null; pkill -P "$CAMERA_PID" 2>/dev/null || true' EXIT
+# Create temporary MediaMTX config
+TEMP_CONFIG="/tmp/mediamtx-demo.yml"
+cat > "$TEMP_CONFIG" << 'EOF'
+# MediaMTX config - receive RTMP from MK15, output HLS for viewers
 
-for _ in $(seq 1 60); do
-    if ! kill -0 "$CAMERA_PID" 2>/dev/null; then cat "$LOG"; exit 1; fi
-    grep -q "Press Ctrl+C" "$LOG" && break
-    sleep 1
-done
+# RTMP listener (MK15 pushes here)
+rtmpAddress: :1935
 
+# HLS listener (browsers/Dhaksha Live pull from here)
+hlsAddress: :8888
+
+# WebRTC listener (low-latency alternative)
+webrtcAddress: :8889
+
+paths:
+  live:
+    # Allow RTMP push from MK15 with real drone camera
+    publishUser: optional
+EOF
+
+trap "rm -f $TEMP_CONFIG; exit 0" EXIT INT TERM
+
+# Get laptop IP
 IPS="$(hostname -I 2>/dev/null | tr ' ' '\n' | grep -E '^[0-9]+\.' | tr '\n' ' ' || true)"
 IP="${IPS%% *}"
 
 cat <<INFO
 
-Camera and video server are running (log: $LOG).
+Starting MediaMTX...
 
-DhakshaGroundControl > Application Settings > General > Gimbal Camera
-  Camera Vendor   : ViewPro
+=== MK15 Configuration ===
+Go to: Application Settings > General > Gimbal Camera
+
+  Camera Vendor   : ViewPro (receives RTSP from real drone camera)
   Stream to Server: ticked
-                     Desktop build on this laptop            Android emulator on this laptop
-  RTSP URL        :  rtsp://127.0.0.1:8554/cam               rtsp://10.0.2.2:8554/cam
-  Server URL      :  rtmp://127.0.0.1:1935/live/drone1       rtmp://10.0.2.2:1935/live/drone1
-  Press "Apply and Start Video".
+  Server URL      : rtmp://${IP:-<laptop-ip>}:1935/live/drone1
+  Press "Apply and Start Video"
 
-Dhaksha Live (browser): http://localhost:8080
-  From a phone on the same Wi-Fi: http://${IP:-<laptop-ip>}:8080
+=== View Stream ===
+Browser: http://${IP:-<laptop-ip>}:8888/live/index.m3u8
+Phone (Dhaksha Live app): Enter same URL above
+
+Listening on:
+  RTMP: :1935 (for MK15 to push)
+  HLS:  :8888 (for viewers)
+  WebRTC: :8889 (low-latency alternative)
+
+Press Ctrl+C to stop.
 
 INFO
 
-python3 "$HERE/dhaksha_live.py"
+mediamtx "$TEMP_CONFIG"
