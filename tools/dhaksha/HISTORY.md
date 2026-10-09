@@ -94,6 +94,9 @@ so details can be lost. To keep the context:
   3 minutes of smooth sending (10 minutes after it had to step down). Sizes: 720p 20 fps 1000k, 480p 15 fps 500k,
   360p 15 fps 250k, 240p 10 fps 120k; `copy` sends the camera's own video unchanged.
 
+- 9 Oct: the adaptive `stream_aws_internetspeed.sh` is parked for later. In use: `stream_aws.sh` (fixed 360p)
+  with a default server IP inside, started at boot by `boot_stream_aws.sh`.
+
 ## Open items
 - Find what blocks WebRTC (Lightsail UDP 8189 rule, TCP fallback, office/laptop network).
 - Test Dhaksha Live 3.0 with the real server and several MK15s; check the delay with a stopwatch.
@@ -112,7 +115,8 @@ real values, because this repository is public. Put the real values in your copy
 | `startgen_<size>.sh` | Livepush, one ffmpeg run | 144p 60k, 240p 100k, 360p 150k, 480p 180k, 720p 200k (10 fps) |
 | `stream_<size>.sh` | Livepush, restarts when the stream drops | same |
 | `autostart_<size>.sh` | Termux:Boot (copy only one into `~/.termux/boot/`) | runs `stream_<size>.sh` |
-| `stream_aws.sh` | Own server: `bash ~/stream_aws.sh <SERVER_IP>` | 360p 150k, 15 fps; watch `http://<SERVER_IP>:8888/live/drone1` |
+| `stream_aws.sh` | Own server: `bash ~/stream_aws.sh` (default server set inside) or `bash ~/stream_aws.sh <SERVER_IP>` | 360p 150k, 15 fps; watch `http://<SERVER_IP>:8888/live/drone1` |
+| `boot_stream_aws.sh` | Termux:Boot: waits for camera and server, then runs `stream_aws.sh` (the boot script in use) | set `SERVER_IP` inside; copy to `~/.termux/boot/` |
 | `boot_autostart_aws.sh` | Termux:Boot for the own server: waits for camera and server, then runs `stream_aws_internetspeed.sh` | set `SERVER_IP` (and `DRONE`) inside; copy to `~/.termux/boot/` |
 | `stream_aws_internetspeed.sh` | Own server: `bash ~/stream_aws_internetspeed.sh <SERVER_IP> [auto\|720\|480\|360\|240\|copy] [drone]` | auto (default) adapts to the internet speed |
 
