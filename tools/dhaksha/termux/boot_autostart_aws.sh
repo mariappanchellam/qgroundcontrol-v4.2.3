@@ -2,7 +2,8 @@
 # Termux:Boot: when the MK15 starts, waits for the camera and the internet, then streams to the
 # Dhaksha video server with stream_aws_internetspeed.sh. Log: ~/stream_log.txt
 #
-# Install (once):  mkdir -p ~/.termux/boot && cp ~/autostart_aws.sh ~/.termux/boot/ && chmod +x ~/.termux/boot/autostart_aws.sh
+# Install (once):  mkdir -p ~/.termux/boot && cp ~/boot_autostart_aws.sh ~/.termux/boot/ && chmod +x ~/.termux/boot/boot_autostart_aws.sh
+# stream_aws_internetspeed.sh goes in the home folder (~), not in ~/.termux/boot.
 # Keep only ONE autostart script in ~/.termux/boot, or two streams start.
 
 SERVER_IP="PUT_SERVER_IP_HERE"
@@ -18,7 +19,7 @@ log "MK15 started; waiting 30 s"
 sleep 30
 
 if [ "$SERVER_IP" = "PUT_SERVER_IP_HERE" ]; then
-  log "autostart_aws.sh: put the server IP in SERVER_IP first"
+  log "boot_autostart_aws.sh: put the server IP in SERVER_IP first"
   exit 1
 fi
 until ping -c 1 -W 2 "$CAMERA_IP" > /dev/null 2>&1; do
@@ -30,5 +31,19 @@ until timeout 5 bash -c "exec 3<>/dev/tcp/$SERVER_IP/1935" 2> /dev/null; do
   log "waiting for internet / server $SERVER_IP"
   sleep 5
 done
-log "camera and server reachable; starting $DRONE ($QUALITY)"
-bash "$HOME/stream_aws_internetspeed.sh" "$SERVER_IP" "$QUALITY" "$DRONE" >> "$LOG" 2>&1
+
+# The stream script: in the home folder, else wherever it was copied
+STREAM=""
+for candidate in "$HOME/stream_aws_internetspeed.sh" "$HOME/storage/shared/Download/stream_aws_internetspeed.sh" \
+    "$HOME/storage/shared/Download/stream_rate/stream_aws_internetspeed.sh"; do
+  if [ -f "$candidate" ]; then
+    STREAM="$candidate"
+    break
+  fi
+done
+if [ -z "$STREAM" ]; then
+  log "stream_aws_internetspeed.sh not found: copy it with  cp ~/storage/shared/Download/stream_aws_internetspeed.sh ~/"
+  exit 1
+fi
+log "camera and server reachable; starting $DRONE ($QUALITY) with $STREAM"
+bash "$STREAM" "$SERVER_IP" "$QUALITY" "$DRONE" >> "$LOG" 2>&1
