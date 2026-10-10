@@ -341,7 +341,7 @@ public class MainActivity extends Activity {
             startAnyway.setVisibility(View.GONE);
             showBanner("Streaming started with " + camera.scriptPath() + ". The Termux window shows its progress.\n"
                     + "Watch at " + StreamScripts.watchUrl(server, droneNumber()), false);
-            setStatus("If the camera or the internet drops, it reconnects by itself every 3 s. Stop ends it.", false);
+            setStatus("If the camera or the internet drops or stalls, it restarts by itself within a few seconds. Stop ends it.", false);
         }
     }
 
