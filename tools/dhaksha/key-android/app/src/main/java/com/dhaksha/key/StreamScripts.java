@@ -1,152 +1,246 @@
 package com.dhaksha.key;
 
-import java.net.URI;
+import java.util.Locale;
+import java.util.regex.Pattern;
 
 /**
- * Builds the Termux streaming scripts from the streaming document:
- * stream.sh (TCP, auto reconnect), stream_udp.sh (UDP) and the Termux:Boot autostream.sh.
+ * Builds the Termux script that sends the drone camera to the Dhaksha video server (MediaMTX on AWS).
  *
- * An H.264 camera is copied as it is; an H.265 camera is converted to H.264 on the MK15,
- * because RTMP servers such as Livepush only accept H.264.
+ * The script is the tested stream_aws.sh with the operator's choices filled in: camera stream, server,
+ * drone name, password and video size. It is saved as ~/stream_<camera>.sh, e.g. ~/stream_zr10.sh.
  */
 final class StreamScripts {
 
-    static final String DEFAULT_SERVER = "rtmp://stream.livepush.io/live/";
+    static final String DEFAULT_SERVER_IP = "15.252.170.151";
+    static final String DEFAULT_PASSWORD = "Dhaksha2026";
+    static final int RTMP_PORT = 1935;
+    static final int WATCH_PORT = 8888;
+    static final int MAX_DRONES = 25;
+
     static final String PID_FILE = "$HOME/.dhakshakey.pid";
+    static final String BOOT_DIR = "~/.termux/boot";
+    static final String BOOT_SCRIPT = BOOT_DIR + "/dhakshakey_boot.sh";
+    /** Earlier start-at-boot scripts that would start a second stream next to this one. */
+    static final String OLD_BOOT_SCRIPTS = BOOT_DIR + "/autostream.sh " + BOOT_DIR + "/boot_stream_aws.sh "
+            + BOOT_DIR + "/boot_autostart_aws.sh " + BOOT_DIR + "/autostart_*.sh";
     static final String SHEBANG = "#!/data/data/com.termux/files/usr/bin/bash";
 
-    static final String STREAM_SCRIPT = "~/stream.sh";
-    static final String UDP_SCRIPT = "~/stream_udp.sh";
-    static final String BOOT_SCRIPT = "~/.termux/boot/autostream.sh";
-
     private static final String HEREDOC_END = "DHAKSHAKEY_END_OF_SCRIPT";
+    private static final Pattern HOST = Pattern.compile("[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?");
+    private static final Pattern IPV4 = Pattern.compile("\\d{1,3}(\\.\\d{1,3}){3}");
+    private static final Pattern PASSWORD = Pattern.compile("[A-Za-z0-9._-]+");
+
+    /** A camera model: its default IP and how its RTSP address is built from the IP. */
+    static final class Camera {
+        final String name;
+        final String fileTag;
+        final String defaultIp;
+        /** RTSP address with %s for the IP; null when the operator types the whole address. */
+        final String rtspTemplate;
+
+        Camera(String name, String fileTag, String defaultIp, String rtspTemplate) {
+            this.name = name;
+            this.fileTag = fileTag;
+            this.defaultIp = defaultIp;
+            this.rtspTemplate = rtspTemplate;
+        }
+
+        boolean customAddress() {
+            return rtspTemplate == null;
+        }
+
+        String rtsp(String ip) {
+            return rtspTemplate == null ? "" : String.format(Locale.ROOT, rtspTemplate, ip);
+        }
+
+        String scriptPath() {
+            return "~/stream_" + fileTag + ".sh";
+        }
+    }
+
+    static final Camera[] CAMERAS = {
+        new Camera("ZR10 (SIYI)", "zr10", "192.168.144.25", "rtsp://%s:8554/main.264"),
+        new Camera("SIYI A8 mini", "siyi_a8", "192.168.144.25", "rtsp://%s:8554/main.264"),
+        new Camera("Skydroid", "skydroid", "192.168.144.108", "rtsp://%s:554/stream=0"),
+        new Camera("ViewPro", "viewpro", "192.168.144.119", "rtsp://%s:554/stream0"),
+        new Camera("Other camera", "other", "192.168.144.10", null),
+    };
+
+    /** A video size: the HEIGHT, FPS, BITRATE and BUFSIZE of the script. */
+    static final class Quality {
+        final String label;
+        final int height;
+        final int fps;
+        final int kbps;
+
+        Quality(String label, int height, int fps, int kbps) {
+            this.label = label;
+            this.height = height;
+            this.fps = fps;
+            this.kbps = kbps;
+        }
+    }
+
+    static final Quality[] QUALITIES = {
+        new Quality("Low: 240p (very slow internet, 0.15 Mbit/s)", 240, 10, 100),
+        new Quality("Normal: 360p (recommended, 0.2 Mbit/s)", 360, 15, 150),
+        new Quality("Good: 480p (0.4 Mbit/s)", 480, 15, 300),
+        new Quality("High: 720p (fast internet, 1 Mbit/s)", 720, 20, 800),
+    };
+    static final int DEFAULT_QUALITY = 1;
 
     private StreamScripts() {}
 
-    /** Full RTMP destination: the server with the key appended, or the key itself when it is already a URL. */
-    static String destination(String server, String key) {
-        if (key.contains("://")) {
-            return key;
-        }
-        if (server.isEmpty()) {
-            server = DEFAULT_SERVER;
-        }
-        return server.endsWith("/") ? server + key : server + "/" + key;
+    static String droneName(int number) {
+        return "drone" + number;
+    }
+
+    static String watchUrl(String serverIp, int droneNumber) {
+        return "http://" + serverIp + ":" + WATCH_PORT + "/live/" + droneName(droneNumber);
     }
 
     /** Host part of an rtsp:// address, or null when the address is not usable. */
-    static String cameraHost(String rtspUrl) {
-        try {
-            URI uri = new URI(rtspUrl);
-            if (!"rtsp".equalsIgnoreCase(uri.getScheme())) {
-                return null;
-            }
-            return uri.getHost();
-        } catch (Exception e) {
+    static String rtspHost(String rtspUrl) {
+        if (!rtspUrl.regionMatches(true, 0, "rtsp://", 0, 7)) {
             return null;
         }
+        String rest = rtspUrl.substring(7);
+        int end = rest.length();
+        for (char stop : new char[] { '/', '?' }) {
+            int at = rest.indexOf(stop);
+            if (at >= 0 && at < end) {
+                end = at;
+            }
+        }
+        String host = rest.substring(rest.lastIndexOf('@', end - 1) + 1, end);
+        int port = host.indexOf(':');
+        if (port >= 0) {
+            host = host.substring(0, port);
+        }
+        return isHost(host) ? host : null;
     }
 
-    /** Returns what is wrong with the inputs, or null when a script can be built from them. */
-    static String validate(String key, String server, String camera, String codec) {
-        if (key.isEmpty()) {
-            return "Enter the stream key.";
-        }
-        if (key.matches(".*\\s.*")) {
-            return "The stream key must not contain spaces.";
-        }
-        if (key.contains("://")) {
-            if (!key.startsWith("rtmp://") && !key.startsWith("rtmps://")) {
-                return "A full stream address must start with rtmp:// or rtmps://.";
+    static boolean isHost(String value) {
+        if (IPV4.matcher(value).matches()) {
+            for (String part : value.split("\\.")) {
+                if (Integer.parseInt(part) > 255) {
+                    return false;
+                }
             }
-        } else if (!server.isEmpty() && !server.startsWith("rtmp://") && !server.startsWith("rtmps://")) {
-            return "The server must start with rtmp:// or rtmps://.";
+            return true;
         }
-        if (cameraHost(camera) == null) {
-            return "The camera address must look like rtsp://192.168.144.119:554/stream0.";
+        return HOST.matcher(value).matches() && !value.matches("[0-9.]+");
+    }
+
+    /** Returns what is wrong with the inputs in plain words, or null when the script can be made. */
+    static String validate(String cameraRtsp, String serverIp, int droneNumber, String password) {
+        if (cameraRtsp.matches(".*[\\s'\"\\\\].*")) {
+            return "The camera address must not contain spaces or quotes.";
         }
-        if (codec == null) {
-            return "Check the camera feed first.";
+        if (rtspHost(cameraRtsp) == null) {
+            return "The camera address is not right. It must look like rtsp://192.168.144.25:8554/main.264";
         }
-        if (!codec.equals(RtspProbe.H264) && !codec.equals(RtspProbe.H265)) {
-            return "The camera sends " + codec + " video; only H.264 and H.265 cameras are supported.";
+        if (!isHost(serverIp)) {
+            return "The server IP is not right. It must look like 15.252.170.151";
+        }
+        if (droneNumber < 1 || droneNumber > MAX_DRONES) {
+            return "Choose a drone number from 1 to " + MAX_DRONES + ".";
+        }
+        if (!PASSWORD.matcher(password).matches()) {
+            return "The server password may only use letters, numbers, '.', '_' and '-'.";
         }
         return null;
     }
 
-    static String ffmpegCommand(String camera, String destination, String codec, boolean udp, boolean silentAudio) {
-        StringBuilder cmd = new StringBuilder("ffmpeg -rtsp_transport ").append(udp ? "udp" : "tcp")
-                .append(" -i ").append(shellQuote(camera));
-        if (silentAudio) {
-            cmd.append(" -f lavfi -i anullsrc=r=44100:cl=stereo -map 0:v -map 1:a");
-        }
-        if (RtspProbe.H265.equals(codec)) {
-            // RTMP needs H.264: convert on the MK15, at 720p so the MK15 keeps up in real time
-            cmd.append(" -vf scale=-2:720 -c:v libx264 -preset ultrafast -tune zerolatency"
-                    + " -b:v 2000k -maxrate 2000k -bufsize 4000k -g 50 -pix_fmt yuv420p");
-        } else {
-            cmd.append(" -c:v copy");
-        }
-        cmd.append(silentAudio ? " -c:a aac -b:a 128k -shortest" : " -an");
-        return cmd.append(" -f flv ").append(shellQuote(destination)).toString();
-    }
-
-    static String streamScript(String command, String codec, String transport) {
+    /** The streaming script: the tested stream_aws.sh with the chosen values. */
+    static String streamScript(Camera camera, String cameraRtsp, String serverIp, int droneNumber,
+                               String password, Quality quality) {
         return SHEBANG + "\n"
-                + header(codec, transport)
-                + "echo $$ > " + PID_FILE + "\n"
-                + "termux-wake-lock 2>/dev/null\n"
-                + "echo \"Stream starting... Press CTRL+C to stop\"\n"
-                + reconnectLoop(command);
-    }
-
-    static String bootScript(String command, String codec, String cameraHost) {
-        return SHEBANG + "\n"
-                + header(codec, "TCP, started by Termux:Boot")
-                + "termux-wake-lock 2>/dev/null\n"
-                + "exec > ~/stream_log.txt 2>&1\n"
-                + "echo $$ > " + PID_FILE + "\n"
+                + "# Made by DhakshaKey: " + camera.name + " camera -> Dhaksha video server, "
+                + quality.height + "p, about " + quality.kbps + " kbit/s, low delay.\n"
+                + "# Watch: " + watchUrl(serverIp, droneNumber) + "\n"
+                + "# Stop with Ctrl+C, or the Stop button in DhakshaKey.\n"
                 + "\n"
-                + "# Wait for Android to fully boot\n"
+                + "SERVER_IP=" + shellQuote(serverIp) + "\n"
+                + "PASSWORD=" + shellQuote(password) + "\n"
+                + "DRONE=" + shellQuote(droneName(droneNumber)) + "\n"
+                + "CAMERA=" + shellQuote(cameraRtsp) + "\n"
+                + "HEIGHT=" + quality.height + "\n"
+                + "FPS=" + quality.fps + "\n"
+                + "BITRATE=" + quality.kbps + "k\n"
+                + "BUFSIZE=" + (quality.kbps / 2) + "k\n"
+                + "\n"
+                + "echo $$ > " + PID_FILE + "\n"
+                + "termux-wake-lock 2>/dev/null\n"
+                + "echo \"Watch this drone at http://$SERVER_IP:" + WATCH_PORT + "/live/$DRONE\"\n"
+                + "\n"
+                + "while true; do\n"
+                + "  echo \"$(date '+%F %T') sending to $SERVER_IP ($DRONE)\"\n"
+                + "  ffmpeg -fflags nobuffer -flags low_delay -rtsp_transport tcp -i \"$CAMERA\" \\\n"
+                + "    -an -vf \"scale=-2:$HEIGHT,fps=$FPS\" \\\n"
+                + "    -c:v libx264 -preset ultrafast -tune zerolatency -profile:v baseline -pix_fmt yuv420p \\\n"
+                + "    -b:v \"$BITRATE\" -maxrate \"$BITRATE\" -bufsize \"$BUFSIZE\" \\\n"
+                + "    -g \"$FPS\" -keyint_min \"$FPS\" -sc_threshold 0 \\\n"
+                + "    -f flv \"rtmp://$SERVER_IP:" + RTMP_PORT + "/live/$DRONE?user=drone&pass=$PASSWORD\"\n"
+                + "  echo \"$(date '+%F %T') stream stopped, retrying in 3 s\"\n"
+                + "  sleep 3\n"
+                + "done\n";
+    }
+
+    /** Termux:Boot script: waits for the camera and the server, then runs the streaming script. */
+    static String bootScript(Camera camera, String cameraRtsp, String serverIp) {
+        return SHEBANG + "\n"
+                + "# Made by DhakshaKey: starts " + camera.scriptPath() + " when the MK15 turns on. Log: ~/stream_log.txt\n"
+                + "LOG=\"$HOME/stream_log.txt\"\n"
+                + "log() { echo \"$(date '+%F %T') $*\" >> \"$LOG\"; }\n"
+                + "termux-wake-lock 2>/dev/null\n"
+                + "log \"MK15 started; waiting 30 s\"\n"
                 + "sleep 30\n"
-                + "\n"
-                + "# Wait until the air unit is reachable (drone must be powered on)\n"
-                + "until ping -c 1 " + shellQuote(cameraHost) + " > /dev/null 2>&1; do\n"
-                + "  echo \"Waiting for air unit...\"\n"
+                + "until ping -c 1 -W 2 " + shellQuote(rtspHost(cameraRtsp)) + " > /dev/null 2>&1; do\n"
+                + "  log \"waiting for the camera\"\n"
                 + "  sleep 5\n"
                 + "done\n"
-                + "\n"
-                + "echo \"Air unit reachable. Starting stream...\"\n"
-                + reconnectLoop(command);
+                + "# The server answers on its RTMP port (AWS does not answer ping unless allowed)\n"
+                + "until timeout 5 bash -c " + shellQuote("exec 3<>/dev/tcp/" + serverIp + "/" + RTMP_PORT)
+                + " 2> /dev/null; do\n"
+                + "  log \"waiting for internet / server\"\n"
+                + "  sleep 5\n"
+                + "done\n"
+                + "log \"camera and server reachable; starting " + camera.scriptPath() + "\"\n"
+                + "bash " + camera.scriptPath() + " >> \"$LOG\" 2>&1\n";
     }
 
-    /** Bash that writes the three scripts into Termux and makes them executable. */
-    static String installCommand(String stream, String udp, String boot) {
-        return "mkdir -p ~/.termux/boot\n"
-                + writeFile(STREAM_SCRIPT, stream)
-                + writeFile(UDP_SCRIPT, udp)
-                + writeFile(BOOT_SCRIPT, boot)
-                + "chmod +x " + STREAM_SCRIPT + " " + UDP_SCRIPT + " " + BOOT_SCRIPT + "\n";
+    /** Bash that stops whatever DhakshaKey started before. */
+    static String stopCommand() {
+        return "[ -f " + PID_FILE + " ] && kill $(cat " + PID_FILE + ") 2>/dev/null; rm -f " + PID_FILE + "; "
+                + "pkill -f dhakshakey_boot.sh 2>/dev/null; pkill -x ffmpeg 2>/dev/null; true\n";
     }
 
-    /** Single-quotes a value for bash so keys and addresses can never break or extend the command. */
+    /**
+     * Bash, run in a Termux window: stops the previous stream, saves the script (and the boot script,
+     * or removes it), then runs the script so its output shows in that window.
+     */
+    static String saveAndStartCommand(Camera camera, String stream, String boot) {
+        StringBuilder cmd = new StringBuilder(stopCommand());
+        cmd.append(writeFile(camera.scriptPath(), stream));
+        cmd.append("chmod +x ").append(camera.scriptPath()).append("\n");
+        if (boot != null) {
+            cmd.append("mkdir -p ").append(BOOT_DIR).append("\n");
+            cmd.append("rm -f ").append(OLD_BOOT_SCRIPTS).append("\n");
+            cmd.append(writeFile(BOOT_SCRIPT, boot));
+            cmd.append("chmod +x ").append(BOOT_SCRIPT).append("\n");
+        } else {
+            cmd.append("rm -f ").append(BOOT_SCRIPT).append("\n");
+        }
+        cmd.append("echo \"Saved ").append(camera.scriptPath()).append(boot != null ? " and " + BOOT_SCRIPT : "")
+                .append(". Starting...\"\n");
+        cmd.append("exec bash ").append(camera.scriptPath()).append("\n");
+        return cmd.toString();
+    }
+
+    /** Single-quotes a value for bash so typed values can never break or extend the command. */
     static String shellQuote(String value) {
         return "'" + value.replace("'", "'\\''") + "'";
-    }
-
-    private static String header(String codec, String transport) {
-        String video = RtspProbe.H265.equals(codec)
-                ? "camera sends H.265, converted to H.264 on the MK15"
-                : "camera sends H.264, copied as it is";
-        return "# Generated by DhakshaKey: " + video + ", camera read over " + transport + "\n";
-    }
-
-    private static String reconnectLoop(String command) {
-        return "while true; do\n"
-                + "  " + command + "\n"
-                + "  echo \"Stream dropped. Reconnecting in 5 seconds...\"\n"
-                + "  sleep 5\n"
-                + "done\n";
     }
 
     private static String writeFile(String path, String content) {

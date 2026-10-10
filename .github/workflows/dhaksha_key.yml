@@ -1,5 +1,5 @@
-# Builds DhakshaKey, the Android app that turns a stream key into the ffmpeg
-# streaming command and starts it in Termux (tools/dhaksha/key-android).
+# Builds DhakshaKey, the Android app that writes the camera streaming script for the Dhaksha
+# video server and starts it in Termux (tools/dhaksha/key-android).
 name: DhakshaKey
 
 on:

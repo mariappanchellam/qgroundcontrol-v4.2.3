@@ -16,32 +16,30 @@ import android.text.Editable;
 import android.text.InputType;
 import android.text.TextWatcher;
 import android.view.View;
-import android.view.animation.AlphaAnimation;
-import android.view.animation.Animation;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
+import android.widget.Spinner;
 import android.widget.TextView;
 
-import java.util.LinkedHashSet;
-import java.util.Set;
-
 /**
- * DhakshaKey: checks the drone camera feed, picks the right ffmpeg command for its codec,
- * writes the Termux streaming scripts and starts them.
+ * DhakshaKey: sends the drone camera to the Dhaksha video server with a few taps.
  *
- *   1. Camera check: DhakshaGroundControl connected to the drone, camera answering, codec found.
- *   2. OK: inputs validated, ~/stream.sh, ~/stream_udp.sh and ~/.termux/boot/autostream.sh written.
- *   3. Start / Stop in Termux.
+ * The operator picks the camera (its IP is filled in and can be changed), the server IP, the drone number
+ * and the video quality, then presses OK. DhakshaKey checks that the camera answers, writes the tested
+ * streaming script with those values to ~/stream_<camera>.sh in Termux and runs it in a Termux window.
+ * Optionally it also writes the Termux:Boot script that starts streaming when the MK15 turns on.
  *
  * Termux runs commands through its RUN_COMMAND service, which needs once:
  * allow-external-apps = true in Termux, and the "Run commands in Termux environment" permission.
  */
 public class MainActivity extends Activity {
 
-    private static final String PREFS = "dhaksha_key";
+    private static final String PREFS = "dhaksha_key_aws";
     private static final String GCS_PACKAGE = "com.dhaksha.groundcontrol";
     private static final String TERMUX_PACKAGE = "com.termux";
     private static final String TERMUX_SERVICE = "com.termux.app.RunCommandService";
@@ -49,39 +47,37 @@ public class MainActivity extends Activity {
     private static final String TERMUX_HOME = "/data/data/com.termux/files/home";
     private static final String TERMUX_BASH = "/data/data/com.termux/files/usr/bin/bash";
     private static final int PROBE_TIMEOUT_MS = 3000;
-
-    /** Camera addresses tried when looking for the feed: ViewPro, SIYI, Skydroid. */
-    private static final String[] KNOWN_CAMERAS = {
-        "rtsp://192.168.144.119:554/stream0",
-        "rtsp://192.168.144.25:8554/main.264",
-        "rtsp://192.168.144.108:554/stream=0",
-    };
+    private static final String OTHER_DEFAULT_RTSP = "rtsp://192.168.144.10:554/stream";
 
     static final String TERMUX_SETUP =
             "mkdir -p ~/.termux && echo 'allow-external-apps = true' >> ~/.termux/termux.properties && termux-reload-settings";
 
+    private SharedPreferences prefs;
     private TextView banner;
-    private Button checkButton;
-    private EditText camera;
-    private EditText key;
-    private EditText server;
-    private CheckBox silentAudio;
+    private Spinner cameraSpinner;
+    private LinearLayout ipBlock;
+    private EditText cameraIp;
+    private TextView cameraAddress;
+    private LinearLayout otherBlock;
+    private EditText otherRtsp;
+    private EditText serverIp;
+    private Spinner droneSpinner;
+    private Spinner qualitySpinner;
+    private CheckBox startAtBoot;
+    private LinearLayout advancedBlock;
+    private EditText password;
     private Button okButton;
-    private TextView preview;
-    private Button startTcp;
-    private Button startUdp;
-    private Button stopButton;
+    private Button startAnyway;
+    private TextView watchLink;
     private TextView status;
 
-    private String codec;               // camera codec found by the last successful check
+    private int shownCamera = -1;       // camera whose IP is in the IP field
     private boolean checking;
-    private boolean updatingCamera;     // camera field changed by the app, not by the operator
-    private boolean cameraUnlocked;     // stays editable once a camera feed has been found
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+        prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
 
         LinearLayout column = new LinearLayout(this);
         column.setOrientation(LinearLayout.VERTICAL);
@@ -90,81 +86,139 @@ public class MainActivity extends Activity {
 
         TextView title = new TextView(this);
         title.setText("DhakshaKey");
-        title.setTextSize(24);
+        title.setTextSize(26);
         title.setTypeface(Typeface.DEFAULT_BOLD);
         column.addView(title);
+        TextView subtitle = new TextView(this);
+        subtitle.setText("Live drone video to the Dhaksha server");
+        subtitle.setTextSize(15);
+        column.addView(subtitle);
 
         banner = new TextView(this);
-        banner.setTextSize(16);
+        banner.setTextSize(17);
         banner.setTypeface(Typeface.DEFAULT_BOLD);
         banner.setPadding(dp(12), dp(12), dp(12), dp(12));
-        column.addView(banner);
+        LinearLayout.LayoutParams bannerParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        bannerParams.topMargin = dp(12);
+        column.addView(banner, bannerParams);
 
-        LinearLayout step1 = row(column);
-        addButton(step1, "Open DhakshaGroundControl", v -> openGroundControl());
-        checkButton = addButton(step1, "Check camera feed", v -> checkFeed());
+        // 1. Camera
+        addHeading(column, "1. Camera");
+        String[] cameraNames = new String[StreamScripts.CAMERAS.length];
+        for (int i = 0; i < cameraNames.length; i++) {
+            cameraNames[i] = StreamScripts.CAMERAS[i].name;
+        }
+        cameraSpinner = addSpinner(column, cameraNames, prefs.getInt("camera", 0));
 
-        camera = addField(column, "Camera RTSP address (unlocks when the feed is found)",
-                KNOWN_CAMERAS[0], prefs.getString("camera", KNOWN_CAMERAS[0]));
-        key = addField(column, "Stream key", "rtmp_xxxxxxxxxxxxxxxx", prefs.getString("key", ""));
-        server = addField(column, "Server (stream key is added to the end)", StreamScripts.DEFAULT_SERVER,
-                prefs.getString("server", StreamScripts.DEFAULT_SERVER));
-        silentAudio = new CheckBox(this);
-        silentAudio.setText("Add a silent audio track (needed by YouTube)");
-        silentAudio.setChecked(prefs.getBoolean("silentAudio", false));
-        column.addView(silentAudio);
+        ipBlock = block(column);
+        addLabel(ipBlock, "Camera IP (filled in for the chosen camera; change it if yours is different)");
+        cameraIp = addField(ipBlock, "192.168.144.25", "", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
+        cameraAddress = new TextView(this);
+        cameraAddress.setTextColor(Color.GRAY);
+        ipBlock.addView(cameraAddress);
 
-        okButton = addButton(column, "OK: check everything and prepare the scripts", v -> prepareScripts());
+        otherBlock = block(column);
+        addLabel(otherBlock, "Camera stream address (from the camera's manual)");
+        otherRtsp = addField(otherBlock, OTHER_DEFAULT_RTSP, prefs.getString("otherRtsp", OTHER_DEFAULT_RTSP),
+                InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
 
-        addLabel(column, "Script written to ~/stream.sh:");
-        preview = new TextView(this);
-        preview.setTypeface(Typeface.MONOSPACE);
-        preview.setTextIsSelectable(true);
-        preview.setPadding(dp(8), dp(8), dp(8), dp(8));
-        preview.setBackgroundColor(0x22888888);
-        column.addView(preview);
+        // 2. Server
+        addHeading(column, "2. Server IP");
+        serverIp = addField(column, StreamScripts.DEFAULT_SERVER_IP,
+                prefs.getString("server", StreamScripts.DEFAULT_SERVER_IP),
+                InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
 
-        LinearLayout run = row(column);
-        startTcp = addButton(run, "Start (TCP)", v -> runInTermux("bash " + StreamScripts.STREAM_SCRIPT, false,
-                "Streaming started in Termux. Watch the Termux window for ffmpeg output."));
-        startUdp = addButton(run, "Start (UDP)", v -> runInTermux("bash " + StreamScripts.UDP_SCRIPT, false,
-                "Streaming (UDP) started in Termux. Watch the Termux window for ffmpeg output."));
-        stopButton = addButton(run, "Stop", v -> stop());
+        // 3. Drone number
+        addHeading(column, "3. Drone number (each drone needs its own)");
+        String[] drones = new String[StreamScripts.MAX_DRONES];
+        for (int i = 0; i < drones.length; i++) {
+            drones[i] = "Drone " + (i + 1) + "   (" + StreamScripts.droneName(i + 1) + ")";
+        }
+        droneSpinner = addSpinner(column, drones, prefs.getInt("drone", 0));
+
+        // 4. Quality
+        addHeading(column, "4. Video quality");
+        String[] qualities = new String[StreamScripts.QUALITIES.length];
+        for (int i = 0; i < qualities.length; i++) {
+            qualities[i] = StreamScripts.QUALITIES[i].label;
+        }
+        qualitySpinner = addSpinner(column, qualities, prefs.getInt("quality", StreamScripts.DEFAULT_QUALITY));
+
+        startAtBoot = new CheckBox(this);
+        startAtBoot.setText("Start streaming automatically when the MK15 turns on");
+        startAtBoot.setTextSize(16);
+        startAtBoot.setChecked(prefs.getBoolean("boot", false));
+        column.addView(startAtBoot);
+
+        CheckBox advanced = new CheckBox(this);
+        advanced.setText("Show advanced settings");
+        column.addView(advanced);
+        advancedBlock = block(column);
+        addLabel(advancedBlock, "Server password (the one given when the server was set up)");
+        password = addField(advancedBlock, StreamScripts.DEFAULT_PASSWORD,
+                prefs.getString("password", StreamScripts.DEFAULT_PASSWORD),
+                InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD);
+        addLabel(advancedBlock, "Video is sent to port " + StreamScripts.RTMP_PORT + " (RTMP) and watched on port "
+                + StreamScripts.WATCH_PORT + ".");
+        advancedBlock.setVisibility(View.GONE);
+        advanced.setOnCheckedChangeListener((v, on) -> advancedBlock.setVisibility(on ? View.VISIBLE : View.GONE));
+
+        okButton = addBigButton(column, "OK  –  Start streaming", Color.rgb(30, 130, 60), v -> start(false));
+        startAnyway = addBigButton(column, "Start anyway (camera not answering yet)", Color.rgb(200, 120, 20),
+                v -> start(true));
+        startAnyway.setVisibility(View.GONE);
+        addBigButton(column, "Stop streaming", Color.rgb(180, 40, 40), v -> stop());
 
         status = new TextView(this);
+        status.setTextSize(16);
         status.setPadding(0, dp(8), 0, dp(8));
         column.addView(status);
 
-        addLabel(column, "First time only: run this once in Termux, then allow the permission this app asks for. "
-                + "For start at boot also install the Termux:Boot app and open it once.");
+        addHeading(column, "Watch this drone at");
+        watchLink = new TextView(this);
+        watchLink.setTextSize(16);
+        watchLink.setTypeface(Typeface.MONOSPACE);
+        watchLink.setTextIsSelectable(true);
+        column.addView(watchLink);
+        addButton(column, "Copy watch link", v -> copy(watchLink.getText().toString()));
+
+        addHeading(column, "First time on this MK15");
+        addLabel(column, "1. Install Termux (and Termux:Boot for start at power-on) from F-Droid.\n"
+                + "2. In Termux run this once:  pkg install ffmpeg  and then the command below.\n"
+                + "3. Allow \"Run commands in Termux environment\" when DhakshaKey asks.");
         TextView setup = new TextView(this);
         setup.setTypeface(Typeface.MONOSPACE);
         setup.setTextIsSelectable(true);
         setup.setText(TERMUX_SETUP);
         column.addView(setup);
-        addButton(column, "Copy Termux setup command", v -> copy(TERMUX_SETUP));
+        LinearLayout tools = row(column);
+        addButton(tools, "Copy setup command", v -> copy(TERMUX_SETUP));
+        addButton(tools, "Open DhakshaGroundControl", v -> openGroundControl());
 
         ScrollView scroll = new ScrollView(this);
         scroll.addView(column);
         setContentView(scroll);
 
-        camera.addTextChangedListener(new SimpleWatcher(() -> {
-            if (!updatingCamera) {
-                codec = null;
-                showWaiting("Camera address changed. Press \"Check camera feed\" again.");
+        cameraSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                showCamera(position);
             }
-        }));
-        SimpleWatcher invalidate = new SimpleWatcher(this::invalidateScripts);
-        key.addTextChangedListener(invalidate);
-        server.addTextChangedListener(invalidate);
-        silentAudio.setOnClickListener(v -> invalidateScripts());
+            @Override public void onNothingSelected(AdapterView<?> parent) {}
+        });
+        showCamera(cameraSpinner.getSelectedItemPosition());
+        SimpleWatcher refresh = new SimpleWatcher(this::refresh);
+        cameraIp.addTextChangedListener(refresh);
+        otherRtsp.addTextChangedListener(refresh);
+        serverIp.addTextChangedListener(refresh);
+        droneSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                refresh();
+            }
+            @Override public void onNothingSelected(AdapterView<?> parent) {}
+        });
 
-        showWaiting(isInstalled(GCS_PACKAGE)
-                ? "Step 1: Open DhakshaGroundControl, connect to the drone and wait until the camera picture "
-                        + "shows. Then press \"Check camera feed\"."
-                : "DhakshaGroundControl is not installed on this device. Install it, connect to the drone and "
-                        + "get the camera picture, then press \"Check camera feed\".");
-
+        showBanner("Choose your camera, check the server IP and drone number, then press OK.", false);
         if (needsPermission()) {
             requestPermissions(new String[] { TERMUX_PERMISSION }, 1);
         }
@@ -173,12 +227,114 @@ public class MainActivity extends Activity {
     @Override
     protected void onPause() {
         super.onPause();
-        getSharedPreferences(PREFS, MODE_PRIVATE).edit()
-                .putString("camera", text(camera))
-                .putString("key", text(key))
-                .putString("server", text(server))
-                .putBoolean("silentAudio", silentAudio.isChecked())
-                .apply();
+        save();
+    }
+
+    private void save() {
+        SharedPreferences.Editor edit = prefs.edit()
+                .putInt("camera", cameraSpinner.getSelectedItemPosition())
+                .putString("otherRtsp", text(otherRtsp))
+                .putString("server", text(serverIp))
+                .putInt("drone", droneSpinner.getSelectedItemPosition())
+                .putInt("quality", qualitySpinner.getSelectedItemPosition())
+                .putBoolean("boot", startAtBoot.isChecked())
+                .putString("password", text(password));
+        if (shownCamera >= 0) {
+            edit.putString("ip_" + StreamScripts.CAMERAS[shownCamera].fileTag, text(cameraIp));
+        }
+        edit.apply();
+    }
+
+    /** Shows the chosen camera: its saved or default IP, or the full address field for "Other". */
+    private void showCamera(int index) {
+        if (shownCamera >= 0 && shownCamera != index) {
+            prefs.edit().putString("ip_" + StreamScripts.CAMERAS[shownCamera].fileTag, text(cameraIp)).apply();
+        }
+        StreamScripts.Camera camera = StreamScripts.CAMERAS[index];
+        shownCamera = index;
+        cameraIp.setText(prefs.getString("ip_" + camera.fileTag, camera.defaultIp));
+        ipBlock.setVisibility(camera.customAddress() ? View.GONE : View.VISIBLE);
+        otherBlock.setVisibility(camera.customAddress() ? View.VISIBLE : View.GONE);
+        refresh();
+    }
+
+    private StreamScripts.Camera camera() {
+        return StreamScripts.CAMERAS[cameraSpinner.getSelectedItemPosition()];
+    }
+
+    private String cameraRtsp() {
+        StreamScripts.Camera camera = camera();
+        return camera.customAddress() ? text(otherRtsp) : camera.rtsp(text(cameraIp));
+    }
+
+    private int droneNumber() {
+        return droneSpinner.getSelectedItemPosition() + 1;
+    }
+
+    private void refresh() {
+        cameraAddress.setText("Stream address: " + cameraRtsp());
+        watchLink.setText(StreamScripts.watchUrl(text(serverIp), droneNumber()));
+        startAnyway.setVisibility(View.GONE);
+    }
+
+    /** OK: checks the inputs and the camera, then saves the script and runs it in Termux. */
+    private void start(boolean skipCameraCheck) {
+        if (checking) {
+            return;
+        }
+        final String rtsp = cameraRtsp();
+        String problem = StreamScripts.validate(rtsp, text(serverIp), droneNumber(), text(password));
+        if (problem != null) {
+            showBanner(problem, true);
+            return;
+        }
+        save();
+        if (skipCameraCheck) {
+            saveAndRun(rtsp);
+            return;
+        }
+        checking = true;
+        okButton.setEnabled(false);
+        showBanner("Checking the camera at " + rtsp + " ...", false);
+        new Thread(() -> {
+            final RtspProbe.Result result = RtspProbe.probe(rtsp, PROBE_TIMEOUT_MS);
+            runOnUiThread(() -> {
+                checking = false;
+                okButton.setEnabled(true);
+                if (result.hasFeed()) {
+                    saveAndRun(rtsp);
+                } else {
+                    showBanner("The camera is not answering (" + result.problem + ").\n"
+                            + "Check that the drone is powered on and the camera picture shows in "
+                            + "DhakshaGroundControl, and that the camera type and IP are right. Then press OK again.",
+                            true);
+                    startAnyway.setVisibility(View.VISIBLE);
+                }
+            });
+        }).start();
+    }
+
+    private void saveAndRun(String rtsp) {
+        StreamScripts.Camera camera = camera();
+        String server = text(serverIp);
+        StreamScripts.Quality quality = StreamScripts.QUALITIES[qualitySpinner.getSelectedItemPosition()];
+        String stream = StreamScripts.streamScript(camera, rtsp, server, droneNumber(), text(password), quality);
+        String boot = startAtBoot.isChecked() ? StreamScripts.bootScript(camera, rtsp, server) : null;
+        if (runInTermux(StreamScripts.saveAndStartCommand(camera, stream, boot), false)) {
+            startAnyway.setVisibility(View.GONE);
+            showBanner("Streaming started with " + camera.scriptPath() + ". The Termux window shows its progress.\n"
+                    + "Watch at " + StreamScripts.watchUrl(server, droneNumber()), false);
+            setStatus(startAtBoot.isChecked()
+                    ? "It will also start by itself when the MK15 turns on."
+                    : "It will not start by itself at power-on (tick the box above for that).", false);
+        }
+    }
+
+    private void stop() {
+        if (runInTermux(StreamScripts.stopCommand(), true)) {
+            showBanner("Streaming stopped.", false);
+            setStatus("", false);
+        }
     }
 
     private void openGroundControl() {
@@ -190,114 +346,14 @@ public class MainActivity extends Activity {
         startActivity(launch);
     }
 
-    /** Looks for the camera at the entered address, then at the known camera addresses, off the UI thread. */
-    private void checkFeed() {
-        if (checking) {
-            return;
-        }
-        checking = true;
-        checkButton.setEnabled(false);
-        final Set<String> candidates = new LinkedHashSet<>();
-        if (!text(camera).isEmpty()) {
-            candidates.add(text(camera));
-        }
-        for (String known : KNOWN_CAMERAS) {
-            candidates.add(known);
-        }
-        showWaiting("Looking for the camera feed...");
-        new Thread(() -> {
-            RtspProbe.Result found = null;
-            RtspProbe.Result first = null;
-            for (String url : candidates) {
-                RtspProbe.Result result = RtspProbe.probe(url, PROBE_TIMEOUT_MS);
-                if (first == null) {
-                    first = result;
-                }
-                if (result.hasFeed()) {
-                    found = result;
-                    break;
-                }
-            }
-            final RtspProbe.Result outcome = found != null ? found : first;
-            runOnUiThread(() -> feedChecked(outcome));
-        }).start();
-    }
-
-    private void feedChecked(RtspProbe.Result result) {
-        checking = false;
-        checkButton.setEnabled(true);
-        if (result == null || !result.hasFeed()) {
-            codec = null;
-            showWaiting("No camera feed: " + (result == null ? "no address to check" : result.problem) + ".\n"
-                    + "Run DhakshaGroundControl, connect with the drone and get the camera feed, "
-                    + "then press \"Check camera feed\" again.");
-            return;
-        }
-        updatingCamera = true;
-        camera.setText(result.url);
-        updatingCamera = false;
-        codec = result.codec;
-        cameraUnlocked = true;
-        camera.setEnabled(true);
-        String what;
-        if (RtspProbe.H264.equals(codec)) {
-            what = "H.264: the video is sent as it is.";
-        } else if (RtspProbe.H265.equals(codec)) {
-            what = "H.265: the video is converted to H.264 on the MK15 (720p, 2 Mbit/s), because the server needs H.264.";
-        } else {
-            what = codec + ": this codec is not supported for streaming.";
-        }
-        showReady("Camera feed found at " + result.url + "\nCamera sends " + what
-                + "\nNow check the stream key and press OK.");
-        invalidateScripts();
-    }
-
-    private void prepareScripts() {
-        String camera = text(this.camera);
-        String key = text(this.key);
-        String server = text(this.server);
-        String problem = StreamScripts.validate(key, server, camera, codec);
-        if (problem != null) {
-            setStatus(problem, true);
-            return;
-        }
-        String destination = StreamScripts.destination(server, key);
-        boolean audio = silentAudio.isChecked();
-        String tcp = StreamScripts.ffmpegCommand(camera, destination, codec, false, audio);
-        String udp = StreamScripts.ffmpegCommand(camera, destination, codec, true, audio);
-        String streamScript = StreamScripts.streamScript(tcp, codec, "TCP");
-        String udpScript = StreamScripts.streamScript(udp, codec, "UDP");
-        String bootScript = StreamScripts.bootScript(tcp, codec, StreamScripts.cameraHost(camera));
-
-        if (runInTermux(StreamScripts.installCommand(streamScript, udpScript, bootScript), true,
-                "Scripts saved in Termux: ~/stream.sh, ~/stream_udp.sh and ~/.termux/boot/autostream.sh. "
-                        + "Press Start.")) {
-            preview.setText(streamScript);
-            setRunEnabled(true);
-        }
-    }
-
-    private void stop() {
-        String script = "[ -f " + StreamScripts.PID_FILE + " ] && kill $(cat " + StreamScripts.PID_FILE + ") 2>/dev/null; "
-                + "rm -f " + StreamScripts.PID_FILE + "; pkill -x ffmpeg; termux-wake-unlock 2>/dev/null; true";
-        runInTermux(script, true, "Stop sent to Termux.");
-    }
-
-    /** Key, server or audio changed: the saved scripts no longer match, so OK has to be pressed again. */
-    private void invalidateScripts() {
-        setRunEnabled(false);
-        okButton.setEnabled(codec != null);
-        preview.setText(codec == null ? "Check the camera feed first." : "Press OK to prepare the scripts.");
-    }
-
-    private boolean runInTermux(String script, boolean background, String doneMessage) {
+    private boolean runInTermux(String script, boolean background) {
         if (!isInstalled(TERMUX_PACKAGE)) {
-            setStatus("Termux is not installed.", true);
+            showBanner("Termux is not installed. Install Termux from F-Droid first.", true);
             return false;
         }
         if (needsPermission()) {
             requestPermissions(new String[] { TERMUX_PERMISSION }, 1);
-            setStatus("Allow \"Run commands in Termux environment\", then press the button again.", true);
+            showBanner("Allow \"Run commands in Termux environment\", then press the button again.", true);
             return false;
         }
         Intent intent = new Intent("com.termux.RUN_COMMAND");
@@ -306,44 +362,25 @@ public class MainActivity extends Activity {
         intent.putExtra("com.termux.RUN_COMMAND_ARGUMENTS", new String[] { "-c", script });
         intent.putExtra("com.termux.RUN_COMMAND_WORKDIR", TERMUX_HOME);
         intent.putExtra("com.termux.RUN_COMMAND_BACKGROUND", background);
-        intent.putExtra("com.termux.RUN_COMMAND_SESSION_ACTION", "0");    // show the new session in Termux
+        intent.putExtra("com.termux.RUN_COMMAND_SESSION_ACTION", "0");    // open Termux on the new window
         try {
             // DhakshaKey is in the foreground when a button is pressed, so a plain start is allowed
             startService(intent);
-            setStatus(doneMessage, false);
             return true;
         } catch (SecurityException e) {
-            setStatus("Termux refused the command. Run the first-time setup command below in Termux, "
-                    + "then try again.\n(" + e.getMessage() + ")", true);
+            showBanner("Termux refused the command. Do the \"First time on this MK15\" steps below, "
+                    + "then try again.", true);
+            setStatus(e.getMessage(), true);
         } catch (RuntimeException e) {
-            setStatus("Could not reach Termux: " + e.getMessage(), true);
+            showBanner("Could not reach Termux: " + e.getMessage(), true);
         }
         return false;
     }
 
-    private void showWaiting(String message) {
+    private void showBanner(String message, boolean problem) {
         banner.setText(message);
-        banner.setBackgroundColor(Color.rgb(170, 40, 40));
+        banner.setBackgroundColor(problem ? Color.rgb(170, 40, 40) : Color.rgb(30, 110, 60));
         banner.setTextColor(Color.WHITE);
-        AlphaAnimation flash = new AlphaAnimation(1f, 0.35f);
-        flash.setDuration(700);
-        flash.setRepeatMode(Animation.REVERSE);
-        flash.setRepeatCount(Animation.INFINITE);
-        banner.startAnimation(flash);
-        camera.setEnabled(cameraUnlocked);
-        invalidateScripts();
-    }
-
-    private void showReady(String message) {
-        banner.clearAnimation();
-        banner.setText(message);
-        banner.setBackgroundColor(Color.rgb(30, 120, 60));
-        banner.setTextColor(Color.WHITE);
-    }
-
-    private void setRunEnabled(boolean enabled) {
-        startTcp.setEnabled(enabled);
-        startUdp.setEnabled(enabled);
     }
 
     private boolean isInstalled(String packageName) {
@@ -375,6 +412,13 @@ public class MainActivity extends Activity {
         return field.getText().toString().trim();
     }
 
+    private LinearLayout block(LinearLayout parent) {
+        LinearLayout block = new LinearLayout(this);
+        block.setOrientation(LinearLayout.VERTICAL);
+        parent.addView(block);
+        return block;
+    }
+
     private LinearLayout row(LinearLayout parent) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
@@ -382,21 +426,41 @@ public class MainActivity extends Activity {
         return row;
     }
 
-    private EditText addField(LinearLayout parent, String label, String hint, String value) {
-        addLabel(parent, label);
+    private Spinner addSpinner(LinearLayout parent, String[] items, int selected) {
+        Spinner spinner = new Spinner(this);
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, items);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinner.setAdapter(adapter);
+        spinner.setSelection(selected >= 0 && selected < items.length ? selected : 0);
+        spinner.setMinimumHeight(dp(48));
+        parent.addView(spinner);
+        return spinner;
+    }
+
+    private EditText addField(LinearLayout parent, String hint, String value, int inputType) {
         EditText field = new EditText(this);
         field.setHint(hint);
         field.setText(value);
+        field.setTextSize(18);
         field.setSingleLine(true);
-        field.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
+        field.setInputType(inputType);
         parent.addView(field);
         return field;
+    }
+
+    private void addHeading(LinearLayout parent, String text) {
+        TextView view = new TextView(this);
+        view.setText(text);
+        view.setTextSize(18);
+        view.setTypeface(Typeface.DEFAULT_BOLD);
+        view.setPadding(0, dp(16), 0, dp(4));
+        parent.addView(view);
     }
 
     private void addLabel(LinearLayout parent, String label) {
         TextView view = new TextView(this);
         view.setText(label);
-        view.setPadding(0, dp(12), 0, dp(4));
+        view.setPadding(0, dp(8), 0, dp(4));
         parent.addView(view);
     }
 
@@ -405,6 +469,21 @@ public class MainActivity extends Activity {
         button.setText(label);
         button.setOnClickListener(listener);
         parent.addView(button);
+        return button;
+    }
+
+    private Button addBigButton(LinearLayout parent, String label, int color, View.OnClickListener listener) {
+        Button button = new Button(this);
+        button.setText(label);
+        button.setTextSize(18);
+        button.setTextColor(Color.WHITE);
+        button.setBackgroundColor(color);
+        button.setMinHeight(dp(56));
+        button.setOnClickListener(listener);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        params.topMargin = dp(12);
+        parent.addView(button, params);
         return button;
     }
 
