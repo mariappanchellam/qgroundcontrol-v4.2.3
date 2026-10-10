@@ -105,6 +105,10 @@ so details can be lost. To keep the context:
   and runs it in a Termux window; Stop ends it. Tested here: the generated script streams to a MediaMTX
   server set up like the AWS one.
 
+- Position on the video: DhakshaGroundControl's MAVLink forwarding (Application Settings > MAVLink, host
+  localhost:14445) feeds `dhaksha_telemetry.py` in Termux, which keeps `~/telemetry.txt` up to date; ffmpeg's
+  drawtext writes it on every frame (`stream_aws_position.sh`). Tested here with simulated MAVLink and camera.
+
 ## Open items
 - Find what blocks WebRTC (Lightsail UDP 8189 rule, TCP fallback, office/laptop network).
 - Test Dhaksha Live 3.0 with the real server and several MK15s; check the delay with a stopwatch.
@@ -124,6 +128,7 @@ real values, because this repository is public. Put the real values in your copy
 | `stream_<size>.sh` | Livepush, restarts when the stream drops | same |
 | `autostart_<size>.sh` | Termux:Boot (copy only one into `~/.termux/boot/`) | runs `stream_<size>.sh` |
 | `stream_aws.sh` | Own server: `bash ~/stream_aws.sh` (default server set inside) or `bash ~/stream_aws.sh <SERVER_IP>` | 360p 150k, 15 fps; watch `http://<SERVER_IP>:8888/live/drone1` |
+| `stream_aws_position.sh` + `dhaksha_telemetry.py` | Like `stream_aws.sh`, with `DRONE1  Lat .. Lon .. Alt .. m  time` written on the video | DhakshaGroundControl: MAVLink forwarding on (localhost:14445); Termux: `pkg install python` |
 | `boot_stream_aws.sh` | Termux:Boot: waits for camera and server, then runs `stream_aws.sh` (the boot script in use) | set `SERVER_IP` inside; copy to `~/.termux/boot/` |
 | `boot_autostart_aws.sh` | Termux:Boot for the own server: waits for camera and server, then runs `stream_aws_internetspeed.sh` | set `SERVER_IP` (and `DRONE`) inside; copy to `~/.termux/boot/` |
 | `stream_aws_internetspeed.sh` | Own server: `bash ~/stream_aws_internetspeed.sh <SERVER_IP> [auto\|720\|480\|360\|240\|copy] [drone]` | auto (default) adapts to the internet speed |
