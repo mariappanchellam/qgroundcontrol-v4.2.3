@@ -18,15 +18,9 @@ final class StreamScripts {
     static final int MAX_DRONES = 25;
 
     static final String PID_FILE = "$HOME/.dhakshakey.pid";
-    static final String BOOT_PID_FILE = "$HOME/.dhakshakey_boot.pid";
     static final String TELEMETRY_PID_FILE = "$HOME/.dhaksha_telemetry.pid";
     static final String TELEMETRY_SCRIPT = "~/dhaksha_telemetry.py";
     static final int TELEMETRY_PORT = 14445;
-    static final String BOOT_DIR = "~/.termux/boot";
-    static final String BOOT_SCRIPT = BOOT_DIR + "/dhakshakey_boot.sh";
-    /** Earlier start-at-boot scripts that would start a second stream next to this one. */
-    static final String OLD_BOOT_SCRIPTS = BOOT_DIR + "/autostream.sh " + BOOT_DIR + "/boot_stream_aws.sh "
-            + BOOT_DIR + "/boot_autostart_aws.sh " + BOOT_DIR + "/autostart_*.sh";
     static final String SHEBANG = "#!/data/data/com.termux/files/usr/bin/bash";
 
     private static final String HEREDOC_END = "DHAKSHAKEY_END_OF_SCRIPT";
@@ -58,7 +52,7 @@ final class StreamScripts {
         }
 
         String scriptPath() {
-            return "~/stream_" + fileTag + ".sh";
+            return "~/stream_aws_" + fileTag + ".sh";
         }
     }
 
@@ -229,37 +223,13 @@ final class StreamScripts {
                 + "\n";
     }
 
-    /** Termux:Boot script: waits for the camera and the server, then runs the streaming script. */
-    static String bootScript(Camera camera, String cameraRtsp, String serverIp) {
-        return SHEBANG + "\n"
-                + "# Made by DhakshaKey: starts " + camera.scriptPath() + " when the MK15 turns on. Log: ~/stream_log.txt\n"
-                + "LOG=\"$HOME/stream_log.txt\"\n"
-                + "log() { echo \"$(date '+%F %T') $*\" >> \"$LOG\"; }\n"
-                + "echo $$ > " + BOOT_PID_FILE + "\n"
-                + "termux-wake-lock 2>/dev/null\n"
-                + "log \"MK15 started; waiting 30 s\"\n"
-                + "sleep 30\n"
-                + "until ping -c 1 -W 2 " + shellQuote(rtspHost(cameraRtsp)) + " > /dev/null 2>&1; do\n"
-                + "  log \"waiting for the camera\"\n"
-                + "  sleep 5\n"
-                + "done\n"
-                + "# The server answers on its RTMP port (AWS does not answer ping unless allowed)\n"
-                + "until timeout 5 bash -c " + shellQuote("exec 3<>/dev/tcp/" + serverIp + "/" + RTMP_PORT)
-                + " 2> /dev/null; do\n"
-                + "  log \"waiting for internet / server\"\n"
-                + "  sleep 5\n"
-                + "done\n"
-                + "log \"camera and server reachable; starting " + camera.scriptPath() + "\"\n"
-                + "exec bash " + camera.scriptPath() + " >> \"$LOG\" 2>&1\n";
-    }
-
     /**
-     * Bash that stops whatever DhakshaKey started before: the waiting boot script, the streaming script and
-     * the position reader, each by the process number it saved, then ffmpeg.
+     * Bash that stops whatever DhakshaKey started before: the streaming script and the position reader,
+     * each by the process number it saved, then ffmpeg.
      */
     static String stopCommand() {
         StringBuilder cmd = new StringBuilder();
-        for (String pidFile : new String[] { BOOT_PID_FILE, PID_FILE, TELEMETRY_PID_FILE }) {
+        for (String pidFile : new String[] { PID_FILE, TELEMETRY_PID_FILE }) {
             cmd.append("[ -f ").append(pidFile).append(" ] && kill $(cat ").append(pidFile).append(") 2>/dev/null; ")
                     .append("rm -f ").append(pidFile).append("; ");
         }
@@ -267,26 +237,17 @@ final class StreamScripts {
     }
 
     /**
-     * Bash, run in a Termux window: stops the previous stream, saves the script (and the boot script,
-     * or removes it), then runs the script so its output shows in that window.
+     * Bash, run in a Termux window: stops the previous stream, saves the script, then runs it so its output
+     * shows in that window. The script retries by itself when the camera or the internet drops.
      */
-    static String saveAndStartCommand(Camera camera, String stream, String boot, String telemetryReader) {
+    static String saveAndStartCommand(Camera camera, String stream, String telemetryReader) {
         StringBuilder cmd = new StringBuilder(stopCommand());
         if (telemetryReader != null) {
             cmd.append(writeFile(TELEMETRY_SCRIPT, telemetryReader));
         }
         cmd.append(writeFile(camera.scriptPath(), stream));
         cmd.append("chmod +x ").append(camera.scriptPath()).append("\n");
-        if (boot != null) {
-            cmd.append("mkdir -p ").append(BOOT_DIR).append("\n");
-            cmd.append("rm -f ").append(OLD_BOOT_SCRIPTS).append("\n");
-            cmd.append(writeFile(BOOT_SCRIPT, boot));
-            cmd.append("chmod +x ").append(BOOT_SCRIPT).append("\n");
-        } else {
-            cmd.append("rm -f ").append(BOOT_SCRIPT).append("\n");
-        }
-        cmd.append("echo \"Saved ").append(camera.scriptPath()).append(boot != null ? " and " + BOOT_SCRIPT : "")
-                .append(". Starting...\"\n");
+        cmd.append("echo \"Saved ").append(camera.scriptPath()).append(". Starting...\"\n");
         cmd.append("exec bash ").append(camera.scriptPath()).append("\n");
         return cmd.toString();
     }

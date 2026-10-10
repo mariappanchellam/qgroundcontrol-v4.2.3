@@ -36,7 +36,7 @@ import java.io.InputStream;
  * The operator picks the camera (its IP is filled in and can be changed), the server IP, the drone number
  * and the video quality, then presses OK. DhakshaKey checks that the camera answers, writes the tested
  * streaming script with those values to ~/stream_<camera>.sh in Termux and runs it in a Termux window.
- * Optionally it also writes the Termux:Boot script that starts streaming when the MK15 turns on.
+ * The script retries by itself when the camera or the internet drops. Nothing is set up to start at power-on.
  *
  * Termux runs commands through its RUN_COMMAND service, which needs once:
  * allow-external-apps = true in Termux, and the "Run commands in Termux environment" permission.
@@ -67,7 +67,6 @@ public class MainActivity extends Activity {
     private EditText serverIp;
     private Spinner droneSpinner;
     private Spinner qualitySpinner;
-    private CheckBox startAtBoot;
     private CheckBox showPosition;
     private LinearLayout advancedBlock;
     private EditText password;
@@ -150,11 +149,6 @@ public class MainActivity extends Activity {
         }
         qualitySpinner = addSpinner(column, qualities, prefs.getInt("quality", StreamScripts.DEFAULT_QUALITY));
 
-        startAtBoot = new CheckBox(this);
-        startAtBoot.setText("Start streaming automatically when the MK15 turns on");
-        startAtBoot.setTextSize(16);
-        startAtBoot.setChecked(prefs.getBoolean("boot", false));
-        column.addView(startAtBoot);
 
         showPosition = new CheckBox(this);
         showPosition.setText("Show the drone's position (lat, lon, altitude) on the video");
@@ -198,7 +192,7 @@ public class MainActivity extends Activity {
         addButton(column, "Copy watch link", v -> copy(watchLink.getText().toString()));
 
         addHeading(column, "First time on this MK15");
-        addLabel(column, "1. Install Termux (and Termux:Boot for start at power-on) from F-Droid.\n"
+        addLabel(column, "1. Install Termux from F-Droid.\n"
                 + "2. In Termux run this once:  pkg install ffmpeg python  and then the command below.\n"
                 + "3. Allow \"Run commands in Termux environment\" when DhakshaKey asks.");
         TextView setup = new TextView(this);
@@ -251,7 +245,6 @@ public class MainActivity extends Activity {
                 .putString("server", text(serverIp))
                 .putInt("drone", droneSpinner.getSelectedItemPosition())
                 .putInt("quality", qualitySpinner.getSelectedItemPosition())
-                .putBoolean("boot", startAtBoot.isChecked())
                 .putBoolean("position", showPosition.isChecked())
                 .putString("password", text(password));
         if (shownCamera >= 0) {
@@ -336,7 +329,6 @@ public class MainActivity extends Activity {
         boolean position = showPosition.isChecked();
         String stream = StreamScripts.streamScript(camera, rtsp, server, droneNumber(), text(password), quality,
                 position);
-        String boot = startAtBoot.isChecked() ? StreamScripts.bootScript(camera, rtsp, server) : null;
         String reader = null;
         if (position) {
             reader = readAsset("dhaksha_telemetry.py");
@@ -345,13 +337,11 @@ public class MainActivity extends Activity {
                 return;
             }
         }
-        if (runInTermux(StreamScripts.saveAndStartCommand(camera, stream, boot, reader), false)) {
+        if (runInTermux(StreamScripts.saveAndStartCommand(camera, stream, reader), false)) {
             startAnyway.setVisibility(View.GONE);
             showBanner("Streaming started with " + camera.scriptPath() + ". The Termux window shows its progress.\n"
                     + "Watch at " + StreamScripts.watchUrl(server, droneNumber()), false);
-            setStatus(startAtBoot.isChecked()
-                    ? "It will also start by itself when the MK15 turns on."
-                    : "It will not start by itself at power-on (tick the box above for that).", false);
+            setStatus("If the camera or the internet drops, it reconnects by itself every 3 s. Stop ends it.", false);
         }
     }
 
