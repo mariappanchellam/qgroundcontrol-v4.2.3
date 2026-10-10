@@ -116,6 +116,10 @@ so details can be lost. To keep the context:
   now write the width out (640x360 etc.) and decode with `-flags2 +fast`. MK15 tests: decoding the ZR10's
   1280x720 30 fps alone runs at about real time, so the MK15 has little spare processor.
 
+- DhakshaKey 2.3: no boot setup at all (nothing written or deleted in ~/.termux/boot). It writes the operator's
+  camera, IP, server, drone and quality into `~/stream_aws_<camera>.sh` and runs it in Termux; the script retries
+  every 3 s when the camera or internet drops.
+
 ## Open items
 - Find what blocks WebRTC (Lightsail UDP 8189 rule, TCP fallback, office/laptop network).
 - Test Dhaksha Live 3.0 with the real server and several MK15s; check the delay with a stopwatch.
@@ -227,4 +231,6 @@ The newest build in each table is the last row.
 | 2 | 2026-10-07 | build/dhaksha-key | 749e4e1 | feat(tools): DhakshaKey checks the camera feed and picks the stream command by codec | [DhakshaKey (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/37696732886/artifacts/11516225000) |
 | 3 | 2026-10-10 | build/dhaksha-key | 3a54b46 | feat(tools): DhakshaKey 2.0 streams to the Dhaksha video server on AWS | [DhakshaKey 2.0 (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38008721060/artifacts/11652930558) |
 | 4 | 2026-10-10 | build/dhaksha-key | 0f7250d | fix(tools): DhakshaKey starts the stream in Termux; optional position on the video (2.1) | [DhakshaKey 2.1 (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38027557011/artifacts/11660647689) |
+| 5 | 2026-10-10 | build/dhaksha-key | 091f412 | fix(tools): DhakshaKey streams a real 640x360 picture with Termux's ffmpeg 8 (2.2) | [DhakshaKey (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38038942195/artifacts/11664997170) |
+| 6 | 2026-10-10 | build/dhaksha-key | b3296a9 | refactor(tools): DhakshaKey only writes and runs the stream script, no boot setup (2.3) | [DhakshaKey (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38039587271/artifacts/11665515922) |
 
