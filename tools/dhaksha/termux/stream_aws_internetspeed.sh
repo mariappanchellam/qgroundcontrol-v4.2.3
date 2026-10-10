@@ -70,7 +70,7 @@ start_ffmpeg() {
     label="camera original"
   else
     profile "${LEVELS[$level]}"
-    video=(-vf "scale=-2:$HEIGHT,fps=$FPS"
+    video=(-vf "scale=$((HEIGHT * 16 / 9 / 2 * 2)):$HEIGHT,fps=$FPS"
       -c:v libx264 -preset ultrafast -tune zerolatency -profile:v baseline -pix_fmt yuv420p
       -b:v "${RATE}k" -maxrate "${RATE}k" -bufsize "$((RATE / 2))k"
       -g "$FPS" -keyint_min "$FPS" -sc_threshold 0)
@@ -78,7 +78,7 @@ start_ffmpeg() {
   fi
   : > "$PROGRESS"
   ffmpeg -hide_banner -loglevel error -nostdin -nostats -progress "$PROGRESS" \
-    -fflags nobuffer -flags low_delay -rtsp_transport tcp -i "$CAMERA" -an "${video[@]}" \
+    -fflags nobuffer -flags low_delay -flags2 +fast -rtsp_transport tcp -i "$CAMERA" -an "${video[@]}" \
     -f flv "rtmp://$SERVER_IP:$RTMP_PORT/live/$DRONE?user=drone&pass=$PASSWORD" &
   FF_PID=$!
   started=$SECONDS

@@ -41,7 +41,7 @@ for f in /system/fonts/Roboto-Regular.ttf /system/fonts/DroidSans.ttf /system/fo
   if [ -f "$f" ]; then FONT="$f"; break; fi
 done
 
-FILTER="scale=-2:$HEIGHT,fps=$FPS"
+FILTER="scale=$((HEIGHT * 16 / 9 / 2 * 2)):$HEIGHT,fps=$FPS"
 if [ -n "$TELEMETRY_PID" ] && [ -n "$FONT" ] && ffmpeg -hide_banner -filters 2>/dev/null | grep -q drawtext; then
   FILTER="$FILTER,drawtext=fontfile=$FONT:textfile=$TEXT_FILE:reload=1:fontsize=$((HEIGHT / 18)):fontcolor=white:box=1:boxcolor=black@0.55:boxborderw=6:x=10:y=h-th-12"
 elif [ -n "$TELEMETRY_PID" ]; then
@@ -50,7 +50,7 @@ fi
 
 while true; do
   echo "$(date '+%F %T') sending to $SERVER_IP ($DRONE)"
-  ffmpeg -fflags nobuffer -flags low_delay -rtsp_transport tcp -i "$CAMERA" \
+  ffmpeg -fflags nobuffer -flags low_delay -flags2 +fast -rtsp_transport tcp -i "$CAMERA" \
     -an -vf "$FILTER" \
     -c:v libx264 -preset ultrafast -tune zerolatency -profile:v baseline -pix_fmt yuv420p \
     -b:v "$BITRATE" -maxrate "$BITRATE" -bufsize "$BUFSIZE" \

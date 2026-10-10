@@ -11,8 +11,8 @@ BUFSIZE=50k
 
 while true; do
   echo "$(date '+%F %T') starting ${HEIGHT}p stream"
-  ffmpeg -fflags nobuffer -flags low_delay -rtsp_transport tcp -i "$CAMERA" \
-    -an -vf "scale=-2:$HEIGHT,fps=$FPS" \
+  ffmpeg -fflags nobuffer -flags low_delay -flags2 +fast -rtsp_transport tcp -i "$CAMERA" \
+    -an -vf "scale=$((HEIGHT * 16 / 9 / 2 * 2)):$HEIGHT,fps=$FPS" \
     -c:v libx264 -preset ultrafast -tune zerolatency -profile:v baseline -pix_fmt yuv420p \
     -b:v "$BITRATE" -maxrate "$BITRATE" -bufsize "$BUFSIZE" \
     -g "$FPS" -keyint_min "$FPS" -sc_threshold 0 \

@@ -112,6 +112,10 @@ so details can be lost. To keep the context:
 - DhakshaKey 2.1: fixes 2.0 not streaming (its stop step killed its own Termux command); adds "Show the drone's
   position on the video".
 
+- Black video found: Termux's ffmpeg 8.1 turns `scale=-2:360` into a 2x360 picture. All scripts and DhakshaKey 2.2
+  now write the width out (640x360 etc.) and decode with `-flags2 +fast`. MK15 tests: decoding the ZR10's
+  1280x720 30 fps alone runs at about real time, so the MK15 has little spare processor.
+
 ## Open items
 - Find what blocks WebRTC (Lightsail UDP 8189 rule, TCP fallback, office/laptop network).
 - Test Dhaksha Live 3.0 with the real server and several MK15s; check the delay with a stopwatch.
