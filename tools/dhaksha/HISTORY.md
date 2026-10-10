@@ -120,6 +120,15 @@ so details can be lost. To keep the context:
   camera, IP, server, drone and quality into `~/stream_aws_<camera>.sh` and runs it in Termux; the script retries
   every 3 s when the camera or internet drops.
 
+- DhakshaKey 2.4: a stall watchdog in the stream script. The MK15 test showed the processor keeps up (1.0x is the
+  most a live camera can give), so the sudden speed drops are stalls in the camera radio link or the mobile upload.
+  Every 2 s the script checks ffmpeg's progress and restarts it at once when the video stops moving or runs
+  below 0.8x for 8 s, or when more than 2 s of video waits in the phone's upload queue (/proc/net/tcp, port 1935)
+  for 4 s. The restart drops the backlog, so the delay never keeps growing. The Termux window says which side
+  stalled: `internet stalled (N KB waiting to upload)` or `camera / radio link stalled`. ffmpeg also gives up on
+  the camera after 5 s without data (`-timeout 5000000`). Tested locally with a frozen fake camera and a 40 kbit/s
+  throttled upload: both restarted within about 5-10 s and streaming came back.
+
 ## Open items
 - Find what blocks WebRTC (Lightsail UDP 8189 rule, TCP fallback, office/laptop network).
 - Test Dhaksha Live 3.0 with the real server and several MK15s; check the delay with a stopwatch.
@@ -233,4 +242,5 @@ The newest build in each table is the last row.
 | 4 | 2026-10-10 | build/dhaksha-key | 0f7250d | fix(tools): DhakshaKey starts the stream in Termux; optional position on the video (2.1) | [DhakshaKey 2.1 (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38027557011/artifacts/11660647689) |
 | 5 | 2026-10-10 | build/dhaksha-key | 091f412 | fix(tools): DhakshaKey streams a real 640x360 picture with Termux's ffmpeg 8 (2.2) | [DhakshaKey (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38038942195/artifacts/11664997170) |
 | 6 | 2026-10-10 | build/dhaksha-key | b3296a9 | refactor(tools): DhakshaKey only writes and runs the stream script, no boot setup (2.3) | [DhakshaKey (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38039587271/artifacts/11665515922) |
+| 7 | 2026-10-10 | build/dhaksha-key | 7dc4cd9 | feat(dhaksha-key): restart the stream when the camera or upload stalls (2.4) | [DhakshaKey (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38049072696/artifacts/11668384170) |
 
