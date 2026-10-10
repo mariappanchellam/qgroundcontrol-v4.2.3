@@ -83,6 +83,11 @@ final class StreamScripts {
             this.fps = fps;
             this.kbps = kbps;
         }
+
+        /** 16:9 width rounded to an even number, as H.264 needs: 240 -> 426, 360 -> 640, 480 -> 854, 720 -> 1280. */
+        int width() {
+            return Math.round(height * 16f / 9f / 2f) * 2;
+        }
     }
 
     static final Quality[] QUALITIES = {
@@ -173,6 +178,7 @@ final class StreamScripts {
                 + "PASSWORD=" + shellQuote(password) + "\n"
                 + "DRONE=" + shellQuote(droneName(droneNumber)) + "\n"
                 + "CAMERA=" + shellQuote(cameraRtsp) + "\n"
+                + "WIDTH=" + quality.width() + "\n"
                 + "HEIGHT=" + quality.height + "\n"
                 + "FPS=" + quality.fps + "\n"
                 + "BITRATE=" + quality.kbps + "k\n"
@@ -182,11 +188,12 @@ final class StreamScripts {
                 + "termux-wake-lock 2>/dev/null\n"
                 + "echo \"Watch this drone at http://$SERVER_IP:" + WATCH_PORT + "/live/$DRONE\"\n"
                 + "\n"
-                + "FILTER=\"scale=-2:$HEIGHT,fps=$FPS\"\n"
+                + "# The width is written out: ffmpeg 8 turned scale=-2:360 into a 2-pixel-wide picture\n"
+                + "FILTER=\"scale=$WIDTH:$HEIGHT,fps=$FPS\"\n"
                 + (showPosition ? positionOverlay() : "")
                 + "while true; do\n"
                 + "  echo \"$(date '+%F %T') sending to $SERVER_IP ($DRONE)\"\n"
-                + "  ffmpeg -fflags nobuffer -flags low_delay -rtsp_transport tcp -i \"$CAMERA\" \\\n"
+                + "  ffmpeg -fflags nobuffer -flags low_delay -flags2 +fast -rtsp_transport tcp -i \"$CAMERA\" \\\n"
                 + "    -an -vf \"$FILTER\" \\\n"
                 + "    -c:v libx264 -preset ultrafast -tune zerolatency -profile:v baseline -pix_fmt yuv420p \\\n"
                 + "    -b:v \"$BITRATE\" -maxrate \"$BITRATE\" -bufsize \"$BUFSIZE\" \\\n"
