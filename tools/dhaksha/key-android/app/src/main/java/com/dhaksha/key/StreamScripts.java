@@ -18,6 +18,10 @@ final class StreamScripts {
     static final int MAX_DRONES = 25;
 
     static final String PID_FILE = "$HOME/.dhakshakey.pid";
+    static final String BOOT_PID_FILE = "$HOME/.dhakshakey_boot.pid";
+    static final String TELEMETRY_PID_FILE = "$HOME/.dhaksha_telemetry.pid";
+    static final String TELEMETRY_SCRIPT = "~/dhaksha_telemetry.py";
+    static final int TELEMETRY_PORT = 14445;
     static final String BOOT_DIR = "~/.termux/boot";
     static final String BOOT_SCRIPT = BOOT_DIR + "/dhakshakey_boot.sh";
     /** Earlier start-at-boot scripts that would start a second stream next to this one. */
@@ -152,9 +156,13 @@ final class StreamScripts {
         return null;
     }
 
-    /** The streaming script: the tested stream_aws.sh with the chosen values. */
+    /**
+     * The streaming script: the tested stream_aws.sh with the chosen values. With showPosition the
+     * drone's lat, lon and altitude (forwarded by DhakshaGroundControl, read by dhaksha_telemetry.py)
+     * are written at the bottom of every frame.
+     */
     static String streamScript(Camera camera, String cameraRtsp, String serverIp, int droneNumber,
-                               String password, Quality quality) {
+                               String password, Quality quality, boolean showPosition) {
         return SHEBANG + "\n"
                 + "# Made by DhakshaKey: " + camera.name + " camera -> Dhaksha video server, "
                 + quality.height + "p, about " + quality.kbps + " kbit/s, low delay.\n"
@@ -174,10 +182,12 @@ final class StreamScripts {
                 + "termux-wake-lock 2>/dev/null\n"
                 + "echo \"Watch this drone at http://$SERVER_IP:" + WATCH_PORT + "/live/$DRONE\"\n"
                 + "\n"
+                + "FILTER=\"scale=-2:$HEIGHT,fps=$FPS\"\n"
+                + (showPosition ? positionOverlay() : "")
                 + "while true; do\n"
                 + "  echo \"$(date '+%F %T') sending to $SERVER_IP ($DRONE)\"\n"
                 + "  ffmpeg -fflags nobuffer -flags low_delay -rtsp_transport tcp -i \"$CAMERA\" \\\n"
-                + "    -an -vf \"scale=-2:$HEIGHT,fps=$FPS\" \\\n"
+                + "    -an -vf \"$FILTER\" \\\n"
                 + "    -c:v libx264 -preset ultrafast -tune zerolatency -profile:v baseline -pix_fmt yuv420p \\\n"
                 + "    -b:v \"$BITRATE\" -maxrate \"$BITRATE\" -bufsize \"$BUFSIZE\" \\\n"
                 + "    -g \"$FPS\" -keyint_min \"$FPS\" -sc_threshold 0 \\\n"
@@ -187,12 +197,38 @@ final class StreamScripts {
                 + "done\n";
     }
 
+    /** Starts the position reader and adds the text to FILTER; streams without it when something is missing. */
+    private static String positionOverlay() {
+        return "\n"
+                + "# Position on the video: DhakshaGroundControl > Application Settings > MAVLink >\n"
+                + "# \"Enable MAVLink forwarding\", host name localhost:" + TELEMETRY_PORT + "\n"
+                + "TEXT_FILE=\"$HOME/telemetry.txt\"\n"
+                + "FONT=\"\"\n"
+                + "for f in /system/fonts/Roboto-Regular.ttf /system/fonts/DroidSans.ttf /system/fonts/NotoSans-Regular.ttf; do\n"
+                + "  if [ -f \"$f\" ]; then FONT=\"$f\"; break; fi\n"
+                + "done\n"
+                + "if ! command -v python3 > /dev/null; then\n"
+                + "  echo \"No position on the video: run  pkg install python  in Termux once\"\n"
+                + "elif [ -z \"$FONT\" ] || ! ffmpeg -hide_banner -filters 2>/dev/null | grep -q drawtext; then\n"
+                + "  echo \"No position on the video: this ffmpeg cannot draw text\"\n"
+                + "else\n"
+                + "  python3 " + TELEMETRY_SCRIPT + " \"${DRONE^^}\" \"$TEXT_FILE\" " + TELEMETRY_PORT + " &\n"
+                + "  TELEMETRY_PID=$!\n"
+                + "  echo $TELEMETRY_PID > " + TELEMETRY_PID_FILE + "\n"
+                + "  trap 'kill $TELEMETRY_PID 2>/dev/null; exit 0' INT TERM EXIT\n"
+                + "  FILTER=\"$FILTER,drawtext=fontfile=$FONT:textfile=$TEXT_FILE:reload=1:fontsize=$((HEIGHT / 18))"
+                + ":fontcolor=white:box=1:boxcolor=black@0.55:boxborderw=6:x=10:y=h-th-12\"\n"
+                + "fi\n"
+                + "\n";
+    }
+
     /** Termux:Boot script: waits for the camera and the server, then runs the streaming script. */
     static String bootScript(Camera camera, String cameraRtsp, String serverIp) {
         return SHEBANG + "\n"
                 + "# Made by DhakshaKey: starts " + camera.scriptPath() + " when the MK15 turns on. Log: ~/stream_log.txt\n"
                 + "LOG=\"$HOME/stream_log.txt\"\n"
                 + "log() { echo \"$(date '+%F %T') $*\" >> \"$LOG\"; }\n"
+                + "echo $$ > " + BOOT_PID_FILE + "\n"
                 + "termux-wake-lock 2>/dev/null\n"
                 + "log \"MK15 started; waiting 30 s\"\n"
                 + "sleep 30\n"
@@ -207,21 +243,31 @@ final class StreamScripts {
                 + "  sleep 5\n"
                 + "done\n"
                 + "log \"camera and server reachable; starting " + camera.scriptPath() + "\"\n"
-                + "bash " + camera.scriptPath() + " >> \"$LOG\" 2>&1\n";
+                + "exec bash " + camera.scriptPath() + " >> \"$LOG\" 2>&1\n";
     }
 
-    /** Bash that stops whatever DhakshaKey started before. */
+    /**
+     * Bash that stops whatever DhakshaKey started before: the waiting boot script, the streaming script and
+     * the position reader, each by the process number it saved, then ffmpeg.
+     */
     static String stopCommand() {
-        return "[ -f " + PID_FILE + " ] && kill $(cat " + PID_FILE + ") 2>/dev/null; rm -f " + PID_FILE + "; "
-                + "pkill -f dhakshakey_boot.sh 2>/dev/null; pkill -x ffmpeg 2>/dev/null; true\n";
+        StringBuilder cmd = new StringBuilder();
+        for (String pidFile : new String[] { BOOT_PID_FILE, PID_FILE, TELEMETRY_PID_FILE }) {
+            cmd.append("[ -f ").append(pidFile).append(" ] && kill $(cat ").append(pidFile).append(") 2>/dev/null; ")
+                    .append("rm -f ").append(pidFile).append("; ");
+        }
+        return cmd.append("pkill -x ffmpeg 2>/dev/null; true\n").toString();
     }
 
     /**
      * Bash, run in a Termux window: stops the previous stream, saves the script (and the boot script,
      * or removes it), then runs the script so its output shows in that window.
      */
-    static String saveAndStartCommand(Camera camera, String stream, String boot) {
+    static String saveAndStartCommand(Camera camera, String stream, String boot, String telemetryReader) {
         StringBuilder cmd = new StringBuilder(stopCommand());
+        if (telemetryReader != null) {
+            cmd.append(writeFile(TELEMETRY_SCRIPT, telemetryReader));
+        }
         cmd.append(writeFile(camera.scriptPath(), stream));
         cmd.append("chmod +x ").append(camera.scriptPath()).append("\n");
         if (boot != null) {

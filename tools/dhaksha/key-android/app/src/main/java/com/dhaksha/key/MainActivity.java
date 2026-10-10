@@ -26,6 +26,10 @@ import android.widget.ScrollView;
 import android.widget.Spinner;
 import android.widget.TextView;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+
 /**
  * DhakshaKey: sends the drone camera to the Dhaksha video server with a few taps.
  *
@@ -64,6 +68,7 @@ public class MainActivity extends Activity {
     private Spinner droneSpinner;
     private Spinner qualitySpinner;
     private CheckBox startAtBoot;
+    private CheckBox showPosition;
     private LinearLayout advancedBlock;
     private EditText password;
     private Button okButton;
@@ -151,6 +156,15 @@ public class MainActivity extends Activity {
         startAtBoot.setChecked(prefs.getBoolean("boot", false));
         column.addView(startAtBoot);
 
+        showPosition = new CheckBox(this);
+        showPosition.setText("Show the drone's position (lat, lon, altitude) on the video");
+        showPosition.setTextSize(16);
+        showPosition.setChecked(prefs.getBoolean("position", false));
+        column.addView(showPosition);
+        addLabel(column, "For the position: in DhakshaGroundControl tick Application Settings > MAVLink > "
+                + "\"Enable MAVLink forwarding\" (host name localhost:" + StreamScripts.TELEMETRY_PORT
+                + "), then restart DhakshaGroundControl.");
+
         CheckBox advanced = new CheckBox(this);
         advanced.setText("Show advanced settings");
         column.addView(advanced);
@@ -185,7 +199,7 @@ public class MainActivity extends Activity {
 
         addHeading(column, "First time on this MK15");
         addLabel(column, "1. Install Termux (and Termux:Boot for start at power-on) from F-Droid.\n"
-                + "2. In Termux run this once:  pkg install ffmpeg  and then the command below.\n"
+                + "2. In Termux run this once:  pkg install ffmpeg python  and then the command below.\n"
                 + "3. Allow \"Run commands in Termux environment\" when DhakshaKey asks.");
         TextView setup = new TextView(this);
         setup.setTypeface(Typeface.MONOSPACE);
@@ -238,6 +252,7 @@ public class MainActivity extends Activity {
                 .putInt("drone", droneSpinner.getSelectedItemPosition())
                 .putInt("quality", qualitySpinner.getSelectedItemPosition())
                 .putBoolean("boot", startAtBoot.isChecked())
+                .putBoolean("position", showPosition.isChecked())
                 .putString("password", text(password));
         if (shownCamera >= 0) {
             edit.putString("ip_" + StreamScripts.CAMERAS[shownCamera].fileTag, text(cameraIp));
@@ -318,15 +333,39 @@ public class MainActivity extends Activity {
         StreamScripts.Camera camera = camera();
         String server = text(serverIp);
         StreamScripts.Quality quality = StreamScripts.QUALITIES[qualitySpinner.getSelectedItemPosition()];
-        String stream = StreamScripts.streamScript(camera, rtsp, server, droneNumber(), text(password), quality);
+        boolean position = showPosition.isChecked();
+        String stream = StreamScripts.streamScript(camera, rtsp, server, droneNumber(), text(password), quality,
+                position);
         String boot = startAtBoot.isChecked() ? StreamScripts.bootScript(camera, rtsp, server) : null;
-        if (runInTermux(StreamScripts.saveAndStartCommand(camera, stream, boot), false)) {
+        String reader = null;
+        if (position) {
+            reader = readAsset("dhaksha_telemetry.py");
+            if (reader == null) {
+                showBanner("The position reader is missing from this app. Untick \"Show the drone's position\".", true);
+                return;
+            }
+        }
+        if (runInTermux(StreamScripts.saveAndStartCommand(camera, stream, boot, reader), false)) {
             startAnyway.setVisibility(View.GONE);
             showBanner("Streaming started with " + camera.scriptPath() + ". The Termux window shows its progress.\n"
                     + "Watch at " + StreamScripts.watchUrl(server, droneNumber()), false);
             setStatus(startAtBoot.isChecked()
                     ? "It will also start by itself when the MK15 turns on."
                     : "It will not start by itself at power-on (tick the box above for that).", false);
+        }
+    }
+
+    private String readAsset(String name) {
+        try (InputStream in = getAssets().open(name)) {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            byte[] buffer = new byte[4096];
+            int read;
+            while ((read = in.read(buffer)) > 0) {
+                out.write(buffer, 0, read);
+            }
+            return out.toString("UTF-8");
+        } catch (IOException e) {
+            return null;
         }
     }
 
