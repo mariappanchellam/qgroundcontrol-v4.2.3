@@ -109,6 +109,9 @@ so details can be lost. To keep the context:
   localhost:14445) feeds `dhaksha_telemetry.py` in Termux, which keeps `~/telemetry.txt` up to date; ffmpeg's
   drawtext writes it on every frame (`stream_aws_position.sh`). Tested here with simulated MAVLink and camera.
 
+- DhakshaKey 2.1: fixes 2.0 not streaming (its stop step killed its own Termux command); adds "Show the drone's
+  position on the video".
+
 ## Open items
 - Find what blocks WebRTC (Lightsail UDP 8189 rule, TCP fallback, office/laptop network).
 - Test Dhaksha Live 3.0 with the real server and several MK15s; check the delay with a stopwatch.
@@ -219,4 +222,5 @@ The newest build in each table is the last row.
 | 1 | 2026-10-07 | build/dhaksha-key | 20a0542 | feat(tools): DhakshaKey app that starts the Livepush ffmpeg stream in Termux | [DhakshaKey (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/37607170813/artifacts/11475028777) |
 | 2 | 2026-10-07 | build/dhaksha-key | 749e4e1 | feat(tools): DhakshaKey checks the camera feed and picks the stream command by codec | [DhakshaKey (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/37696732886/artifacts/11516225000) |
 | 3 | 2026-10-10 | build/dhaksha-key | 3a54b46 | feat(tools): DhakshaKey 2.0 streams to the Dhaksha video server on AWS | [DhakshaKey 2.0 (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38008721060/artifacts/11652930558) |
+| 4 | 2026-10-10 | build/dhaksha-key | 0f7250d | fix(tools): DhakshaKey starts the stream in Termux; optional position on the video (2.1) | [DhakshaKey 2.1 (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38027557011/artifacts/11660647689) |
 
