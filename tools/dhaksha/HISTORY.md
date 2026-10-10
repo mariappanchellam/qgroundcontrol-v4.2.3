@@ -4,7 +4,7 @@ What has been built for Dhaksha Drones in this repository (`mariappanchellam/qgr
 in the order it was done, with a download link for every build.
 Keep this file up to date at the end of every working session (see "Keeping the history" below).
 
-Last updated: 2026-10-09.
+Last updated: 2026-10-10.
 
 ## Keeping the history between Claude sessions
 
@@ -28,7 +28,7 @@ so details can be lost. To keep the context:
 | **DhakshaGroundControl** | QGroundControl 4.2.3 rebranded for Dhaksha, for the SIYI MK15 (Android, 32-bit) | whole repository | `main` (+ fix on `fix/stream-forwarder-codec`) |
 | **Dhaksha Live (phone)** | Android viewer, 4 Livepush players in a 2 x 2 grid | `tools/dhaksha/live-android` | `build/dhaksha-live-grid` |
 | **Dhaksha Live (desktop)** | Windows / Linux viewer, 25 boxes, plays the Dhaksha video server (HLS or WebRTC) and Livepush | `tools/dhaksha/live-windows` | `build/dhaksha-live-grid` |
-| **DhakshaKey** | Android helper: checks the camera feed and writes/starts the ffmpeg scripts in Termux | `tools/dhaksha/key-android` | `build/dhaksha-key` |
+| **DhakshaKey** | Android app for the operator: pick camera, server IP, drone number and quality; writes `~/stream_<camera>.sh` and runs it in Termux (2.0: Dhaksha server on AWS) | `tools/dhaksha/key-android` | `build/dhaksha-key` |
 | **Video server** | MediaMTX on AWS Lightsail: MK15 sends RTMP, viewers get HLS (:8888) or WebRTC (:8889) | `tools/dhaksha/stream_server.sh` | `main` |
 | **Server test drones** | Sends looping test video as drone1..droneN from the server itself, to try Dhaksha Live with many boxes | `tools/dhaksha/server/stream_aws_test.sh` | `build/dhaksha-live-grid` |
 | **Termux scripts** | ffmpeg commands that run on the MK15 (Livepush or own server, 144p to 720p) | `tools/dhaksha/termux` | `build/dhaksha-live-grid` |
@@ -97,11 +97,19 @@ so details can be lost. To keep the context:
 - 9 Oct: the adaptive `stream_aws_internetspeed.sh` is parked for later. In use: `stream_aws.sh` (fixed 360p)
   with a default server IP inside, started at boot by `boot_stream_aws.sh`.
 
+### 10 Oct 2026: DhakshaKey 2.0 for the AWS server
+- One simple screen for a novice operator: camera type (ZR10, SIYI A8 mini, Skydroid, ViewPro, Other) with its IP
+  filled in (ZR10 192.168.144.25, Skydroid .108, ViewPro .119; editable and remembered), server IP
+  (default 15.252.170.151), drone number 1-25, video quality (240p-720p, 360p default), optional start at
+  power-on. OK checks the camera, writes the tested `stream_aws.sh` with these values to `~/stream_<camera>.sh`
+  and runs it in a Termux window; Stop ends it. Tested here: the generated script streams to a MediaMTX
+  server set up like the AWS one.
+
 ## Open items
 - Find what blocks WebRTC (Lightsail UDP 8189 rule, TCP fallback, office/laptop network).
 - Test Dhaksha Live 3.0 with the real server and several MK15s; check the delay with a stopwatch.
 - GStreamer "Stream to Server" crash in DhakshaGroundControl: paused.
-- DhakshaKey: test on the MK15 (paused).
+- DhakshaKey 2.0: test on the MK15 with the ZR10 and the AWS server.
 - Phone Dhaksha Live still plays Livepush links only (4 boxes).
 - Merge `fix/stream-forwarder-codec`, `build/dhaksha-key` and `build/dhaksha-live-grid` into `main` when approved.
 
@@ -205,4 +213,5 @@ The newest build in each table is the last row.
 |---|---|---|---|---|---|
 | 1 | 2026-10-07 | build/dhaksha-key | 20a0542 | feat(tools): DhakshaKey app that starts the Livepush ffmpeg stream in Termux | [DhakshaKey (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/37607170813/artifacts/11475028777) |
 | 2 | 2026-10-07 | build/dhaksha-key | 749e4e1 | feat(tools): DhakshaKey checks the camera feed and picks the stream command by codec | [DhakshaKey (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/37696732886/artifacts/11516225000) |
+| 3 | 2026-10-10 | build/dhaksha-key | 3a54b46 | feat(tools): DhakshaKey 2.0 streams to the Dhaksha video server on AWS | [DhakshaKey 2.0 (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38008721060/artifacts/11652930558) |
 
