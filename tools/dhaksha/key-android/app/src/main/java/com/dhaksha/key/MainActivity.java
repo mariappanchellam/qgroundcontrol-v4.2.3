@@ -37,6 +37,7 @@ import java.io.InputStream;
  * and the video quality, then presses OK. DhakshaKey checks that the camera answers, writes the tested
  * streaming script with those values to ~/stream_<camera>.sh in Termux and runs it in a Termux window.
  * The script retries by itself when the camera or the internet drops. Nothing is set up to start at power-on.
+ * At home, without a camera, "Home" sends test.mp4 from the Download folder instead (~/stream_aws_home.sh).
  *
  * Termux runs commands through its RUN_COMMAND service, which needs once:
  * allow-external-apps = true in Termux, and the "Run commands in Termux environment" permission.
@@ -56,8 +57,17 @@ public class MainActivity extends Activity {
     static final String TERMUX_SETUP =
             "mkdir -p ~/.termux && echo 'allow-external-apps = true' >> ~/.termux/termux.properties && termux-reload-settings";
 
+    private static final String[] PLACES = {
+        "Office / field  –  real drone camera",
+        "Home  –  test video (test.mp4, no camera)",
+    };
+    private static final int PLACE_HOME = 1;
+
     private SharedPreferences prefs;
     private TextView banner;
+    private Spinner placeSpinner;
+    private LinearLayout cameraSection;
+    private TextView homeHint;
     private Spinner cameraSpinner;
     private LinearLayout ipBlock;
     private EditText cameraIp;
@@ -107,34 +117,45 @@ public class MainActivity extends Activity {
         bannerParams.topMargin = dp(12);
         column.addView(banner, bannerParams);
 
-        // 1. Camera
-        addHeading(column, "1. Camera");
+        // 1. Place
+        addHeading(column, "1. Where are you?");
+        placeSpinner = addSpinner(column, PLACES, prefs.getInt("place", 0));
+        homeHint = new TextView(this);
+        homeHint.setText("Copy " + StreamScripts.TEST_VIDEO + " to this MK15's Download folder, and run  "
+                + "termux-setup-storage  once in Termux (allow access to files). The video is sent again and "
+                + "again in place of the camera.");
+        homeHint.setPadding(0, dp(8), 0, dp(4));
+        column.addView(homeHint);
+
+        // 2. Camera
+        cameraSection = block(column);
+        addHeading(cameraSection, "2. Camera");
         String[] cameraNames = new String[StreamScripts.CAMERAS.length];
         for (int i = 0; i < cameraNames.length; i++) {
             cameraNames[i] = StreamScripts.CAMERAS[i].name;
         }
-        cameraSpinner = addSpinner(column, cameraNames, prefs.getInt("camera", 0));
+        cameraSpinner = addSpinner(cameraSection, cameraNames, prefs.getInt("camera", 0));
 
-        ipBlock = block(column);
+        ipBlock = block(cameraSection);
         addLabel(ipBlock, "Camera IP (filled in for the chosen camera; change it if yours is different)");
         cameraIp = addField(ipBlock, "192.168.144.25", "", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
         cameraAddress = new TextView(this);
         cameraAddress.setTextColor(Color.GRAY);
         ipBlock.addView(cameraAddress);
 
-        otherBlock = block(column);
+        otherBlock = block(cameraSection);
         addLabel(otherBlock, "Camera stream address (from the camera's manual)");
         otherRtsp = addField(otherBlock, OTHER_DEFAULT_RTSP, prefs.getString("otherRtsp", OTHER_DEFAULT_RTSP),
                 InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
 
         // 2. Server
-        addHeading(column, "2. Server IP");
+        addHeading(column, "3. Server IP");
         serverIp = addField(column, StreamScripts.DEFAULT_SERVER_IP,
                 prefs.getString("server", StreamScripts.DEFAULT_SERVER_IP),
                 InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
 
         // 3. Drone number
-        addHeading(column, "3. Drone number (each drone needs its own)");
+        addHeading(column, "4. Drone number (each drone needs its own)");
         String[] drones = new String[StreamScripts.MAX_DRONES];
         for (int i = 0; i < drones.length; i++) {
             drones[i] = "Drone " + (i + 1) + "   (" + StreamScripts.droneName(i + 1) + ")";
@@ -142,7 +163,7 @@ public class MainActivity extends Activity {
         droneSpinner = addSpinner(column, drones, prefs.getInt("drone", 0));
 
         // 4. Quality
-        addHeading(column, "4. Video quality");
+        addHeading(column, "5. Video quality");
         String[] qualities = new String[StreamScripts.QUALITIES.length];
         for (int i = 0; i < qualities.length; i++) {
             qualities[i] = StreamScripts.QUALITIES[i].label;
@@ -208,6 +229,13 @@ public class MainActivity extends Activity {
         scroll.addView(column);
         setContentView(scroll);
 
+        placeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                showPlace();
+            }
+            @Override public void onNothingSelected(AdapterView<?> parent) {}
+        });
+        showPlace();
         cameraSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 showCamera(position);
@@ -240,6 +268,7 @@ public class MainActivity extends Activity {
 
     private void save() {
         SharedPreferences.Editor edit = prefs.edit()
+                .putInt("place", placeSpinner.getSelectedItemPosition())
                 .putInt("camera", cameraSpinner.getSelectedItemPosition())
                 .putString("otherRtsp", text(otherRtsp))
                 .putString("server", text(serverIp))
@@ -266,6 +295,17 @@ public class MainActivity extends Activity {
         refresh();
     }
 
+    private boolean atHome() {
+        return placeSpinner.getSelectedItemPosition() == PLACE_HOME;
+    }
+
+    /** Home has no camera: the camera choices are hidden and test.mp4 is sent instead. */
+    private void showPlace() {
+        cameraSection.setVisibility(atHome() ? View.GONE : View.VISIBLE);
+        homeHint.setVisibility(atHome() ? View.VISIBLE : View.GONE);
+        startAnyway.setVisibility(View.GONE);
+    }
+
     private StreamScripts.Camera camera() {
         return StreamScripts.CAMERAS[cameraSpinner.getSelectedItemPosition()];
     }
@@ -290,14 +330,14 @@ public class MainActivity extends Activity {
         if (checking) {
             return;
         }
-        final String rtsp = cameraRtsp();
+        final String rtsp = atHome() ? null : cameraRtsp();
         String problem = StreamScripts.validate(rtsp, text(serverIp), droneNumber(), text(password));
         if (problem != null) {
             showBanner(problem, true);
             return;
         }
         save();
-        if (skipCameraCheck) {
+        if (skipCameraCheck || atHome()) {
             saveAndRun(rtsp);
             return;
         }
@@ -322,8 +362,10 @@ public class MainActivity extends Activity {
         }).start();
     }
 
+    /** rtsp is null at home, where test.mp4 is sent instead of a camera. */
     private void saveAndRun(String rtsp) {
-        StreamScripts.Camera camera = camera();
+        StreamScripts.Camera camera = rtsp == null ? null : camera();
+        String scriptPath = camera == null ? StreamScripts.HOME_SCRIPT : camera.scriptPath();
         String server = text(serverIp);
         StreamScripts.Quality quality = StreamScripts.QUALITIES[qualitySpinner.getSelectedItemPosition()];
         boolean position = showPosition.isChecked();
@@ -337,9 +379,9 @@ public class MainActivity extends Activity {
                 return;
             }
         }
-        if (runInTermux(StreamScripts.saveAndStartCommand(camera, stream, reader), false)) {
+        if (runInTermux(StreamScripts.saveAndStartCommand(scriptPath, stream, reader), false)) {
             startAnyway.setVisibility(View.GONE);
-            showBanner("Streaming started with " + camera.scriptPath() + ". The Termux window shows its progress.\n"
+            showBanner("Streaming started with " + scriptPath + ". The Termux window shows its progress.\n"
                     + "Watch at " + StreamScripts.watchUrl(server, droneNumber()), false);
             setStatus("If the camera or the internet drops or stalls, it restarts by itself within a few seconds. Stop ends it.", false);
         }

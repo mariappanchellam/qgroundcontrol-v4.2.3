@@ -7,7 +7,9 @@ import java.util.regex.Pattern;
  * Builds the Termux script that sends the drone camera to the Dhaksha video server (MediaMTX on AWS).
  *
  * The script is the tested stream_aws.sh with the operator's choices filled in: camera stream, server,
- * drone name, password and video size. It is saved as ~/stream_<camera>.sh, e.g. ~/stream_zr10.sh.
+ * drone name, password and video size. It is saved as ~/stream_aws_<camera>.sh, e.g. ~/stream_aws_zr10.sh.
+ * For testing at home without a camera, it loops test.mp4 from the Download folder instead and is saved as
+ * ~/stream_aws_home.sh.
  */
 final class StreamScripts {
 
@@ -22,6 +24,8 @@ final class StreamScripts {
     static final String TELEMETRY_SCRIPT = "~/dhaksha_telemetry.py";
     static final int TELEMETRY_PORT = 14445;
     static final String SHEBANG = "#!/data/data/com.termux/files/usr/bin/bash";
+    static final String HOME_SCRIPT = "~/stream_aws_home.sh";
+    static final String TEST_VIDEO = "test.mp4";
 
     private static final String HEREDOC_END = "DHAKSHAKEY_END_OF_SCRIPT";
     private static final Pattern HOST = Pattern.compile("[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?");
@@ -135,12 +139,15 @@ final class StreamScripts {
         return HOST.matcher(value).matches() && !value.matches("[0-9.]+");
     }
 
-    /** Returns what is wrong with the inputs in plain words, or null when the script can be made. */
+    /**
+     * Returns what is wrong with the inputs in plain words, or null when the script can be made.
+     * cameraRtsp is null for the home test video.
+     */
     static String validate(String cameraRtsp, String serverIp, int droneNumber, String password) {
-        if (cameraRtsp.matches(".*[\\s'\"\\\\].*")) {
+        if (cameraRtsp != null && cameraRtsp.matches(".*[\\s'\"\\\\].*")) {
             return "The camera address must not contain spaces or quotes.";
         }
-        if (rtspHost(cameraRtsp) == null) {
+        if (cameraRtsp != null && rtspHost(cameraRtsp) == null) {
             return "The camera address is not right. It must look like rtsp://192.168.144.25:8554/main.264";
         }
         if (!isHost(serverIp)) {
@@ -158,12 +165,15 @@ final class StreamScripts {
     /**
      * The streaming script: the tested stream_aws.sh with the chosen values. With showPosition the
      * drone's lat, lon and altitude (forwarded by DhakshaGroundControl, read by dhaksha_telemetry.py)
-     * are written at the bottom of every frame.
+     * are written at the bottom of every frame. With camera null (home, no camera) it loops test.mp4
+     * from the Download folder instead of the camera, at its real speed.
      */
     static String streamScript(Camera camera, String cameraRtsp, String serverIp, int droneNumber,
                                String password, Quality quality, boolean showPosition) {
+        boolean home = camera == null;
         return SHEBANG + "\n"
-                + "# Made by DhakshaKey: " + camera.name + " camera -> Dhaksha video server, "
+                + "# Made by DhakshaKey: " + (home ? "home test video " + TEST_VIDEO : camera.name + " camera")
+                + " -> Dhaksha video server, "
                 + quality.height + "p, about " + quality.kbps + " kbit/s, low delay.\n"
                 + "# Watch: " + watchUrl(serverIp, droneNumber) + "\n"
                 + "# Stop with Ctrl+C, or the Stop button in DhakshaKey.\n"
@@ -171,7 +181,7 @@ final class StreamScripts {
                 + "SERVER_IP=" + shellQuote(serverIp) + "\n"
                 + "PASSWORD=" + shellQuote(password) + "\n"
                 + "DRONE=" + shellQuote(droneName(droneNumber)) + "\n"
-                + "CAMERA=" + shellQuote(cameraRtsp) + "\n"
+                + (home ? "" : "CAMERA=" + shellQuote(cameraRtsp) + "\n")
                 + "WIDTH=" + quality.width() + "\n"
                 + "HEIGHT=" + quality.height + "\n"
                 + "FPS=" + quality.fps + "\n"
@@ -182,6 +192,7 @@ final class StreamScripts {
                 + "termux-wake-lock 2>/dev/null\n"
                 + "echo \"Watch this drone at http://$SERVER_IP:" + WATCH_PORT + "/live/$DRONE\"\n"
                 + "\n"
+                + (home ? findTestVideo() : "")
                 + "# The width is written out: ffmpeg 8 turned scale=-2:360 into a 2-pixel-wide picture\n"
                 + "FILTER=\"scale=$WIDTH:$HEIGHT,fps=$FPS\"\n"
                 + (showPosition ? positionOverlay() : "")
@@ -204,9 +215,13 @@ final class StreamScripts {
                 + "while true; do\n"
                 + "  echo \"$(date '+%F %T') sending to $SERVER_IP ($DRONE)\"\n"
                 + "  : > \"$PROGRESS\"\n"
-                + "  # -timeout: give up on the camera after 5 s without data, so the loop reconnects\n"
-                + "  ffmpeg -nostdin -stats -progress \"$PROGRESS\" -fflags nobuffer -flags low_delay -flags2 +fast \\\n"
-                + "    -timeout 5000000 -rtsp_transport tcp -i \"$CAMERA\" \\\n"
+                + (home
+                    ? "  # -re: send the file at its real speed, like a camera; -stream_loop -1: play it again and again\n"
+                      + "  ffmpeg -nostdin -stats -progress \"$PROGRESS\" -flags2 +fast \\\n"
+                      + "    -re -stream_loop -1 -i \"$VIDEO\" \\\n"
+                    : "  # -timeout: give up on the camera after 5 s without data, so the loop reconnects\n"
+                      + "  ffmpeg -nostdin -stats -progress \"$PROGRESS\" -fflags nobuffer -flags low_delay -flags2 +fast \\\n"
+                      + "    -timeout 5000000 -rtsp_transport tcp -i \"$CAMERA\" \\\n")
                 + "    -an -vf \"$FILTER\" \\\n"
                 + "    -c:v libx264 -preset ultrafast -tune zerolatency -profile:v baseline -pix_fmt yuv420p \\\n"
                 + "    -b:v \"$BITRATE\" -maxrate \"$BITRATE\" -bufsize \"$BUFSIZE\" \\\n"
@@ -238,7 +253,8 @@ final class StreamScripts {
                 + "      if [ -n \"$kb\" ] && [ \"$kb\" -ge \"$QUEUE_LIMIT_KB\" ]; then\n"
                 + "        echo \"$(date '+%F %T') internet stalled ($kb KB waiting to upload): restarting\"\n"
                 + "      else\n"
-                + "        echo \"$(date '+%F %T') camera / radio link stalled: restarting\"\n"
+                + "        echo \"$(date '+%F %T') " + (home ? "test video" : "camera / radio link")
+                + " stalled: restarting\"\n"
                 + "      fi\n"
                 + "      kill \"$FFMPEG_PID\" 2>/dev/null\n"
                 + "      break\n"
@@ -249,6 +265,24 @@ final class StreamScripts {
                 + "  echo \"$(date '+%F %T') stream stopped, retrying in 3 s\"\n"
                 + "  sleep 3\n"
                 + "done\n";
+    }
+
+    /** Sets VIDEO to test.mp4 in the Termux home or the phone's Download folder; stops with help when missing. */
+    private static String findTestVideo() {
+        return "# Home test without a camera: " + TEST_VIDEO + " in the Download folder (needs  termux-setup-storage  once)\n"
+                + "VIDEO=\"\"\n"
+                + "for f in \"$HOME/" + TEST_VIDEO + "\" \"$HOME/storage/shared/Download/" + TEST_VIDEO + "\" "
+                + "\"/sdcard/Download/" + TEST_VIDEO + "\"; do\n"
+                + "  if [ -r \"$f\" ]; then VIDEO=\"$f\"; break; fi\n"
+                + "done\n"
+                + "if [ -z \"$VIDEO\" ]; then\n"
+                + "  echo \"" + TEST_VIDEO + " not found. Copy it to the phone's Download folder, run  termux-setup-storage\"\n"
+                + "  echo \"once in Termux and allow access to files, then press OK in DhakshaKey again.\"\n"
+                + "  rm -f " + PID_FILE + "\n"
+                + "  exit 1\n"
+                + "fi\n"
+                + "echo \"Home test: sending $VIDEO again and again instead of the camera\"\n"
+                + "\n";
     }
 
     /** Starts the position reader and adds the text to FILTER; streams without it when something is missing. */
@@ -292,15 +326,15 @@ final class StreamScripts {
      * Bash, run in a Termux window: stops the previous stream, saves the script, then runs it so its output
      * shows in that window. The script retries by itself when the camera or the internet drops.
      */
-    static String saveAndStartCommand(Camera camera, String stream, String telemetryReader) {
+    static String saveAndStartCommand(String scriptPath, String stream, String telemetryReader) {
         StringBuilder cmd = new StringBuilder(stopCommand());
         if (telemetryReader != null) {
             cmd.append(writeFile(TELEMETRY_SCRIPT, telemetryReader));
         }
-        cmd.append(writeFile(camera.scriptPath(), stream));
-        cmd.append("chmod +x ").append(camera.scriptPath()).append("\n");
-        cmd.append("echo \"Saved ").append(camera.scriptPath()).append(". Starting...\"\n");
-        cmd.append("exec bash ").append(camera.scriptPath()).append("\n");
+        cmd.append(writeFile(scriptPath, stream));
+        cmd.append("chmod +x ").append(scriptPath).append("\n");
+        cmd.append("echo \"Saved ").append(scriptPath).append(". Starting...\"\n");
+        cmd.append("exec bash ").append(scriptPath).append("\n");
         return cmd.toString();
     }
 
