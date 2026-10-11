@@ -166,7 +166,8 @@ final class StreamScripts {
      * The streaming script: the tested stream_aws.sh with the chosen values. With showPosition the
      * drone's lat, lon and altitude (forwarded by DhakshaGroundControl, read by dhaksha_telemetry.py)
      * are written at the bottom of every frame. With camera null (home, no camera) it loops test.mp4
-     * from the Download folder instead of the camera, at its real speed.
+     * from the Download folder instead of the camera, at its real speed, and the position is a made-up
+     * TEST one, so no drone or DhakshaGroundControl is needed.
      */
     static String streamScript(Camera camera, String cameraRtsp, String serverIp, int droneNumber,
                                String password, Quality quality, boolean showPosition) {
@@ -195,7 +196,7 @@ final class StreamScripts {
                 + (home ? findTestVideo() : "")
                 + "# The width is written out: ffmpeg 8 turned scale=-2:360 into a 2-pixel-wide picture\n"
                 + "FILTER=\"scale=$WIDTH:$HEIGHT,fps=$FPS\"\n"
-                + (showPosition ? positionOverlay() : "")
+                + (showPosition || home ? positionOverlay(home) : "")
                 + "PROGRESS=\"$HOME/.dhakshakey_progress\"\n"
                 + "STALL_SECONDS=8\n"
                 + "# More than 2 s of video waiting to upload, for QUEUE_SECONDS, means the internet is not keeping up\n"
@@ -285,12 +286,18 @@ final class StreamScripts {
                 + "\n";
     }
 
-    /** Starts the position reader and adds the text to FILTER; streams without it when something is missing. */
-    private static String positionOverlay() {
+    /**
+     * Starts the position reader and adds the text to FILTER. The video always comes first: when anything
+     * for the text is missing, or ffmpeg cannot draw it, the script streams without it.
+     */
+    private static String positionOverlay(boolean fake) {
         return "\n"
-                + "# Position on the video: DhakshaGroundControl > Application Settings > MAVLink >\n"
-                + "# \"Enable MAVLink forwarding\", host name localhost:" + TELEMETRY_PORT + "\n"
+                + (fake
+                    ? "# Position on the video: a made-up TEST position for the home test (no drone needed)\n"
+                    : "# Position on the video: DhakshaGroundControl > Application Settings > MAVLink >\n"
+                      + "# \"Enable MAVLink forwarding\", host name localhost:" + TELEMETRY_PORT + "\n")
                 + "TEXT_FILE=\"$HOME/telemetry.txt\"\n"
+                + "echo \"${DRONE^^}  waiting for position...\" > \"$TEXT_FILE\"\n"
                 + "FONT=\"\"\n"
                 + "for f in /system/fonts/Roboto-Regular.ttf /system/fonts/DroidSans.ttf /system/fonts/NotoSans-Regular.ttf; do\n"
                 + "  if [ -f \"$f\" ]; then FONT=\"$f\"; break; fi\n"
@@ -300,11 +307,19 @@ final class StreamScripts {
                 + "elif [ -z \"$FONT\" ] || ! ffmpeg -hide_banner -filters 2>/dev/null | grep -q drawtext; then\n"
                 + "  echo \"No position on the video: this ffmpeg cannot draw text\"\n"
                 + "else\n"
-                + "  python3 " + TELEMETRY_SCRIPT + " \"${DRONE^^}\" \"$TEXT_FILE\" " + TELEMETRY_PORT + " &\n"
-                + "  TELEMETRY_PID=$!\n"
-                + "  echo $TELEMETRY_PID > " + TELEMETRY_PID_FILE + "\n"
-                + "  FILTER=\"$FILTER,drawtext=fontfile=$FONT:textfile=$TEXT_FILE:reload=1:fontsize=$((HEIGHT / 18))"
+                + "  TEXT=\"drawtext=fontfile=$FONT:textfile=$TEXT_FILE:reload=1:fontsize=$((HEIGHT / 18))"
                 + ":fontcolor=white:box=1:boxcolor=black@0.55:boxborderw=6:x=10:y=h-th-12\"\n"
+                + "  # Try the text on a tiny test picture first, so it can never stop the real video\n"
+                + "  if ffmpeg -nostdin -hide_banner -loglevel error -f lavfi -i color=size=320x180:duration=0.2 "
+                + "-vf \"$TEXT\" -f null - ; then\n"
+                + "    python3 " + TELEMETRY_SCRIPT + " \"${DRONE^^}\" \"$TEXT_FILE\" " + TELEMETRY_PORT
+                + (fake ? " --fake" : "") + " &\n"
+                + "    TELEMETRY_PID=$!\n"
+                + "    echo $TELEMETRY_PID > " + TELEMETRY_PID_FILE + "\n"
+                + "    FILTER=\"$FILTER,$TEXT\"\n"
+                + "  else\n"
+                + "    echo \"No position on the video: ffmpeg could not draw the text. Sending the video without it.\"\n"
+                + "  fi\n"
                 + "fi\n"
                 + "\n";
     }

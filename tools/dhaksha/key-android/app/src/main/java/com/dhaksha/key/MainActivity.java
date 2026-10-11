@@ -68,6 +68,7 @@ public class MainActivity extends Activity {
     private Spinner placeSpinner;
     private LinearLayout cameraSection;
     private TextView homeHint;
+    private TextView positionHint;
     private Spinner cameraSpinner;
     private LinearLayout ipBlock;
     private EditText cameraIp;
@@ -174,11 +175,11 @@ public class MainActivity extends Activity {
         showPosition = new CheckBox(this);
         showPosition.setText("Show the drone's position (lat, lon, altitude) on the video");
         showPosition.setTextSize(16);
-        showPosition.setChecked(prefs.getBoolean("position", false));
+        showPosition.setChecked(prefs.getBoolean("position", true));
+        positionHint = new TextView(this);
+        positionHint.setPadding(0, dp(8), 0, dp(4));
         column.addView(showPosition);
-        addLabel(column, "For the position: in DhakshaGroundControl tick Application Settings > MAVLink > "
-                + "\"Enable MAVLink forwarding\" (host name localhost:" + StreamScripts.TELEMETRY_PORT
-                + "), then restart DhakshaGroundControl.");
+        column.addView(positionHint);
 
         CheckBox advanced = new CheckBox(this);
         advanced.setText("Show advanced settings");
@@ -303,6 +304,13 @@ public class MainActivity extends Activity {
     private void showPlace() {
         cameraSection.setVisibility(atHome() ? View.GONE : View.VISIBLE);
         homeHint.setVisibility(atHome() ? View.VISIBLE : View.GONE);
+        showPosition.setVisibility(atHome() ? View.GONE : View.VISIBLE);
+        positionHint.setText(atHome()
+                ? "Home: a made-up TEST position (lat, lon, altitude) is written on the video. "
+                  + "No drone or DhakshaGroundControl needed."
+                : "For the position: in DhakshaGroundControl tick Application Settings > MAVLink > "
+                  + "\"Enable MAVLink forwarding\" (host name localhost:" + StreamScripts.TELEMETRY_PORT
+                  + "), then restart DhakshaGroundControl.");
         startAnyway.setVisibility(View.GONE);
     }
 
@@ -368,14 +376,14 @@ public class MainActivity extends Activity {
         String scriptPath = camera == null ? StreamScripts.HOME_SCRIPT : camera.scriptPath();
         String server = text(serverIp);
         StreamScripts.Quality quality = StreamScripts.QUALITIES[qualitySpinner.getSelectedItemPosition()];
-        boolean position = showPosition.isChecked();
+        boolean position = camera == null || showPosition.isChecked();
         String stream = StreamScripts.streamScript(camera, rtsp, server, droneNumber(), text(password), quality,
                 position);
         String reader = null;
         if (position) {
             reader = readAsset("dhaksha_telemetry.py");
             if (reader == null) {
-                showBanner("The position reader is missing from this app. Untick \"Show the drone's position\".", true);
+                showBanner("The position reader is missing from this app.", true);
                 return;
             }
         }

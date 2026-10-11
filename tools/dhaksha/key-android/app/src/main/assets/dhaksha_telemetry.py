@@ -11,18 +11,24 @@ one line up to date, e.g.
 ffmpeg's drawtext filter re-reads the file for every frame (textfile=...:reload=1).
 Python standard library only.
 
-Usage: python3 dhaksha_telemetry.py [label] [file] [udp port]
+With --fake (home tests, no drone) it writes a made-up position instead: a drone flying slow
+circles, marked TEST so it is never taken for a real one.
+
+Usage: python3 dhaksha_telemetry.py [label] [file] [udp port] [--fake]
 """
 
+import math
 import os
 import socket
 import struct
 import sys
 import time
 
-LABEL = sys.argv[1] if len(sys.argv) > 1 else "DRONE"
-OUT = sys.argv[2] if len(sys.argv) > 2 else os.path.expanduser("~/telemetry.txt")
-PORT = int(sys.argv[3]) if len(sys.argv) > 3 else 14445
+FAKE = "--fake" in sys.argv[1:]
+ARGS = [a for a in sys.argv[1:] if a != "--fake"]
+LABEL = ARGS[0] if len(ARGS) > 0 else "DRONE"
+OUT = ARGS[1] if len(ARGS) > 1 else os.path.expanduser("~/telemetry.txt")
+PORT = int(ARGS[2]) if len(ARGS) > 2 else 14445
 
 GLOBAL_POSITION_INT = 33
 STALE_SECONDS = 3.0
@@ -63,7 +69,23 @@ def write_line(text):
     os.replace(tmp, OUT)
 
 
+def fake():
+    """Home test: a drone flying 150 m circles around Chennai, climbing and descending between 30 and 50 m."""
+    start = time.monotonic()
+    print(f"Home test: writing a made-up TEST position to {OUT}", flush=True)
+    while True:
+        k = (time.monotonic() - start) / 60 * 2 * math.pi       # one circle a minute
+        lat = 13.082700 + 150 / 111320 * math.sin(k)
+        lon = 80.270700 + 150 / (111320 * math.cos(math.radians(13.0827))) * math.cos(k)
+        alt = 40 + 10 * math.sin(k * 3)
+        write_line(f"{LABEL} TEST  Lat {lat:.6f}  Lon {lon:.6f}  Alt {alt:.1f} m" + time.strftime("  %H:%M:%S"))
+        time.sleep(WRITE_EVERY)
+
+
 def main():
+    if FAKE:
+        fake()
+        return
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind(("0.0.0.0", PORT))
