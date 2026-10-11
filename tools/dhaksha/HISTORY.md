@@ -145,6 +145,9 @@ so details can be lost. To keep the context:
   fail) and the text is tried on a tiny test picture first; if ffmpeg cannot draw it, the stream goes without it.
   Tested: Home (cartoon + TEST position), Office (camera + fake MAVLink drone), Office with no drone data
   ("no position" line, video fine) and Office with drawtext failing (video sent without the text).
+- DhakshaGroundControl (fix/stream-forwarder-codec, aef10f5): the in-app "Stream to Server" forwarder crashed the
+  app when run alongside DhakshaKey; a tick saved during earlier tests kept it on at every start. It now always
+  starts off (saved tick cleared) and its three settings rows are hidden. The forwarder code stays for later.
 
 ## Open items
 - Find what blocks WebRTC (Lightsail UDP 8189 rule, TCP fallback, office/laptop network).
@@ -213,6 +216,7 @@ The newest build in each table is the last row.
 | 24 | 2026-10-04 | main | fc07b76 | feat(tools): Dhaksha Live Android viewer app for the drone stream | [x86_64 (54MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/37166588208/artifacts/11290485863)<br>[armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/37166588208/artifacts/11289931645) |
 | 25 | 2026-10-05 | main | fc07b76 | feat(tools): Dhaksha Live Android viewer app for the drone stream | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/37373294274/artifacts/11371535841)<br>[x86_64 (54MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/37373294274/artifacts/11371366099) |
 | 26 | 2026-10-07 | fix/stream-forwarder-codec | 07cfd54 | fix(VideoReceiver): only forward H.264 to RTMP and stop leaking bus messages | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/37587421241/artifacts/11467273491)<br>[x86_64 (54MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/37587421241/artifacts/11467228541) |
+| 27 | 2026-10-11 | fix/stream-forwarder-codec | aef10f5 | fix(Camera): keep in-app Stream to Server off; DhakshaKey streams instead | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38165216028/artifacts/11712805361)<br>[x86_64 (55MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38165216028/artifacts/11711732688) |
 
 ### DhakshaGroundControl (Linux desktop)
 
