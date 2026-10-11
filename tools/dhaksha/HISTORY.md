@@ -135,6 +135,16 @@ so details can be lost. To keep the context:
   The test video given to the operator: 1280x720, 30 fps, 60 s, 2.5 Mbit/s H.264, made with
   `ffmpeg -f lavfi -i testsrc2=size=1280x720:rate=30:duration=60` plus "DHAKSHA TEST VIDEO" and a running
   time stamp drawn on it (`drawtext ... text='%{pts\:hms}'`). Tested locally across the loop point: 640x360 arrives.
+- Home test video replaced by an original cat-and-mouse cartoon (drawn with Python/PIL, 1280x720, 30 fps, 60 s,
+  still named test.mp4); real Tom and Jerry is copyrighted and free cartoons could not be downloaded.
+- DhakshaKey 2.6: Home always writes a made-up position on the video (`dhaksha_telemetry.py --fake`: slow circles
+  over Chennai, 30-50 m, the line marked `DRONE<n> TEST`), so no drone or DhakshaGroundControl is needed at home.
+  Office keeps the real position from DhakshaGroundControl's MAVLink forwarding (box now ticked by default).
+  No mode switch was added to DhakshaGroundControl: the Home / Office choice in DhakshaKey decides it.
+  The video always comes first: the text file is written before ffmpeg starts (a missing file makes drawtext
+  fail) and the text is tried on a tiny test picture first; if ffmpeg cannot draw it, the stream goes without it.
+  Tested: Home (cartoon + TEST position), Office (camera + fake MAVLink drone), Office with no drone data
+  ("no position" line, video fine) and Office with drawtext failing (video sent without the text).
 
 ## Open items
 - Find what blocks WebRTC (Lightsail UDP 8189 rule, TCP fallback, office/laptop network).
@@ -251,4 +261,5 @@ The newest build in each table is the last row.
 | 6 | 2026-10-10 | build/dhaksha-key | b3296a9 | refactor(tools): DhakshaKey only writes and runs the stream script, no boot setup (2.3) | [DhakshaKey (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38039587271/artifacts/11665515922) |
 | 7 | 2026-10-10 | build/dhaksha-key | 7dc4cd9 | feat(dhaksha-key): restart the stream when the camera or upload stalls (2.4) | [DhakshaKey (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38049072696/artifacts/11668384170) |
 | 8 | 2026-10-11 | build/dhaksha-key | 9ef2f95 | feat(dhaksha-key): Home / Office choice; Home streams test.mp4 without a camera (2.5) | [DhakshaKey (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38124939567/artifacts/11696683690) |
+| 9 | 2026-10-11 | build/dhaksha-key | dca8e3a | feat(dhaksha-key): Home sends a TEST position, Office the real one; text never stops the video (2.6) | [DhakshaKey (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38164333517/artifacts/11711024215) |
 
