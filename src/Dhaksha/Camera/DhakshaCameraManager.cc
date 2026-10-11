@@ -56,7 +56,10 @@ DhakshaCameraManager::DhakshaCameraManager(QObject* parent)
     if (settings.value(kConfiguredKey, false).toBool()) {
         _vendor = qBound(0, settings.value(kVendorKey, VendorNone).toInt(), VendorCount - 1);
     }
-    _streamForwardEnabled = settings.value(kForwardKey, false).toBool();
+    // DhakshaKey sends the video to the server from Termux now, so forwarding always starts off,
+    // whatever an earlier build saved; forwarding inside the app as well could crash it
+    _streamForwardEnabled = false;
+    settings.setValue(kForwardKey, false);
     _streamForwardUrl = settings.value(kForwardUrlKey).toString();
     settings.endGroup();
     _loadVendorSettings();

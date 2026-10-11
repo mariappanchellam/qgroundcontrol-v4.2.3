@@ -40,6 +40,8 @@ Rectangle {
 
     property real   _labelWidth:                ScreenTools.defaultFontPixelWidth * 20
     property real   _comboFieldWidth:           ScreenTools.defaultFontPixelWidth * 30
+    // DhakshaKey streams to the server, so the in-app forwarder's settings are hidden
+    readonly property bool _showStreamToServer: false
     property real   _valueFieldWidth:           ScreenTools.defaultFontPixelWidth * 10
     property string _mapProvider:               QGroundControl.settingsManager.flightMapSettings.mapProvider.value
     property string _mapType:                   QGroundControl.settingsManager.flightMapSettings.mapType.value
@@ -396,15 +398,17 @@ Rectangle {
                                 onEditingFinished:      DhakshaCameraManager.rtspUrl = text
                             }
 
-                            QGCLabel { text: qsTr("Stream to Server") }
+                            QGCLabel { text: qsTr("Stream to Server"); visible: _showStreamToServer }
                             QGCCheckBox {
+                                visible:    _showStreamToServer
                                 text:       qsTr("Send camera video to a remote RTMP server")
                                 checked:    DhakshaCameraManager.streamForwardEnabled
                                 onClicked:  DhakshaCameraManager.streamForwardEnabled = checked
                             }
 
-                            QGCLabel { text: qsTr("Server URL") }
+                            QGCLabel { text: qsTr("Server URL"); visible: _showStreamToServer }
                             QGCTextField {
+                                visible:                _showStreamToServer
                                 Layout.preferredWidth:  _comboFieldWidth * 1.6
                                 text:                   DhakshaCameraManager.streamForwardUrl
                                 placeholderText:        "rtmp://server:1935/live/drone1"
@@ -412,8 +416,9 @@ Rectangle {
                                 onEditingFinished:      DhakshaCameraManager.streamForwardUrl = text
                             }
 
-                            QGCLabel { text: qsTr("Server Status") }
+                            QGCLabel { text: qsTr("Server Status"); visible: _showStreamToServer }
                             QGCLabel {
+                                visible: _showStreamToServer
                                 text: !DhakshaCameraManager.streamForwardEnabled ? qsTr("Off")
                                     : QGroundControl.videoManager.streamForwardStatus !== "" ? QGroundControl.videoManager.streamForwardStatus
                                     : qsTr("Press Apply to start")
