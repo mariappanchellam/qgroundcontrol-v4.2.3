@@ -129,6 +129,13 @@ so details can be lost. To keep the context:
   the camera after 5 s without data (`-timeout 5000000`). Tested locally with a frozen fake camera and a 40 kbit/s
   throttled upload: both restarted within about 5-10 s and streaming came back.
 
+- DhakshaKey 2.5: first dropdown "Where are you?": Office / field (real camera, as before) or Home (no camera).
+  Home writes `~/stream_aws_home.sh`, which sends `test.mp4` (from ~/, ~/storage/shared/Download or
+  /sdcard/Download; needs `termux-setup-storage` once) with `-re -stream_loop -1`, same quality, retry and watchdog.
+  The test video given to the operator: 1280x720, 30 fps, 60 s, 2.5 Mbit/s H.264, made with
+  `ffmpeg -f lavfi -i testsrc2=size=1280x720:rate=30:duration=60` plus "DHAKSHA TEST VIDEO" and a running
+  time stamp drawn on it (`drawtext ... text='%{pts\:hms}'`). Tested locally across the loop point: 640x360 arrives.
+
 ## Open items
 - Find what blocks WebRTC (Lightsail UDP 8189 rule, TCP fallback, office/laptop network).
 - Test Dhaksha Live 3.0 with the real server and several MK15s; check the delay with a stopwatch.
@@ -243,4 +250,5 @@ The newest build in each table is the last row.
 | 5 | 2026-10-10 | build/dhaksha-key | 091f412 | fix(tools): DhakshaKey streams a real 640x360 picture with Termux's ffmpeg 8 (2.2) | [DhakshaKey (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38038942195/artifacts/11664997170) |
 | 6 | 2026-10-10 | build/dhaksha-key | b3296a9 | refactor(tools): DhakshaKey only writes and runs the stream script, no boot setup (2.3) | [DhakshaKey (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38039587271/artifacts/11665515922) |
 | 7 | 2026-10-10 | build/dhaksha-key | 7dc4cd9 | feat(dhaksha-key): restart the stream when the camera or upload stalls (2.4) | [DhakshaKey (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38049072696/artifacts/11668384170) |
+| 8 | 2026-10-11 | build/dhaksha-key | 9ef2f95 | feat(dhaksha-key): Home / Office choice; Home streams test.mp4 without a camera (2.5) | [DhakshaKey (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38124939567/artifacts/11696683690) |
 
