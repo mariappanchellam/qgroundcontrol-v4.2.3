@@ -160,6 +160,14 @@ so details can be lost. To keep the context:
   variable-length replies parsed (also split across datagrams), and camera replies (except the REC heartbeat)
   in the Log. Checked by compiling against Qt 5 with a fake C13 on UDP 5000; not yet tried on a real C13.
   C13 RTSP path not confirmed (C10: rtsp://IP:554/stream=0; try stream=1 if no video).
+- 2026-10-12: the fleet (25 drones) uses the Skydroid camera only. Addresses found on the camera:
+  day rtsp://192.168.144.108:554/stream=1, night (thermal) rtsp://192.168.144.108:555/stream=2.
+  tools: skydroid_check.sh (given to the operator) finds the camera, tries day/night addresses and UDP 5000.
+- DhakshaKey 2.8 / 2.9: Skydroid night (thermal) camera; Skydroid day and night first with the real addresses,
+  day the default; camera choice saved by name. Starting one Skydroid script stops the other (same drone link).
+- DhakshaGroundControl (7cac360): Skydroid defaults to the real day/night addresses (old saved 554/stream=0
+  replaced), Night RTSP URL setting, and "Show Night Camera / Show Day Camera" on the camera panel; Apply goes
+  back to day. Checked by compiling the manager against Qt 5 without the QGC parts.
 
 ## Open items
 - Find what blocks WebRTC (Lightsail UDP 8189 rule, TCP fallback, office/laptop network).
@@ -230,6 +238,7 @@ The newest build in each table is the last row.
 | 26 | 2026-10-07 | fix/stream-forwarder-codec | 07cfd54 | fix(VideoReceiver): only forward H.264 to RTMP and stop leaking bus messages | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/37587421241/artifacts/11467273491)<br>[x86_64 (54MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/37587421241/artifacts/11467228541) |
 | 27 | 2026-10-11 | fix/stream-forwarder-codec | aef10f5 | fix(Camera): keep in-app Stream to Server off; DhakshaKey streams instead | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38165216028/artifacts/11712805361)<br>[x86_64 (55MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38165216028/artifacts/11711732688) |
 | 28 | 2026-10-12 | fix/stream-forwarder-codec | 1ba5b11 | feat(Camera): Skydroid C13 laser range, YPR gimbal rates and camera replies in the log | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38194991594/artifacts/11723705822)<br>[x86_64 (55MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38194991594/artifacts/11723805032) |
+| 29 | 2026-10-12 | fix/stream-forwarder-codec | 7cac360 | feat(Camera): Skydroid day/night video addresses and a night camera switch | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38208593083/artifacts/11728391557)<br>[x86_64 (55MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38208593083/artifacts/11729355501) |
 
 ### DhakshaGroundControl (Linux desktop)
 
@@ -280,4 +289,5 @@ The newest build in each table is the last row.
 | 8 | 2026-10-11 | build/dhaksha-key | 9ef2f95 | feat(dhaksha-key): Home / Office choice; Home streams test.mp4 without a camera (2.5) | [DhakshaKey (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38124939567/artifacts/11696683690) |
 | 9 | 2026-10-11 | build/dhaksha-key | dca8e3a | feat(dhaksha-key): Home sends a TEST position, Office the real one; text never stops the video (2.6) | [DhakshaKey (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38164333517/artifacts/11711024215) |
 | 10 | 2026-10-12 | build/dhaksha-key | df03141 | fix(dhaksha-key): recover from unclean stops, a dead position reader and a stuck upload (2.7) | [DhakshaKey (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38194808974/artifacts/11722188647) |
+| 11 | 2026-10-12 | build/dhaksha-key | 1eff12e | feat(dhaksha-key): Skydroid first, with its real day and night addresses (2.9) | [DhakshaKey (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38208473806/artifacts/11728780347) |
 
