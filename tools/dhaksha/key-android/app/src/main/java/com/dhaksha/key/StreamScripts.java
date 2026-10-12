@@ -189,6 +189,7 @@ final class StreamScripts {
                 + "BITRATE=" + quality.kbps + "k\n"
                 + "BUFSIZE=" + (quality.kbps / 2) + "k\n"
                 + "\n"
+                + stopPrevious()
                 + "echo $$ > " + PID_FILE + "\n"
                 + "termux-wake-lock 2>/dev/null\n"
                 + "echo \"Watch this drone at http://$SERVER_IP:" + WATCH_PORT + "/live/$DRONE\"\n"
@@ -203,7 +204,14 @@ final class StreamScripts {
                 + "QUEUE_LIMIT_KB=$(( ${BITRATE%k} / 4 ))\n"
                 + "QUEUE_SECONDS=4\n"
                 + "FFMPEG_PID=\"\"\n"
-                + "cleanup() { kill $FFMPEG_PID $TELEMETRY_PID 2>/dev/null; exit 0; }\n"
+                + "# ffmpeg stuck writing to a dead connection may ignore a polite stop, so it is forced after 3 s\n"
+                + "stop_ffmpeg() {\n"
+                + "  [ -n \"$FFMPEG_PID\" ] || return\n"
+                + "  kill \"$FFMPEG_PID\" 2>/dev/null\n"
+                + "  for i in 1 2 3 4 5 6; do kill -0 \"$FFMPEG_PID\" 2>/dev/null || return; sleep 0.5; done\n"
+                + "  kill -9 \"$FFMPEG_PID\" 2>/dev/null\n"
+                + "}\n"
+                + "cleanup() { stop_ffmpeg; kill $TELEMETRY_PID 2>/dev/null; rm -f " + PID_FILE + " " + TELEMETRY_PID_FILE + "; exit 0; }\n"
                 + "trap cleanup INT TERM\n"
                 + "\n"
                 + "# KB of video waiting in this phone's upload queue to the server; empty when it cannot be read\n"
@@ -235,6 +243,10 @@ final class StreamScripts {
                 + "  last=\"\"; stuck=0; slow=0; queued=0; starting=0\n"
                 + "  while kill -0 \"$FFMPEG_PID\" 2>/dev/null; do\n"
                 + "    sleep 2\n"
+                + "    if [ -n \"$TELEMETRY_PID\" ] && ! kill -0 \"$TELEMETRY_PID\" 2>/dev/null; then\n"
+                + "      echo \"$(date '+%F %T') position reader stopped: starting it again\"\n"
+                + "      start_reader\n"
+                + "    fi\n"
                 + "    now=$(grep '^out_time_us=' \"$PROGRESS\" | tail -n 1)\n"
                 + "    speed=$(grep '^speed=' \"$PROGRESS\" | tail -n 1 | sed 's/speed=//; s/x//; s/ //g')\n"
                 + "    case \"$now\" in\n"
@@ -257,7 +269,7 @@ final class StreamScripts {
                 + "        echo \"$(date '+%F %T') " + (home ? "test video" : "camera / radio link")
                 + " stalled: restarting\"\n"
                 + "      fi\n"
-                + "      kill \"$FFMPEG_PID\" 2>/dev/null\n"
+                + "      stop_ffmpeg\n"
                 + "      break\n"
                 + "    fi\n"
                 + "  done\n"
@@ -266,6 +278,27 @@ final class StreamScripts {
                 + "  echo \"$(date '+%F %T') stream stopped, retrying in 3 s\"\n"
                 + "  sleep 3\n"
                 + "done\n";
+    }
+
+    /**
+     * Bash that stops a run that was not stopped cleanly (Termux closed, script started twice), so it
+     * cannot keep the camera, the upload or the position port: the previous script and position reader
+     * by their saved process numbers and by name, then any ffmpeg.
+     */
+    private static String stopPrevious() {
+        return "# Stop a run that was not stopped cleanly, so it cannot hold the camera, the upload or port "
+                + TELEMETRY_PORT + "\n"
+                + "TELEMETRY_PID=\"\"\n"
+                + "for p in $(cat " + PID_FILE + " " + TELEMETRY_PID_FILE + " 2>/dev/null) /proc/[0-9]*; do\n"
+                + "  p=${p#/proc/}\n"
+                + "  [ \"$p\" = \"$$\" ] && continue\n"
+                + "  case \"$(tr '\\0' ' ' 2>/dev/null < /proc/$p/cmdline)\" in\n"
+                + "  *bash*stream_aws*.sh*|python*dhaksha_telemetry.py*) kill \"$p\" 2>/dev/null ;;\n"
+                + "  esac\n"
+                + "done\n"
+                + "pkill -x ffmpeg 2>/dev/null\n"
+                + "sleep 1\n"
+                + "pkill -9 -x ffmpeg 2>/dev/null\n";
     }
 
     /** Sets VIDEO to test.mp4 in the Termux home or the phone's Download folder; stops with help when missing. */
@@ -312,10 +345,13 @@ final class StreamScripts {
                 + "  # Try the text on a tiny test picture first, so it can never stop the real video\n"
                 + "  if ffmpeg -nostdin -hide_banner -loglevel error -f lavfi -i color=size=320x180:duration=0.2 "
                 + "-vf \"$TEXT\" -f null - ; then\n"
-                + "    python3 " + TELEMETRY_SCRIPT + " \"${DRONE^^}\" \"$TEXT_FILE\" " + TELEMETRY_PORT
+                + "    start_reader() {\n"
+                + "      python3 " + TELEMETRY_SCRIPT + " \"${DRONE^^}\" \"$TEXT_FILE\" " + TELEMETRY_PORT
                 + (fake ? " --fake" : "") + " &\n"
-                + "    TELEMETRY_PID=$!\n"
-                + "    echo $TELEMETRY_PID > " + TELEMETRY_PID_FILE + "\n"
+                + "      TELEMETRY_PID=$!\n"
+                + "      echo $TELEMETRY_PID > " + TELEMETRY_PID_FILE + "\n"
+                + "    }\n"
+                + "    start_reader\n"
                 + "    FILTER=\"$FILTER,$TEXT\"\n"
                 + "  else\n"
                 + "    echo \"No position on the video: ffmpeg could not draw the text. Sending the video without it.\"\n"

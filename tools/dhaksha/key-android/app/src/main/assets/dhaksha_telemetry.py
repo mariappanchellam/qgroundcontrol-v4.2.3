@@ -88,7 +88,15 @@ def main():
         return
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.bind(("0.0.0.0", PORT))
+    while True:
+        try:
+            sock.bind(("0.0.0.0", PORT))
+            break
+        except OSError as error:
+            # Another program still holds the port: keep the video text honest and try again
+            print(f"UDP {PORT} busy ({error}), trying again in 2 s", flush=True)
+            write_line(f"{LABEL}  position port {PORT} busy, retrying" + time.strftime("  %H:%M:%S"))
+            time.sleep(2)
     sock.settimeout(0.5)
     print(f"Listening for DhakshaGroundControl telemetry on UDP {PORT}; writing {OUT}", flush=True)
 
@@ -99,7 +107,7 @@ def main():
     while True:
         try:
             datagram = sock.recv(4096)
-        except socket.timeout:
+        except OSError:                             # timeout, or a network change on the phone
             datagram = b""
         for msgid, payload in messages(datagram):
             if msgid != GLOBAL_POSITION_INT:
@@ -112,7 +120,10 @@ def main():
         shown = line if now - last_fix < STALE_SECONDS else f"{LABEL}  no position (is DhakshaGroundControl forwarding?)"
         shown += time.strftime("  %H:%M:%S")
         if now - last_write >= WRITE_EVERY:
-            write_line(shown)
+            try:
+                write_line(shown)
+            except OSError:
+                pass                                # try again on the next round
             last_write = now
 
 
