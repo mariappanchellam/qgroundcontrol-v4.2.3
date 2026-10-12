@@ -63,9 +63,11 @@ final class StreamScripts {
     static final Camera[] CAMERAS = {
         new Camera("ZR10 (SIYI)", "zr10", "192.168.144.25", "rtsp://%s:8554/main.264"),
         new Camera("SIYI A8 mini", "siyi_a8", "192.168.144.25", "rtsp://%s:8554/main.264"),
-        new Camera("Skydroid", "skydroid", "192.168.144.108", "rtsp://%s:554/stream=0"),
+        new Camera("Skydroid day", "skydroid", "192.168.144.108", "rtsp://%s:554/stream=0"),
         new Camera("ViewPro", "viewpro", "192.168.144.119", "rtsp://%s:554/stream0"),
         new Camera("Other camera", "other", "192.168.144.10", null),
+        // Added last so the saved choice of the cameras above keeps its place
+        new Camera("Skydroid night (thermal)", "skydroid_night", "192.168.144.108", "rtsp://%s:555/stream=0"),
     };
 
     /** A video size: the HEIGHT, FPS, BITRATE and BUFSIZE of the script. */
