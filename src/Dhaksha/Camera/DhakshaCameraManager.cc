@@ -181,6 +181,19 @@ void DhakshaCameraManager::setNightRtspUrl(const QString& rtspUrl)
     }
 }
 
+int DhakshaCameraManager::skydroidGimbalStyle() const
+{
+    return QSettings().value(SkydroidGimbalCamera::kGimbalStyleKey, SkydroidGimbalCamera::GimbalStyleYpr).toInt();
+}
+
+void DhakshaCameraManager::setSkydroidGimbalStyle(int style)
+{
+    if (style != skydroidGimbalStyle()) {
+        QSettings().setValue(SkydroidGimbalCamera::kGimbalStyleKey, style);
+        emit skydroidGimbalStyleChanged();
+    }
+}
+
 void DhakshaCameraManager::restoreVendorDefaults()
 {
     setCameraIp(defaultCameraIp(_vendor));

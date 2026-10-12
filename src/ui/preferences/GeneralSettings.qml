@@ -398,6 +398,18 @@ Rectangle {
                                 onEditingFinished:      DhakshaCameraManager.rtspUrl = text
                             }
 
+                            QGCLabel {
+                                text:       qsTr("Gimbal Command")
+                                visible:    DhakshaCameraManager.vendor === 1
+                            }
+                            QGCComboBox {
+                                Layout.preferredWidth:  _comboFieldWidth
+                                visible:                DhakshaCameraManager.vendor === 1
+                                model:                  [ qsTr("YPR (C13, smooth)"), qsTr("GSY / GSP (C10)") ]
+                                currentIndex:           DhakshaCameraManager.skydroidGimbalStyle
+                                onActivated:            DhakshaCameraManager.skydroidGimbalStyle = index
+                            }
+
                             QGCLabel { text: qsTr("Night RTSP URL") }
                             QGCTextField {
                                 Layout.preferredWidth:  _comboFieldWidth * 1.6

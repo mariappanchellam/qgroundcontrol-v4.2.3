@@ -48,6 +48,7 @@ Item {
     property real   _toolsMargin:           ScreenTools.defaultFontPixelWidth * 0.75
     property rect   _centerViewport:        Qt.rect(0, 0, width, height)
     property real   _rightPanelWidth:       ScreenTools.defaultFontPixelWidth * 30
+    property real   _instrumentWidth:       ScreenTools.defaultFontPixelWidth * 18  // DhakshaGroundControl: small HUD leaves room for the camera buttons
 
     QGCToolInsets {
         id:                     _totalToolInsets
@@ -111,7 +112,7 @@ Item {
         anchors.margins:            _toolsMargin
         anchors.top:                multiVehiclePanelSelector.visible ? multiVehiclePanelSelector.bottom : parent.top
         anchors.right:              parent.right
-        width:                      _rightPanelWidth
+        width:                      _instrumentWidth
         spacing:                    _toolsMargin
         visible:                    QGroundControl.corePlugin.options.flyView.showInstrumentPanel && multiVehiclePanelSelector.showSingleVehiclePanel
         availableHeight:            parent.height - y - _toolsMargin
@@ -150,12 +151,15 @@ Item {
         property bool _verticalCenter: !QGroundControl.settingsManager.flyViewSettings.alternateInstrumentPanel.rawValue
     }
 
-    // DhakshaGroundControl: gimbal camera controls (SIYI / ViewPro / Skydroid)
+    // DhakshaGroundControl: gimbal camera controls (SIYI / ViewPro / Skydroid), split around the screen edges
     DhakshaCameraControls {
         id:                 cameraControls
-        anchors.margins:    _toolsMargin
-        anchors.right:      parent.right
-        anchors.top:        instrumentPanel.visible ? instrumentPanel.bottom : parent.top
+        anchors.fill:       parent
+        z:                  QGroundControl.zOrderWidgets
+        leftInset:          toolStrip.visible ? toolStrip.leftInset : 0
+        bottomLeftInset:    parentToolInsets.leftEdgeBottomInset
+        topInset:           parentToolInsets.topEdgeCenterInset
+        rightTopInset:      instrumentPanel.visible ? instrumentPanel.y + instrumentPanel.height : 0
     }
 
     TelemetryValuesBar {
@@ -183,16 +187,22 @@ Item {
                 }
             },
 
+            // The camera buttons use the right edge, so the values go to the bottom
             State {
                 name: "right-video"
                 when: !telemetryPanel.bottomMode && cameraControls.visible
 
                 AnchorChanges {
                     target: telemetryPanel
-                    anchors.top: cameraControls.bottom
-                    anchors.bottom: undefined
-                    anchors.right: parent.right
+                    anchors.top: undefined
+                    anchors.bottom: parent.bottom
+                    anchors.right: undefined
                     anchors.verticalCenter: undefined
+                }
+
+                PropertyChanges {
+                    target: telemetryPanel
+                    x: recalcXPosition()
                 }
             },
 

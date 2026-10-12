@@ -44,6 +44,7 @@ public:
     void toggleDayNight     () override;
     void setPipMode         (int mode) override;
     void measureDistance    () override;
+    void toggleRanging      () override;
 
     void zoomIn             () override;
     void zoomOut            () override;
@@ -58,6 +59,11 @@ public:
     void gimbalCenter       () override;
     void gimbalLock         () override;
     void gimbalFollow       () override;
+    void gimbalDown         () override;
+
+    /// How gimbal speeds are sent: one YPR frame (C13, ArduPilot's Topotek driver) or GSY + GSP (C10).
+    enum GimbalStyle { GimbalStyleYpr = 0, GimbalStyleGsy = 1 };
+    static constexpr const char* kGimbalStyleKey = "DhakshaCamera/skydroidGimbalStyle";
 
     /// Builds a fixed-length Topotek frame including checksum (exposed for tests).
     static QByteArray buildFrame(char address, bool write, const char* id, quint8 data);
@@ -68,6 +74,7 @@ private slots:
     void _readBytes         ();
     void _pollStatus        ();
     void _resendGimbalSpeed ();
+    void _readRange         ();
 
 private:
     /// Sends one frame; a non-empty description is added to the command log (polls and resends are not logged)
@@ -82,6 +89,8 @@ private:
     QHostAddress    _cameraAddress;
     QTimer          _pollTimer;
     QTimer          _gimbalTimer;
+    QTimer          _rangeTimer;
+    int             _gimbalStyle    = GimbalStyleYpr;
     QElapsedTimer   _lastReceive;
     QByteArray      _rxBuffer;
     int             _yawSpeed       = 0;    ///< -99..99
@@ -93,6 +102,7 @@ private:
     static constexpr char kAddressLens      = 'M';
 
     static constexpr int kPollIntervalMs        = 2000;
-    static constexpr int kGimbalResendMs        = 300;
+    static constexpr int kGimbalResendMs        = 100;    ///< as ArduPilot; the camera stops between slower resends
+    static constexpr int kRangeReadMs           = 1000;
     static constexpr int kConnectionTimeoutMs   = 5000;
 };

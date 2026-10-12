@@ -31,6 +31,7 @@ public:
     Q_PROPERTY(QStringList commandLog       READ commandLog         NOTIFY commandLogChanged)  ///< Newest first; lets the operator verify commands without the camera
     Q_PROPERTY(bool     rangefinderSupported READ rangefinderSupported CONSTANT)   ///< Laser rangefinder (e.g. Skydroid C13)
     Q_PROPERTY(QString  distanceText        READ distanceText       NOTIFY distanceTextChanged) ///< Last laser range, e.g. "123.4 m"; empty before the first
+    Q_PROPERTY(bool     rangingActive       READ rangingActive      NOTIFY rangingActiveChanged)    ///< Continuous laser ranging on
 
     QString vendorName  () const { return _vendorName; }
     QString rtspUrl     () const { return _rtspUrl; }
@@ -38,6 +39,7 @@ public:
     bool    recording   () const { return _recording; }
     QStringList commandLog() const { return _commandLog; }
     QString distanceText() const { return _distanceText; }
+    bool    rangingActive() const { return _rangingActive; }
 
     virtual bool controlSupported() const { return false; }
     virtual bool rangefinderSupported() const { return false; }
@@ -54,6 +56,8 @@ public:
     Q_INVOKABLE virtual void setPipMode         (int /*mode*/) {}
     /// One laser range measurement; the answer arrives in distanceText
     Q_INVOKABLE virtual void measureDistance    () {}
+    /// Continuous laser ranging on / off; the distance keeps updating in distanceText
+    Q_INVOKABLE virtual void toggleRanging      () {}
 
     // Lens
     Q_INVOKABLE virtual void zoomIn             () {}
@@ -71,18 +75,21 @@ public:
     Q_INVOKABLE virtual void gimbalCenter       () {}
     Q_INVOKABLE virtual void gimbalLock         () {}   ///< Hold earth-frame heading
     Q_INVOKABLE virtual void gimbalFollow       () {}   ///< Follow vehicle heading
+    Q_INVOKABLE virtual void gimbalDown         () {}   ///< Point straight down (tilt -90)
 
 signals:
     void connectedChanged   ();
     void recordingChanged   ();
     void commandLogChanged  ();
     void distanceTextChanged();
+    void rangingActiveChanged();
 
 protected:
     void _setConnected(bool connected);
     void _setRecording(bool recording);
     void _logCommand(const QString& entry);
     void _setDistanceText(const QString& text);
+    void _setRangingActive(bool active);
 
 private:
     QString _vendorName;
@@ -91,6 +98,7 @@ private:
     bool    _recording = false;
     QStringList _commandLog;
     QString _distanceText;
+    bool    _rangingActive = false;
 
     static constexpr int kMaxLogEntries = 50;
 };

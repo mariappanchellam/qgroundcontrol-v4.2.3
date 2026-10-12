@@ -50,6 +50,14 @@ void DhakshaGimbalCamera::_setDistanceText(const QString& text)
     }
 }
 
+void DhakshaGimbalCamera::_setRangingActive(bool active)
+{
+    if (active != _rangingActive) {
+        _rangingActive = active;
+        emit rangingActiveChanged();
+    }
+}
+
 void DhakshaGimbalCamera::clearCommandLog()
 {
     _commandLog.clear();

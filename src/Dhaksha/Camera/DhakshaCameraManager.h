@@ -42,6 +42,7 @@ public:
     Q_PROPERTY(QString              rtspUrl     READ rtspUrl    WRITE setRtspUrl    NOTIFY rtspUrlChanged)
     Q_PROPERTY(QString              nightRtspUrl READ nightRtspUrl WRITE setNightRtspUrl NOTIFY nightRtspUrlChanged)   ///< Thermal camera; empty when there is none
     Q_PROPERTY(bool                 nightView   READ nightView                      NOTIFY nightViewChanged)    ///< Night video on screen
+    Q_PROPERTY(int  skydroidGimbalStyle READ skydroidGimbalStyle WRITE setSkydroidGimbalStyle NOTIFY skydroidGimbalStyleChanged) ///< 0 YPR (C13), 1 GSY/GSP (C10); used from the next apply()
     Q_PROPERTY(DhakshaGimbalCamera* camera      READ camera                         NOTIFY cameraChanged)
     Q_PROPERTY(bool     streamForwardEnabled    READ streamForwardEnabled   WRITE setStreamForwardEnabled   NOTIFY streamForwardEnabledChanged)
     Q_PROPERTY(QString  streamForwardUrl        READ streamForwardUrl       WRITE setStreamForwardUrl       NOTIFY streamForwardUrlChanged)
@@ -55,6 +56,8 @@ public:
     QString                 rtspUrl     () const { return _rtspUrl; }
     QString                 nightRtspUrl() const { return _nightRtspUrl; }
     bool                    nightView   () const { return _nightView; }
+    int                     skydroidGimbalStyle() const;
+    void                    setSkydroidGimbalStyle(int style);
     DhakshaGimbalCamera*    camera      () const { return _camera; }
     bool                    streamForwardEnabled() const { return _streamForwardEnabled; }
     QString                 streamForwardUrl    () const { return _streamForwardUrl; }
@@ -89,6 +92,7 @@ signals:
     void rtspUrlChanged ();
     void nightRtspUrlChanged();
     void nightViewChanged();
+    void skydroidGimbalStyleChanged();
     void cameraChanged  ();
     void streamForwardEnabledChanged();
     void streamForwardUrlChanged    ();

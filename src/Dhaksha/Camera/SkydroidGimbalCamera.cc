@@ -6,12 +6,13 @@
 
 #include "SkydroidGimbalCamera.h"
 
+#include <QSettings>
 #include <QUdpSocket>
 #include <QtGlobal>
 
 namespace {
     // Command ids of the Topotek protocol used by Skydroid cameras
-    const char* kIdGimbalMode   = "PTZ";    // 00 stop, 05 home/centre, 06 lock, 07 follow
+    const char* kIdGimbalMode   = "PTZ";    // 00 stop, 05 home/centre, 06 lock, 07 follow, 0A one-key down
     const char* kIdYawSpeed     = "GSY";    // signed speed -99..99, positive = right
     const char* kIdPitchSpeed   = "GSP";    // signed speed -99..99, positive = up
     const char* kIdRecord       = "REC";    // 00 stop, 01 start
@@ -43,6 +44,11 @@ SkydroidGimbalCamera::SkydroidGimbalCamera(const QString& cameraIp, const QStrin
 
     _gimbalTimer.setInterval(kGimbalResendMs);
     connect(&_gimbalTimer, &QTimer::timeout, this, &SkydroidGimbalCamera::_resendGimbalSpeed);
+
+    _rangeTimer.setInterval(kRangeReadMs);
+    connect(&_rangeTimer, &QTimer::timeout, this, &SkydroidGimbalCamera::_readRange);
+
+    _gimbalStyle = QSettings().value(kGimbalStyleKey, GimbalStyleYpr).toInt() == GimbalStyleGsy ? GimbalStyleGsy : GimbalStyleYpr;
 
     _pollStatus();
 }
@@ -121,6 +127,26 @@ void SkydroidGimbalCamera::measureDistance()
     _send(kAddressLens, true, kIdRange, 0x02, tr("Laser range (single)"));
 }
 
+void SkydroidGimbalCamera::toggleRanging()
+{
+    if (rangingActive()) {
+        _rangeTimer.stop();
+        _send(kAddressLens, true, kIdRange, 0x00, tr("Laser range off"));
+        _setRangingActive(false);
+        _setDistanceText(QString());
+    } else {
+        // Continuous measurement, as ArduPilot enables it; the distance is also asked for every second
+        _send(kAddressLens, true, kIdRange, 0x03, tr("Laser range on (continuous)"));
+        _setRangingActive(true);
+        _rangeTimer.start();
+    }
+}
+
+void SkydroidGimbalCamera::_readRange()
+{
+    _send(kAddressLens, false, kIdRange, 0x00);
+}
+
 // ---------------------------------------------------------------------------- Lens
 
 void SkydroidGimbalCamera::zoomIn()     { _send(kAddressLens, true, kIdZoom, 0x02, tr("Zoom in")); }
@@ -140,6 +166,8 @@ int SkydroidGimbalCamera::_percentToSpeed(int percent)
 
 void SkydroidGimbalCamera::gimbalSpeed(int yawPercent, int pitchPercent)
 {
+    // The joystick calls this many times a second: only the start of a movement is logged
+    const bool wasMoving = _yawSpeed != 0 || _pitchSpeed != 0;
     _yawSpeed   = _percentToSpeed(yawPercent);
     _pitchSpeed = _percentToSpeed(pitchPercent);
 
@@ -147,16 +175,21 @@ void SkydroidGimbalCamera::gimbalSpeed(int yawPercent, int pitchPercent)
         gimbalStop();
         return;
     }
-    _sendGimbalSpeed(true);
-    _gimbalTimer.start();
+    _sendGimbalSpeed(!wasMoving);
+    if (!_gimbalTimer.isActive()) {
+        _gimbalTimer.start();
+    }
 }
 
 void SkydroidGimbalCamera::_sendGimbalSpeed(bool log)
 {
-    _send(kAddressGimbal, true, kIdYawSpeed,   static_cast<quint8>(static_cast<qint8>(_yawSpeed)),   log ? tr("Gimbal yaw speed %1").arg(_yawSpeed) : QString());
-    _send(kAddressGimbal, true, kIdPitchSpeed, static_cast<quint8>(static_cast<qint8>(_pitchSpeed)), log ? tr("Gimbal pitch speed %1").arg(_pitchSpeed) : QString());
+    // One command style only: a camera obeying two styles at once moves in steps
+    if (_gimbalStyle == GimbalStyleGsy) {
+        _send(kAddressGimbal, true, kIdYawSpeed,   static_cast<quint8>(static_cast<qint8>(_yawSpeed)),   log ? tr("Gimbal yaw speed %1").arg(_yawSpeed) : QString());
+        _send(kAddressGimbal, true, kIdPitchSpeed, static_cast<quint8>(static_cast<qint8>(_pitchSpeed)), log ? tr("Gimbal pitch speed %1").arg(_pitchSpeed) : QString());
+        return;
+    }
 
-    // Newer models such as the C13 take all rates in one YPR frame (ArduPilot's Topotek driver)
     QByteArray rates;
     for (const int speed : { _yawSpeed, -_pitchSpeed, 0 }) {
         const quint8 value = static_cast<quint8>(static_cast<qint8>(speed));
@@ -194,6 +227,12 @@ void SkydroidGimbalCamera::gimbalLock()
 void SkydroidGimbalCamera::gimbalFollow()
 {
     _send(kAddressGimbal, true, kIdGimbalMode, 0x07, tr("Gimbal follow"));
+}
+
+void SkydroidGimbalCamera::gimbalDown()
+{
+    _gimbalTimer.stop();
+    _send(kAddressGimbal, true, kIdGimbalMode, 0x0A, tr("Gimbal tilt down 90"));
 }
 
 // ---------------------------------------------------------------------------- Status
