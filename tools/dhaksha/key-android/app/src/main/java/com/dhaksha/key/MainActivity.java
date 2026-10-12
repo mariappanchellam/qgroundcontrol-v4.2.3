@@ -135,7 +135,9 @@ public class MainActivity extends Activity {
         for (int i = 0; i < cameraNames.length; i++) {
             cameraNames[i] = StreamScripts.CAMERAS[i].name;
         }
-        cameraSpinner = addSpinner(cameraSection, cameraNames, prefs.getInt("camera", 0));
+        // Saved by name, so changes to the camera list keep the operator's choice
+        cameraSpinner = addSpinner(cameraSection, cameraNames,
+                StreamScripts.cameraIndex(prefs.getString("cameraTag", StreamScripts.CAMERAS[0].fileTag)));
 
         ipBlock = block(cameraSection);
         addLabel(ipBlock, "Camera IP (filled in for the chosen camera; change it if yours is different)");
@@ -270,7 +272,7 @@ public class MainActivity extends Activity {
     private void save() {
         SharedPreferences.Editor edit = prefs.edit()
                 .putInt("place", placeSpinner.getSelectedItemPosition())
-                .putInt("camera", cameraSpinner.getSelectedItemPosition())
+                .putString("cameraTag", camera().fileTag)
                 .putString("otherRtsp", text(otherRtsp))
                 .putString("server", text(serverIp))
                 .putInt("drone", droneSpinner.getSelectedItemPosition())

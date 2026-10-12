@@ -61,13 +61,13 @@ final class StreamScripts {
     }
 
     static final Camera[] CAMERAS = {
+        // The Skydroid camera the fleet uses: day video on port 554, night (thermal) on port 555
+        new Camera("Skydroid day", "skydroid", "192.168.144.108", "rtsp://%s:554/stream=1"),
+        new Camera("Skydroid night (thermal)", "skydroid_night", "192.168.144.108", "rtsp://%s:555/stream=2"),
         new Camera("ZR10 (SIYI)", "zr10", "192.168.144.25", "rtsp://%s:8554/main.264"),
         new Camera("SIYI A8 mini", "siyi_a8", "192.168.144.25", "rtsp://%s:8554/main.264"),
-        new Camera("Skydroid day", "skydroid", "192.168.144.108", "rtsp://%s:554/stream=0"),
         new Camera("ViewPro", "viewpro", "192.168.144.119", "rtsp://%s:554/stream0"),
         new Camera("Other camera", "other", "192.168.144.10", null),
-        // Added last so the saved choice of the cameras above keeps its place
-        new Camera("Skydroid night (thermal)", "skydroid_night", "192.168.144.108", "rtsp://%s:555/stream=0"),
     };
 
     /** A video size: the HEIGHT, FPS, BITRATE and BUFSIZE of the script. */
@@ -99,6 +99,16 @@ final class StreamScripts {
     static final int DEFAULT_QUALITY = 1;
 
     private StreamScripts() {}
+
+    /** Index of the camera with this file tag, or 0 (Skydroid day) when there is none. */
+    static int cameraIndex(String fileTag) {
+        for (int i = 0; i < CAMERAS.length; i++) {
+            if (CAMERAS[i].fileTag.equals(fileTag)) {
+                return i;
+            }
+        }
+        return 0;
+    }
 
     static String droneName(int number) {
         return "drone" + number;
