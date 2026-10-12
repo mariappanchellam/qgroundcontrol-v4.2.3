@@ -29,14 +29,18 @@ public:
     Q_PROPERTY(bool     connected           READ connected          NOTIFY connectedChanged)
     Q_PROPERTY(bool     recording           READ recording          NOTIFY recordingChanged)
     Q_PROPERTY(QStringList commandLog       READ commandLog         NOTIFY commandLogChanged)  ///< Newest first; lets the operator verify commands without the camera
+    Q_PROPERTY(bool     rangefinderSupported READ rangefinderSupported CONSTANT)   ///< Laser rangefinder (e.g. Skydroid C13)
+    Q_PROPERTY(QString  distanceText        READ distanceText       NOTIFY distanceTextChanged) ///< Last laser range, e.g. "123.4 m"; empty before the first
 
     QString vendorName  () const { return _vendorName; }
     QString rtspUrl     () const { return _rtspUrl; }
     bool    connected   () const { return _connected; }
     bool    recording   () const { return _recording; }
     QStringList commandLog() const { return _commandLog; }
+    QString distanceText() const { return _distanceText; }
 
     virtual bool controlSupported() const { return false; }
+    virtual bool rangefinderSupported() const { return false; }
 
     Q_INVOKABLE void clearCommandLog();
 
@@ -48,6 +52,8 @@ public:
     Q_INVOKABLE virtual void toggleDayNight     () {}
     /// 0 = main only, 1 = main + sub, 2 = sub + main, 3 = sub only
     Q_INVOKABLE virtual void setPipMode         (int /*mode*/) {}
+    /// One laser range measurement; the answer arrives in distanceText
+    Q_INVOKABLE virtual void measureDistance    () {}
 
     // Lens
     Q_INVOKABLE virtual void zoomIn             () {}
@@ -70,11 +76,13 @@ signals:
     void connectedChanged   ();
     void recordingChanged   ();
     void commandLogChanged  ();
+    void distanceTextChanged();
 
 protected:
     void _setConnected(bool connected);
     void _setRecording(bool recording);
     void _logCommand(const QString& entry);
+    void _setDistanceText(const QString& text);
 
 private:
     QString _vendorName;
@@ -82,6 +90,7 @@ private:
     bool    _connected = false;
     bool    _recording = false;
     QStringList _commandLog;
+    QString _distanceText;
 
     static constexpr int kMaxLogEntries = 50;
 };

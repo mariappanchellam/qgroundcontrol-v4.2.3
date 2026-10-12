@@ -210,6 +210,13 @@ Rectangle {
                 QGCButton {
                     Layout.columnSpan:  3
                     Layout.fillWidth:   true
+                    visible:            _camera && _camera.rangefinderSupported
+                    text:               _camera && _camera.distanceText !== "" ? qsTr("Range: %1").arg(_camera.distanceText) : qsTr("Laser Range")
+                    onClicked:          _camera.measureDistance()
+                }
+                QGCButton {
+                    Layout.columnSpan:  3
+                    Layout.fillWidth:   true
                     text:               qsTr("PIP mode %1").arg(_pipMode)
                     onClicked: {
                         _pipMode = (_pipMode + 1) % 4
@@ -230,7 +237,7 @@ Rectangle {
                 Layout.fillWidth: true
                 QGCLabel {
                     Layout.fillWidth:   true
-                    text:               qsTr("Commands sent (newest first)")
+                    text:               qsTr("Commands sent and replies (newest first)")
                     color:              "white"
                 }
                 QGCButton {

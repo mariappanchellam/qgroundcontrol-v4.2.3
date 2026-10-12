@@ -42,6 +42,14 @@ void DhakshaGimbalCamera::_logCommand(const QString& entry)
     emit commandLogChanged();
 }
 
+void DhakshaGimbalCamera::_setDistanceText(const QString& text)
+{
+    if (text != _distanceText) {
+        _distanceText = text;
+        emit distanceTextChanged();
+    }
+}
+
 void DhakshaGimbalCamera::clearCommandLog()
 {
     _commandLog.clear();

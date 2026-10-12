@@ -1,11 +1,14 @@
 /****************************************************************************
  *
- * DhakshaGroundControl: Skydroid gimbal camera (C10 family).
+ * DhakshaGroundControl: Skydroid gimbal camera (C10, C13).
  *
  * Skydroid cameras speak the Topotek ASCII protocol over UDP (default
  * 192.168.144.108:5000). Fixed-length frames:
  *
  *   "#TP" <source> <address> <data length> <'w'|'r'> <3-char id> <2 hex data> <2 hex checksum>
+ *
+ * Variable-length frames start with "#tp" and carry up to 15 data characters
+ * (gimbal rates "YPR", laser range replies "LRF").
  *
  * source 'U', address 'G' gimbal / 'D' system and image / 'M' lens, and the
  * checksum is the sum of all preceding bytes modulo 256, e.g. "#TPUG2wPTZ056F"
@@ -33,12 +36,14 @@ public:
     static constexpr quint16 kControlPort = 5000;
 
     bool controlSupported() const override { return true; }
+    bool rangefinderSupported() const override { return true; }
 
     void takePhoto          () override;
     void startRecording     () override;
     void stopRecording      () override;
     void toggleDayNight     () override;
     void setPipMode         (int mode) override;
+    void measureDistance    () override;
 
     void zoomIn             () override;
     void zoomOut            () override;
@@ -56,6 +61,8 @@ public:
 
     /// Builds a fixed-length Topotek frame including checksum (exposed for tests).
     static QByteArray buildFrame(char address, bool write, const char* id, quint8 data);
+    /// Builds a frame with the given ASCII data: "#TP" for exactly two characters, otherwise "#tp".
+    static QByteArray buildFrame(char address, bool write, const char* id, const QByteArray& data);
 
 private slots:
     void _readBytes         ();
@@ -65,6 +72,7 @@ private slots:
 private:
     /// Sends one frame; a non-empty description is added to the command log (polls and resends are not logged)
     void _send              (char address, bool write, const char* id, quint8 data, const QString& description = QString());
+    void _sendFrame         (const QByteArray& frame, const QString& description);
     void _sendGimbalSpeed   (bool log);
     void _handleFrame       (const QByteArray& id, const QByteArray& data);
 
