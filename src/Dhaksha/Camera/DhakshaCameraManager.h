@@ -40,6 +40,8 @@ public:
     Q_PROPERTY(int                  vendor      READ vendor     WRITE setVendor     NOTIFY vendorChanged)
     Q_PROPERTY(QString              cameraIp    READ cameraIp   WRITE setCameraIp   NOTIFY cameraIpChanged)
     Q_PROPERTY(QString              rtspUrl     READ rtspUrl    WRITE setRtspUrl    NOTIFY rtspUrlChanged)
+    Q_PROPERTY(QString              nightRtspUrl READ nightRtspUrl WRITE setNightRtspUrl NOTIFY nightRtspUrlChanged)   ///< Thermal camera; empty when there is none
+    Q_PROPERTY(bool                 nightView   READ nightView                      NOTIFY nightViewChanged)    ///< Night video on screen
     Q_PROPERTY(DhakshaGimbalCamera* camera      READ camera                         NOTIFY cameraChanged)
     Q_PROPERTY(bool     streamForwardEnabled    READ streamForwardEnabled   WRITE setStreamForwardEnabled   NOTIFY streamForwardEnabledChanged)
     Q_PROPERTY(QString  streamForwardUrl        READ streamForwardUrl       WRITE setStreamForwardUrl       NOTIFY streamForwardUrlChanged)
@@ -51,6 +53,8 @@ public:
     int                     vendor      () const { return _vendor; }
     QString                 cameraIp    () const { return _cameraIp; }
     QString                 rtspUrl     () const { return _rtspUrl; }
+    QString                 nightRtspUrl() const { return _nightRtspUrl; }
+    bool                    nightView   () const { return _nightView; }
     DhakshaGimbalCamera*    camera      () const { return _camera; }
     bool                    streamForwardEnabled() const { return _streamForwardEnabled; }
     QString                 streamForwardUrl    () const { return _streamForwardUrl; }
@@ -59,6 +63,10 @@ public:
     void setVendor      (int vendor);
     void setCameraIp    (const QString& cameraIp);
     void setRtspUrl     (const QString& rtspUrl);
+    void setNightRtspUrl(const QString& rtspUrl);
+
+    /// Switches the video on screen between the day and the night (thermal) stream; apply() goes back to day.
+    Q_INVOKABLE void toggleNightView();
     void setStreamForwardEnabled(bool enabled);
     void setStreamForwardUrl    (const QString& url);
 
@@ -73,11 +81,14 @@ public:
 
     static QString defaultCameraIp  (int vendor);
     static QString defaultRtspUrl   (int vendor);
+    static QString defaultNightRtspUrl(int vendor);
 
 signals:
     void vendorChanged  ();
     void cameraIpChanged();
     void rtspUrlChanged ();
+    void nightRtspUrlChanged();
+    void nightViewChanged();
     void cameraChanged  ();
     void streamForwardEnabledChanged();
     void streamForwardUrlChanged    ();
@@ -89,11 +100,14 @@ private:
     void _saveSettings          ();
     void _createCamera          ();
     void _startVideoStream      ();
+    void _showVideo             (const QString& rtspUrl);
     void _applyStreamForward    ();
 
     int                     _vendor     = VendorNone;
     QString                 _cameraIp;
     QString                 _rtspUrl;
+    QString                 _nightRtspUrl;
+    bool                    _nightView  = false;
     DhakshaGimbalCamera*    _camera     = nullptr;
     bool                    _streamForwardEnabled = false;
     QString                 _streamForwardUrl;

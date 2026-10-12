@@ -204,6 +204,14 @@ Rectangle {
                 QGCButton {
                     Layout.columnSpan:  3
                     Layout.fillWidth:   true
+                    visible:            DhakshaCameraManager.nightRtspUrl !== ""
+                    text:               DhakshaCameraManager.nightView ? qsTr("Show Day Camera") : qsTr("Show Night Camera")
+                    primary:            DhakshaCameraManager.nightView
+                    onClicked:          DhakshaCameraManager.toggleNightView()
+                }
+                QGCButton {
+                    Layout.columnSpan:  3
+                    Layout.fillWidth:   true
                     text:               qsTr("Day / Night")
                     onClicked:          _camera.toggleDayNight()
                 }

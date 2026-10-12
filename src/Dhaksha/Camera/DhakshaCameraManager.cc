@@ -24,6 +24,9 @@ namespace {
     const char* kVendorKey      = "vendor";
     const char* kIpKey          = "ip";
     const char* kRtspKey        = "rtspUrl";
+    const char* kNightRtspKey   = "nightRtspUrl";
+    // Day address saved by builds before the Skydroid's real one (port 554 stream=1) was known
+    const char* kOldSkydroidRtsp = "rtsp://192.168.144.108:554/stream=0";
     const char* kForwardKey     = "streamForwardEnabled";
     const char* kForwardUrlKey  = "streamForwardUrl";
 
@@ -82,8 +85,16 @@ QString DhakshaCameraManager::defaultCameraIp(int vendor)
 QString DhakshaCameraManager::defaultRtspUrl(int vendor)
 {
     switch (vendor) {
-    case VendorSkydroid:    return QStringLiteral("rtsp://192.168.144.108:554/stream=0");
+    case VendorSkydroid:    return QStringLiteral("rtsp://192.168.144.108:554/stream=1");
     case VendorSiyi:        return QStringLiteral("rtsp://192.168.144.25:8554/main.264");
+    default:                return QString();
+    }
+}
+
+QString DhakshaCameraManager::defaultNightRtspUrl(int vendor)
+{
+    switch (vendor) {
+    case VendorSkydroid:    return QStringLiteral("rtsp://192.168.144.108:555/stream=2");
     default:                return QString();
     }
 }
@@ -94,7 +105,12 @@ void DhakshaCameraManager::_loadVendorSettings()
     settings.beginGroup(kSettingsGroup);
     settings.beginGroup(vendorKey(_vendor));
     setCameraIp(settings.value(kIpKey, defaultCameraIp(_vendor)).toString());
-    setRtspUrl(settings.value(kRtspKey, defaultRtspUrl(_vendor)).toString());
+    QString rtspUrl = settings.value(kRtspKey, defaultRtspUrl(_vendor)).toString();
+    if (_vendor == VendorSkydroid && rtspUrl == QLatin1String(kOldSkydroidRtsp)) {
+        rtspUrl = defaultRtspUrl(_vendor);
+    }
+    setRtspUrl(rtspUrl);
+    setNightRtspUrl(settings.value(kNightRtspKey, defaultNightRtspUrl(_vendor)).toString());
 }
 
 void DhakshaCameraManager::_saveSettings()
@@ -108,6 +124,7 @@ void DhakshaCameraManager::_saveSettings()
     settings.beginGroup(vendorKey(_vendor));
     settings.setValue(kIpKey, _cameraIp);
     settings.setValue(kRtspKey, _rtspUrl);
+    settings.setValue(kNightRtspKey, _nightRtspUrl);
 }
 
 void DhakshaCameraManager::setVendor(int vendor)
@@ -155,10 +172,30 @@ void DhakshaCameraManager::setStreamForwardUrl(const QString& url)
     }
 }
 
+void DhakshaCameraManager::setNightRtspUrl(const QString& rtspUrl)
+{
+    const QString trimmed = rtspUrl.trimmed();
+    if (trimmed != _nightRtspUrl) {
+        _nightRtspUrl = trimmed;
+        emit nightRtspUrlChanged();
+    }
+}
+
 void DhakshaCameraManager::restoreVendorDefaults()
 {
     setCameraIp(defaultCameraIp(_vendor));
     setRtspUrl(defaultRtspUrl(_vendor));
+    setNightRtspUrl(defaultNightRtspUrl(_vendor));
+}
+
+void DhakshaCameraManager::toggleNightView()
+{
+    if (_vendor == VendorNone || (!_nightView && _nightRtspUrl.isEmpty())) {
+        return;
+    }
+    _nightView = !_nightView;
+    emit nightViewChanged();
+    _showVideo(_nightView ? _nightRtspUrl : _rtspUrl);
 }
 
 void DhakshaCameraManager::apply()
@@ -199,13 +236,26 @@ void DhakshaCameraManager::_createCamera()
 
 void DhakshaCameraManager::_startVideoStream()
 {
+    if (_nightView) {
+        _nightView = false;
+        emit nightViewChanged();
+    }
+    if (_vendor != VendorNone) {
+        _showVideo(_rtspUrl);
+    }
+}
+
+void DhakshaCameraManager::_showVideo(const QString& rtspUrl)
+{
 #ifndef DHAKSHA_CAMERA_NO_QGC
-    if (_vendor == VendorNone || _rtspUrl.isEmpty()) {
+    if (rtspUrl.isEmpty()) {
         return;
     }
     VideoSettings* videoSettings = qgcApp()->toolbox()->settingsManager()->videoSettings();
-    videoSettings->rtspUrl()->setRawValue(_rtspUrl);
+    videoSettings->rtspUrl()->setRawValue(rtspUrl);
     videoSettings->videoSource()->setRawValue(VideoSettings::videoSourceRTSP);
+#else
+    Q_UNUSED(rtspUrl)
 #endif
 }
 

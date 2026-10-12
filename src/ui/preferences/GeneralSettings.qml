@@ -398,6 +398,15 @@ Rectangle {
                                 onEditingFinished:      DhakshaCameraManager.rtspUrl = text
                             }
 
+                            QGCLabel { text: qsTr("Night RTSP URL") }
+                            QGCTextField {
+                                Layout.preferredWidth:  _comboFieldWidth * 1.6
+                                text:                   DhakshaCameraManager.nightRtspUrl
+                                placeholderText:        qsTr("Thermal camera, if any")
+                                enabled:                DhakshaCameraManager.vendor !== 0
+                                onEditingFinished:      DhakshaCameraManager.nightRtspUrl = text
+                            }
+
                             QGCLabel { text: qsTr("Stream to Server"); visible: _showStreamToServer }
                             QGCCheckBox {
                                 visible:    _showStreamToServer
