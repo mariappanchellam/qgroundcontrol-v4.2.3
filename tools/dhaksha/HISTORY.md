@@ -148,6 +148,18 @@ so details can be lost. To keep the context:
 - DhakshaGroundControl (fix/stream-forwarder-codec, aef10f5): the in-app "Stream to Server" forwarder crashed the
   app when run alongside DhakshaKey; a tick saved during earlier tests kept it on at every start. It now always
   starts off (saved tick cleared) and its three settings rows are hidden. The forwarder code stays for later.
+- DhakshaKey 2.7: recovery for field use. The stream script first stops any run left over (Termux closed, started
+  twice): old script and position reader by PID file and by name, then ffmpeg, so nothing keeps the camera, the
+  upload or UDP 14445. A stuck ffmpeg gets SIGKILL 3 s after SIGTERM. The watchdog restarts a dead position reader;
+  the reader retries binding 14445 every 2 s (shown on the video) and survives socket/file errors. Tested: kill -9
+  then restart, started twice, reader killed, port held by another program, 20 s upload outage (back by itself
+  ~10 s after the link returned). MediaMTX 1.12.3 lets a reconnecting drone replace its old session.
+- DhakshaGroundControl (1ba5b11): Skydroid C13 (visible + thermal + laser rangefinder). Same Topotek protocol as
+  the C10; additions from ArduPilot's AP_Mount_Topotek: Laser Range button (LRF 02, reply "12345.6" m or ERR shown
+  on the button), gimbal speeds also as one YPR frame (pitch positive = down) next to GSY/GSP, "#tp"
+  variable-length replies parsed (also split across datagrams), and camera replies (except the REC heartbeat)
+  in the Log. Checked by compiling against Qt 5 with a fake C13 on UDP 5000; not yet tried on a real C13.
+  C13 RTSP path not confirmed (C10: rtsp://IP:554/stream=0; try stream=1 if no video).
 
 ## Open items
 - Find what blocks WebRTC (Lightsail UDP 8189 rule, TCP fallback, office/laptop network).
@@ -217,6 +229,7 @@ The newest build in each table is the last row.
 | 25 | 2026-10-05 | main | fc07b76 | feat(tools): Dhaksha Live Android viewer app for the drone stream | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/37373294274/artifacts/11371535841)<br>[x86_64 (54MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/37373294274/artifacts/11371366099) |
 | 26 | 2026-10-07 | fix/stream-forwarder-codec | 07cfd54 | fix(VideoReceiver): only forward H.264 to RTMP and stop leaking bus messages | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/37587421241/artifacts/11467273491)<br>[x86_64 (54MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/37587421241/artifacts/11467228541) |
 | 27 | 2026-10-11 | fix/stream-forwarder-codec | aef10f5 | fix(Camera): keep in-app Stream to Server off; DhakshaKey streams instead | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38165216028/artifacts/11712805361)<br>[x86_64 (55MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38165216028/artifacts/11711732688) |
+| 28 | 2026-10-12 | fix/stream-forwarder-codec | 1ba5b11 | feat(Camera): Skydroid C13 laser range, YPR gimbal rates and camera replies in the log | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38194991594/artifacts/11723705822)<br>[x86_64 (55MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38194991594/artifacts/11723805032) |
 
 ### DhakshaGroundControl (Linux desktop)
 
@@ -266,4 +279,5 @@ The newest build in each table is the last row.
 | 7 | 2026-10-10 | build/dhaksha-key | 7dc4cd9 | feat(dhaksha-key): restart the stream when the camera or upload stalls (2.4) | [DhakshaKey (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38049072696/artifacts/11668384170) |
 | 8 | 2026-10-11 | build/dhaksha-key | 9ef2f95 | feat(dhaksha-key): Home / Office choice; Home streams test.mp4 without a camera (2.5) | [DhakshaKey (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38124939567/artifacts/11696683690) |
 | 9 | 2026-10-11 | build/dhaksha-key | dca8e3a | feat(dhaksha-key): Home sends a TEST position, Office the real one; text never stops the video (2.6) | [DhakshaKey (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38164333517/artifacts/11711024215) |
+| 10 | 2026-10-12 | build/dhaksha-key | df03141 | fix(dhaksha-key): recover from unclean stops, a dead position reader and a stuck upload (2.7) | [DhakshaKey (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38194808974/artifacts/11722188647) |
 
