@@ -168,6 +168,13 @@ so details can be lost. To keep the context:
 - DhakshaGroundControl (7cac360): Skydroid defaults to the real day/night addresses (old saved 554/stream=0
   replaced), Night RTSP URL setting, and "Show Night Camera / Show Day Camera" on the camera panel; Apply goes
   back to day. Checked by compiling the manager against Qt 5 without the QGC parts.
+- DhakshaGroundControl (3016ac1): camera controls redesigned for a 5.5" screen like the Skydroid app: icon buttons
+  split around the video (left: record, photo, proportional gimbal joystick; right: centre, tilt down 90 (PTZ 0A),
+  lock/follow, zoom, laser; top: night/day, PIP, IR, focus, log), floating labels (REC time, range, confirmations),
+  smaller compass/attitude HUD, telemetry values at the bottom. Gimbal speed resent every 100 ms (was 300) and only
+  one command style (YPR default; GSY/GSP selectable under Gimbal Camera), laser as continuous toggle (LRF 03).
+  Field report before this build: zoom, PIP and laser did not work on the C13, gimbal steppy, camera bitrate 2048k.
+  tools: skydroid_probe.py (given to the operator) tries gimbal / zoom / PIP / tilt-down / laser command variants.
 
 ## Open items
 - Find what blocks WebRTC (Lightsail UDP 8189 rule, TCP fallback, office/laptop network).
@@ -239,6 +246,7 @@ The newest build in each table is the last row.
 | 27 | 2026-10-11 | fix/stream-forwarder-codec | aef10f5 | fix(Camera): keep in-app Stream to Server off; DhakshaKey streams instead | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38165216028/artifacts/11712805361)<br>[x86_64 (55MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38165216028/artifacts/11711732688) |
 | 28 | 2026-10-12 | fix/stream-forwarder-codec | 1ba5b11 | feat(Camera): Skydroid C13 laser range, YPR gimbal rates and camera replies in the log | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38194991594/artifacts/11723705822)<br>[x86_64 (55MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38194991594/artifacts/11723805032) |
 | 29 | 2026-10-12 | fix/stream-forwarder-codec | 7cac360 | feat(Camera): Skydroid day/night video addresses and a night camera switch | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38208593083/artifacts/11728391557)<br>[x86_64 (55MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38208593083/artifacts/11729355501) |
+| 30 | 2026-10-12 | fix/stream-forwarder-codec | 3016ac1 | feat(Camera): icon camera controls split around the screen, smooth gimbal joystick | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38240716835/artifacts/11743054936)<br>[x86_64 (55MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38240716835/artifacts/11742844645) |
 
 ### DhakshaGroundControl (Linux desktop)
 
