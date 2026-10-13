@@ -61,8 +61,10 @@ public:
     void gimbalFollow       () override;
     void gimbalDown         () override;
 
-    /// How gimbal speeds are sent: one YPR frame (C13, ArduPilot's Topotek driver) or GSY + GSP (C10).
+    /// How gimbal speeds are sent: one YPR frame (ArduPilot's Topotek driver) or GSY + GSP.
     enum GimbalStyle { GimbalStyleYpr = 0, GimbalStyleGsy = 1 };
+    /// The fleet's Skydroid C13 moves with GSY + GSP and ignores YPR (field test 2026-10-13)
+    static constexpr int kDefaultGimbalStyle = GimbalStyleGsy;
     static constexpr const char* kGimbalStyleKey = "DhakshaCamera/skydroidGimbalStyle";
 
     /// Builds a fixed-length Topotek frame including checksum (exposed for tests).
@@ -91,7 +93,7 @@ private:
     QTimer          _pollTimer;
     QTimer          _gimbalTimer;
     QTimer          _rangeTimer;
-    int             _gimbalStyle    = GimbalStyleYpr;
+    int             _gimbalStyle    = kDefaultGimbalStyle;
     int             _pollCount      = 0;
     bool            _recordRequested = false;  ///< start sent, camera has not confirmed yet
     QElapsedTimer   _lastReceive;

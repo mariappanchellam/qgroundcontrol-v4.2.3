@@ -183,7 +183,7 @@ void DhakshaCameraManager::setNightRtspUrl(const QString& rtspUrl)
 
 int DhakshaCameraManager::skydroidGimbalStyle() const
 {
-    return QSettings().value(SkydroidGimbalCamera::kGimbalStyleKey, SkydroidGimbalCamera::GimbalStyleYpr).toInt();
+    return QSettings().value(SkydroidGimbalCamera::kGimbalStyleKey, SkydroidGimbalCamera::kDefaultGimbalStyle).toInt();
 }
 
 void DhakshaCameraManager::setSkydroidGimbalStyle(int style)

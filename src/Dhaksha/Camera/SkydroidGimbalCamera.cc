@@ -56,7 +56,7 @@ SkydroidGimbalCamera::SkydroidGimbalCamera(const QString& cameraIp, const QStrin
     _rangeTimer.setInterval(kRangeReadMs);
     connect(&_rangeTimer, &QTimer::timeout, this, &SkydroidGimbalCamera::_readRange);
 
-    _gimbalStyle = QSettings().value(kGimbalStyleKey, GimbalStyleYpr).toInt() == GimbalStyleGsy ? GimbalStyleGsy : GimbalStyleYpr;
+    _gimbalStyle = QSettings().value(kGimbalStyleKey, kDefaultGimbalStyle).toInt() == GimbalStyleYpr ? GimbalStyleYpr : GimbalStyleGsy;
 
     _pollStatus();
 }
