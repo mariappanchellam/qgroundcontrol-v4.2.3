@@ -115,18 +115,28 @@ jobs:
       # QGC 4.2.x hardcodes gstreamer-1.0-android-universal-1.18.5 at the source
       # root. 1.18.5 is no longer hosted upstream, so fall back to the closest
       # still-published release and unpack it under the expected name.
+      # The GStreamer server is sometimes unreachable for a while: keep the unpacked release in the cache
+      - name: Cache GStreamer for Android
+        id: gst-cache
+        uses: actions/cache@v4
+        with:
+          path: gstreamer-1.0-android-universal-${{ env.GST_VERSION }}
+          key: gstreamer-android-for-qgc42-v1
+
       - name: Install GStreamer for Android
+        if: steps.gst-cache.outputs.cache-hit != 'true'
         run: |
           base="https://gstreamer.freedesktop.org/data/pkg/android"
           gst_dir="gstreamer-1.0-android-universal-${GST_VERSION}"
           echo "Published GStreamer Android releases:"
           curl -fsSL -A "qgc-v4-android-build" "${base}/" | grep -o 'href="1\.[0-9.]*/"' | tr '\n' ' ' || true
           echo
-          for version in "$GST_VERSION" 1.18.6 1.20.7 1.20.6 1.20.5 1.22.12 1.22.11 1.22.10; do
+          # 1.22 and later do not compile with QGC 4.2's qmlglsink (newer glib, volatile g_once_init_enter)
+          for version in "$GST_VERSION" 1.18.6 1.20.7 1.20.6 1.20.5; do
             tarball="gstreamer-1.0-android-universal-${version}.tar.xz"
             url="${base}/${version}/${tarball}"
             echo "Trying ${url}"
-            if curl -fL --retry 3 --retry-delay 5 -A "qgc-v4-android-build" -o "$tarball" "$url"; then
+            if curl -fL --retry 8 --retry-all-errors --retry-delay 10 -A "qgc-v4-android-build" -o "$tarball" "$url"; then
               mkdir "$gst_dir"
               tar xf "$tarball" -C "$gst_dir"
               rm "$tarball"
