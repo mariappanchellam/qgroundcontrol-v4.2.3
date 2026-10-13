@@ -317,7 +317,7 @@
     "shortDesc": "Enable mavlink forwarding",
     "longDesc":  "Enable mavlink forwarding",
     "type":             "bool",
-    "default":     false
+    "default":     true
 },
 {
     "name":             "forwardMavlinkHostName",

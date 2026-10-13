@@ -54,10 +54,11 @@ DhakshaCameraManager::DhakshaCameraManager(QObject* parent)
 {
     QSettings settings;
     settings.beginGroup(kSettingsGroup);
-    // Builds before kConfiguredKey saved the default vendor at every start-up, so only a
-    // vendor the operator applied is trusted; otherwise leave QGC's video settings alone
+    // The fleet flies the Skydroid camera, so a fresh install (or one whose settings were wiped by
+    // reinstalling) starts with it; a vendor the operator applied is used as saved
+    _vendor = VendorSkydroid;
     if (settings.value(kConfiguredKey, false).toBool()) {
-        _vendor = qBound(0, settings.value(kVendorKey, VendorNone).toInt(), VendorCount - 1);
+        _vendor = qBound(0, settings.value(kVendorKey, VendorSkydroid).toInt(), VendorCount - 1);
     }
     // DhakshaKey sends the video to the server from Termux now, so forwarding always starts off,
     // whatever an earlier build saved; forwarding inside the app as well could crash it
