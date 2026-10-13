@@ -83,6 +83,7 @@ private:
     /// Sends one frame; a non-empty description is added to the command log (polls and resends are not logged)
     void _send              (char address, bool write, const char* id, quint8 data, const QString& description = QString());
     void _sendFrame         (const QByteArray& frame, const QString& description);
+    void _sendZoom          (quint8 value, bool log);
     void _sendGimbalSpeed   (bool log);
     void _handleFrame       (const QByteArray& id, const QByteArray& data);
 
@@ -93,6 +94,8 @@ private:
     QTimer          _pollTimer;
     QTimer          _gimbalTimer;
     QTimer          _rangeTimer;
+    QTimer          _zoomTimer;
+    quint8          _zoomValue      = 0;
     int             _gimbalStyle    = kDefaultGimbalStyle;
     int             _pollCount      = 0;
     bool            _recordRequested = false;  ///< start sent, camera has not confirmed yet
@@ -109,5 +112,6 @@ private:
     static constexpr int kPollIntervalMs        = 2000;
     static constexpr int kGimbalResendMs        = 100;    ///< as ArduPilot; the camera stops between slower resends
     static constexpr int kRangeReadMs           = 1000;
+    static constexpr int kZoomResendMs          = 200;
     static constexpr int kConnectionTimeoutMs   = 5000;
 };

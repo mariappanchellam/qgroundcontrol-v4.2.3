@@ -19,6 +19,7 @@ namespace {
     const char* kIdCapture      = "CAP";    // 01 take picture
     const char* kIdSdCard       = "SDC";    // read 00: remaining capacity; reply "NNNN" when there is no usable card
     const char* kIdZoom         = "ZMC";    // 00 stop, 01 out, 02 in
+    const char* kIdDigitalZoom  = "DZM";    // as ZMC, for digital zoom
     const char* kIdFocus        = "FCC";    // 00 stop, 01 near, 02 far, 10 auto
     const char* kIdDayNight     = "IRC";    // 0A toggle
     const char* kIdPip          = "PIP";    // 00..03
@@ -52,6 +53,10 @@ SkydroidGimbalCamera::SkydroidGimbalCamera(const QString& cameraIp, const QStrin
 
     _gimbalTimer.setInterval(kGimbalResendMs);
     connect(&_gimbalTimer, &QTimer::timeout, this, &SkydroidGimbalCamera::_resendGimbalSpeed);
+
+    // Zoom is repeated while the button is held, like the gimbal speed
+    _zoomTimer.setInterval(kZoomResendMs);
+    connect(&_zoomTimer, &QTimer::timeout, this, [this]() { _sendZoom(_zoomValue, false); });
 
     _rangeTimer.setInterval(kRangeReadMs);
     connect(&_rangeTimer, &QTimer::timeout, this, &SkydroidGimbalCamera::_readRange);
@@ -181,9 +186,38 @@ void SkydroidGimbalCamera::_readRange()
 
 // ---------------------------------------------------------------------------- Lens
 
-void SkydroidGimbalCamera::zoomIn()     { _send(kAddressLens, true, kIdZoom, 0x02, tr("Zoom in")); }
-void SkydroidGimbalCamera::zoomOut()    { _send(kAddressLens, true, kIdZoom, 0x01, tr("Zoom out")); }
-void SkydroidGimbalCamera::zoomStop()   { _send(kAddressLens, true, kIdZoom, 0x00, tr("Zoom stop")); }
+// The C13 has digital zoom only and its zoom command is not published: lens and digital zoom are sent
+// to both the lens and the image address. The camera ignores the ones it does not know.
+void SkydroidGimbalCamera::_sendZoom(quint8 value, bool log)
+{
+    static const QString names[] = { tr("Zoom stop"), tr("Zoom out"), tr("Zoom in") };
+    const QString description = log && value < 3 ? names[value] : QString();
+    _send(kAddressLens,  true, kIdZoom,        value, description);
+    _send(kAddressImage, true, kIdZoom,        value);
+    _send(kAddressLens,  true, kIdDigitalZoom, value);
+    _send(kAddressImage, true, kIdDigitalZoom, value);
+}
+
+void SkydroidGimbalCamera::zoomIn()
+{
+    _zoomValue = 0x02;
+    _sendZoom(_zoomValue, true);
+    _zoomTimer.start();
+}
+
+void SkydroidGimbalCamera::zoomOut()
+{
+    _zoomValue = 0x01;
+    _sendZoom(_zoomValue, true);
+    _zoomTimer.start();
+}
+
+void SkydroidGimbalCamera::zoomStop()
+{
+    _zoomTimer.stop();
+    _zoomValue = 0x00;
+    _sendZoom(_zoomValue, true);
+}
 void SkydroidGimbalCamera::focusIn()    { _send(kAddressLens, true, kIdFocus, 0x01, tr("Focus near")); }
 void SkydroidGimbalCamera::focusOut()   { _send(kAddressLens, true, kIdFocus, 0x02, tr("Focus far")); }
 void SkydroidGimbalCamera::focusStop()  { _send(kAddressLens, true, kIdFocus, 0x00, tr("Focus stop")); }
