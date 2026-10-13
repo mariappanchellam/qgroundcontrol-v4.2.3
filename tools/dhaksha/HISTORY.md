@@ -199,6 +199,10 @@ so details can be lost. To keep the context:
 - Dhaksha Live 3.2.0 (ccd4508): HLS back buffer 2 s (was infinite), forward buffer 4-6 s, jump to live when more than
   3 s behind.
 - tools: position_check.sh (given to the operator) checks forwarding -> UDP 14445 -> reader -> drawtext.
+- Field results: position_check showed everything OK on the MK15 except 0 MAVLink packets; the ground station showed
+  "Disconnected" (no flight-controller link), so there was no position to forward. Zoom went in one step and back.
+- DhakshaGroundControl (b2e1e35): DZM takes the digital zoom level (02 = 2x, 00 = 1x); holding zoom steps the level
+  1x..30x every 0.4 s and releasing keeps it, shown in the label; ZMC still runs while held.
 
 ## Open items
 - Find what blocks WebRTC (Lightsail UDP 8189 rule, TCP fallback, office/laptop network).
@@ -275,6 +279,7 @@ The newest build in each table is the last row.
 | 32 | 2026-10-13 | fix/stream-forwarder-codec | 3d517f0 | fix(Camera): joystick and held buttons keep the touch on Android | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38357399802/artifacts/11794012918)<br>[x86_64 (55MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38357399802/artifacts/11794326520) |
 | 33 | 2026-10-13 | fix/stream-forwarder-codec | c4d5a1e | fix(Camera): Skydroid zoom sends lens and digital zoom, repeated while held (+ GSY/GSP default) | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38364316896/artifacts/11796144821) |
 | 34 | 2026-10-13 | fix/stream-forwarder-codec | 47cb509 | Skydroid and MAVLink forwarding defaults; CI GStreamer cache | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38374977934/artifacts/11800984587)<br>[x86_64 (55MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38374977934/artifacts/11800818513) |
+| 35 | 2026-10-13 | fix/stream-forwarder-codec | b2e1e35 | fix(Camera): Skydroid digital zoom steps a level and keeps it | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38390368436/artifacts/11809250220)<br>[x86_64 (55MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38390368436/artifacts/11809073881) |
 
 ### DhakshaGroundControl (Linux desktop)
 
