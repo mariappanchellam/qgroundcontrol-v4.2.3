@@ -171,7 +171,7 @@ Item {
         states: [
             State {
                 name: "bottom"
-                when: telemetryPanel.bottomMode
+                when: telemetryPanel.bottomMode && !cameraControls.visible
 
                 AnchorChanges {
                     target: telemetryPanel
@@ -187,10 +187,11 @@ Item {
                 }
             },
 
-            // The camera buttons use the right edge, so the values go to the bottom
+            // The camera buttons use the right edge and the joystick the bottom left, so the values go
+            // to the bottom, right of the joystick, a little smaller, never over the joystick
             State {
                 name: "right-video"
-                when: !telemetryPanel.bottomMode && cameraControls.visible
+                when: cameraControls.visible
 
                 AnchorChanges {
                     target: telemetryPanel
@@ -201,8 +202,10 @@ Item {
                 }
 
                 PropertyChanges {
-                    target: telemetryPanel
-                    x: recalcXPosition()
+                    target:             telemetryPanel
+                    x:                  cameraControls.joystickRight + _toolsMargin
+                    scale:              0.8
+                    transformOrigin:    Item.BottomLeft
                 }
             },
 

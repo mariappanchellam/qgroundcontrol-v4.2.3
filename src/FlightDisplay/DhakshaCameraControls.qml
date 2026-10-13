@@ -31,6 +31,7 @@ Item {
     property real bottomLeftInset:  0   ///< right edge of the picture-in-picture window at the bottom left
     property real topInset:         0
     property real rightTopInset:    0   ///< bottom of the instrument panel at the top right
+    readonly property real joystickRight: joystick.x + joystick.width   ///< bottom left area used by the joystick
 
     property var    _camera:        DhakshaCameraManager.camera
     property real   _margin:        ScreenTools.defaultFontPixelHeight / 2
@@ -54,7 +55,7 @@ Item {
         width:          _buttonSize
         height:         width
         radius:         width / 2
-        color:          active ? activeColor : (touch.pressed ? "#C0404040" : "#A0202020")
+        color:          active ? activeColor : (touch.down ? "#C0404040" : "#A0202020")
         border.color:   "#60FFFFFF"
         border.width:   1
 
@@ -75,14 +76,31 @@ Item {
             color:              "white"
         }
 
-        MouseArea {
+        // Touch handling as in QGC's own on-screen joysticks: on Android a MouseArea here lost the
+        // touch after a few milliseconds, so held buttons stopped at once
+        MultiPointTouchArea {
             id:                 touch
             anchors.fill:       parent
-            preventStealing:    true
-            onPressed:          if (button.holdAction) button.holdAction()
-            onReleased:         if (button.releaseAction) button.releaseAction()
-            onCanceled:         if (button.releaseAction) button.releaseAction()
-            onClicked:          if (button.clickAction) button.clickAction()
+            maximumTouchPoints: 1
+
+            property bool down: false
+
+            onPressed: {
+                down = true
+                if (button.holdAction) button.holdAction()
+            }
+            onReleased: {
+                down = false
+                if (button.releaseAction) button.releaseAction()
+                var point = touchPoints[0]
+                if (button.clickAction && point && point.x >= 0 && point.y >= 0 && point.x <= width && point.y <= height) {
+                    button.clickAction()
+                }
+            }
+            onCanceled: {
+                down = false
+                if (button.releaseAction) button.releaseAction()
+            }
         }
     }
 
@@ -307,6 +325,7 @@ Item {
         anchors.leftMargin:     Math.max(leftInset, bottomLeftInset) + _margin
         anchors.bottom:         parent.bottom
         anchors.bottomMargin:   _margin
+        z:                      1
 
         property real   _range:     (width - knob.width) / 2
         property real   _dx:        0
@@ -347,18 +366,24 @@ Item {
             x:          (joystick.width - width) / 2 + joystick._dx
             y:          (joystick.height - height) / 2 + joystick._dy
 
-            Behavior on x { enabled: !joystickArea.pressed; NumberAnimation { duration: 120 } }
-            Behavior on y { enabled: !joystickArea.pressed; NumberAnimation { duration: 120 } }
+            Behavior on x { enabled: !joystickArea.active; NumberAnimation { duration: 120 } }
+            Behavior on y { enabled: !joystickArea.active; NumberAnimation { duration: 120 } }
         }
 
-        MouseArea {
+        // Touch handling as in QGC's own on-screen joysticks (JoystickThumbPad): a MouseArea lost the
+        // touch on Android after about 80 ms, which stopped the gimbal right after every start
+        MultiPointTouchArea {
             id:                 joystickArea
             anchors.fill:       parent
-            preventStealing:    true
+            minimumTouchPoints: 1
+            maximumTouchPoints: 1
+            touchPoints:        [ TouchPoint { id: thumb } ]
 
-            function move(mouseX, mouseY) {
-                var dx = mouseX - width / 2
-                var dy = mouseY - height / 2
+            property bool active: false
+
+            function move(touchX, touchY) {
+                var dx = touchX - width / 2
+                var dy = touchY - height / 2
                 var distance = Math.sqrt(dx * dx + dy * dy)
                 if (distance > joystick._range) {
                     dx *= joystick._range / distance
@@ -370,6 +395,7 @@ Item {
             }
 
             function release() {
+                active = false
                 joystick._dx = 0
                 joystick._dy = 0
                 joystick._yawSent = 0
@@ -377,10 +403,13 @@ Item {
                 _camera.gimbalStop()
             }
 
-            onPressed:          move(mouse.x, mouse.y)
-            onPositionChanged:  move(mouse.x, mouse.y)
-            onReleased:         release()
-            onCanceled:         release()
+            onPressed: {
+                active = true
+                move(thumb.x, thumb.y)
+            }
+            onUpdated:  if (active) move(thumb.x, thumb.y)
+            onReleased: release()
+            onCanceled: release()
         }
     }
 
