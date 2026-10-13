@@ -186,6 +186,10 @@ so details can be lost. To keep the context:
   touch on Android, onCanceled sent the stop; zoom holds the same). Joystick and icon buttons now use
   MultiPointTouchArea like QGC's JoystickThumbPad; joystick above other controls; telemetry bar right of the
   joystick at 80 % so it no longer covers it. Camera link itself was fine (green dot).
+- Field test 2026-10-13: the C13 gimbal moves with GSY/GSP (C10 style) and ignores YPR.
+- DhakshaGroundControl (c4d5a1e): GSY/GSP is the default gimbal command; zoom sends ZMC and DZM to both the lens
+  (M) and image (D) address, repeated every 200 ms while held (C13 zoom command unpublished). The x86_64
+  (emulator) job failed downloading GStreamer; the armeabi-v7a MK15 APK built.
 
 ## Open items
 - Find what blocks WebRTC (Lightsail UDP 8189 rule, TCP fallback, office/laptop network).
@@ -260,6 +264,7 @@ The newest build in each table is the last row.
 | 30 | 2026-10-12 | fix/stream-forwarder-codec | 3016ac1 | feat(Camera): icon camera controls split around the screen, smooth gimbal joystick | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38240716835/artifacts/11743054936)<br>[x86_64 (55MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38240716835/artifacts/11742844645) |
 | 31 | 2026-10-13 | fix/stream-forwarder-codec | fb817ca | fix: MAVLink forwarding reaches the forwarding host; camera control after restarts; honest recording | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38350295409/artifacts/11790284769)<br>[x86_64 (55MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38350295409/artifacts/11790328976) |
 | 32 | 2026-10-13 | fix/stream-forwarder-codec | 3d517f0 | fix(Camera): joystick and held buttons keep the touch on Android | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38357399802/artifacts/11794012918)<br>[x86_64 (55MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38357399802/artifacts/11794326520) |
+| 33 | 2026-10-13 | fix/stream-forwarder-codec | c4d5a1e | fix(Camera): Skydroid zoom sends lens and digital zoom, repeated while held (+ GSY/GSP default) | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38364316896/artifacts/11796144821) |
 
 ### DhakshaGroundControl (Linux desktop)
 
