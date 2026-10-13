@@ -175,6 +175,13 @@ so details can be lost. To keep the context:
   one command style (YPR default; GSY/GSP selectable under Gimbal Camera), laser as continuous toggle (LRF 03).
   Field report before this build: zoom, PIP and laser did not work on the C13, gimbal steppy, camera bitrate 2048k.
   tools: skydroid_probe.py (given to the operator) tries gimbal / zoom / PIP / tilt-down / laser command variants.
+- 2026-10-13 field report: gimbal worked only the first time (not after app/MK15 restarts), no position on the
+  video after enabling MAVLink forwarding, zoom / full-down not working, REC shown without an SD card.
+- DhakshaGroundControl (fb817ca): MAVLink forwarding link bound the UDP listen port 14550 (same as the vehicle
+  link), so it took the vehicle's packets and forwarded nothing; it now binds a free port. Skydroid control socket
+  always uses local UDP 5000 (camera may remember its controller's port until powered off). Recording shown only
+  when the camera confirms (REC); SD card status (SDC, NNNN = none, 0 = full) blocks photo/record with a message.
+  IR icon removed. Operator: power-cycle the camera once after installing.
 
 ## Open items
 - Find what blocks WebRTC (Lightsail UDP 8189 rule, TCP fallback, office/laptop network).
@@ -247,6 +254,7 @@ The newest build in each table is the last row.
 | 28 | 2026-10-12 | fix/stream-forwarder-codec | 1ba5b11 | feat(Camera): Skydroid C13 laser range, YPR gimbal rates and camera replies in the log | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38194991594/artifacts/11723705822)<br>[x86_64 (55MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38194991594/artifacts/11723805032) |
 | 29 | 2026-10-12 | fix/stream-forwarder-codec | 7cac360 | feat(Camera): Skydroid day/night video addresses and a night camera switch | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38208593083/artifacts/11728391557)<br>[x86_64 (55MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38208593083/artifacts/11729355501) |
 | 30 | 2026-10-12 | fix/stream-forwarder-codec | 3016ac1 | feat(Camera): icon camera controls split around the screen, smooth gimbal joystick | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38240716835/artifacts/11743054936)<br>[x86_64 (55MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38240716835/artifacts/11742844645) |
+| 31 | 2026-10-13 | fix/stream-forwarder-codec | fb817ca | fix: MAVLink forwarding reaches the forwarding host; camera control after restarts; honest recording | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38350295409/artifacts/11790284769)<br>[x86_64 (55MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38350295409/artifacts/11790328976) |
 
 ### DhakshaGroundControl (Linux desktop)
 
