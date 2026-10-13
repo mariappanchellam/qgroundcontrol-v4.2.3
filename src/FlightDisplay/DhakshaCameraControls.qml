@@ -7,7 +7,7 @@
  *   left:        record, photo, and a gimbal joystick (drag the knob; the
  *                further from the centre, the faster the gimbal turns)
  *   right:       centre, tilt down 90, lock / follow, zoom in / out, laser range
- *   top centre:  connection, day / night camera, PIP, IR, auto focus, log
+ *   top centre:  connection, day / night camera, PIP, auto focus, log
  * A small label under the top row shows recording time, the laser range and
  * other confirmations. Works with any DhakshaGimbalCamera; the vendor
  * protocol lives in the C++ camera classes.
@@ -111,9 +111,10 @@ Item {
         target: _camera
         function onRecordingChanged() {
             _recordSeconds = 0
-            if (!_camera.recording) {
-                notify(qsTr("Recording saved"))
-            }
+            notify(_camera.recording ? qsTr("Recording") : qsTr("Recording saved"))
+        }
+        function onNotice(text) {
+            notify(text)
         }
     }
 
@@ -158,11 +159,6 @@ Item {
             }
             IconButton {
                 width:          _smallButton
-                icon:           "ir"
-                clickAction:    function() { _camera.toggleDayNight(); notify(qsTr("Day / night mode")) }
-            }
-            IconButton {
-                width:          _smallButton
                 icon:           "focus"
                 clickAction:    function() { _camera.autoFocus(); notify(qsTr("Auto focus")) }
             }
@@ -192,6 +188,20 @@ Item {
                     color:              "white"
                     font.bold:          true
                     text:               "● REC " + Math.floor(_recordSeconds / 60) + ":" + ("0" + (_recordSeconds % 60)).slice(-2)
+                }
+            }
+            Rectangle {
+                visible:        _camera && (_camera.sdCardStatus === "none" || _camera.sdCardStatus === "full")
+                width:          sdText.width + height
+                height:         sdText.height + _margin
+                radius:         height / 2
+                color:          "#C0B26A00"
+
+                QGCLabel {
+                    id:                 sdText
+                    anchors.centerIn:   parent
+                    color:              "white"
+                    text:               _camera && _camera.sdCardStatus === "full" ? qsTr("SD card full") : qsTr("No SD card")
                 }
             }
             Rectangle {
@@ -279,16 +289,11 @@ Item {
             icon:           "record"
             active:         _camera && _camera.recording
             activeColor:    _red
-            clickAction:    function() {
-                if (!_camera.recording) {
-                    notify(qsTr("Recording started"))
-                }
-                _camera.toggleRecording()
-            }
+            clickAction:    function() { _camera.toggleRecording() }
         }
         IconButton {
             icon:           "photo"
-            clickAction:    function() { _camera.takePhoto(); notify(qsTr("Photo taken")) }
+            clickAction:    function() { _camera.takePhoto() }
         }
     }
 

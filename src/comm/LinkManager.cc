@@ -411,6 +411,10 @@ void LinkManager::_addMAVLinkForwardingLink(void)
 
             UDPConfiguration* udpConfig = new UDPConfiguration(_mavlinkForwardingLinkName);
             udpConfig->setDynamic(true);
+            // DhakshaGroundControl: a free local port. The default (the UDP listen port, 14550) is the one the
+            // vehicle link listens on; sharing it let the forwarding link take the vehicle's packets, and those
+            // are never forwarded, so nothing reached the forwarding host.
+            udpConfig->setLocalPort(0);
 
             QString hostName = _toolbox->settingsManager()->appSettings()->forwardMavlinkHostName()->rawValue().toString();
             udpConfig->addHost(hostName);

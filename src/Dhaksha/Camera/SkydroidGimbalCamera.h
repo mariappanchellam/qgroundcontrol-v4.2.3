@@ -75,6 +75,7 @@ private slots:
     void _pollStatus        ();
     void _resendGimbalSpeed ();
     void _readRange         ();
+    void _checkRecordingStarted();
 
 private:
     /// Sends one frame; a non-empty description is added to the command log (polls and resends are not logged)
@@ -91,6 +92,8 @@ private:
     QTimer          _gimbalTimer;
     QTimer          _rangeTimer;
     int             _gimbalStyle    = GimbalStyleYpr;
+    int             _pollCount      = 0;
+    bool            _recordRequested = false;  ///< start sent, camera has not confirmed yet
     QElapsedTimer   _lastReceive;
     QByteArray      _rxBuffer;
     int             _yawSpeed       = 0;    ///< -99..99

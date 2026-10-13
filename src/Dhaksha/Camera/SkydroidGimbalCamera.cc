@@ -17,6 +17,7 @@ namespace {
     const char* kIdPitchSpeed   = "GSP";    // signed speed -99..99, positive = up
     const char* kIdRecord       = "REC";    // 00 stop, 01 start
     const char* kIdCapture      = "CAP";    // 01 take picture
+    const char* kIdSdCard       = "SDC";    // read 00: remaining capacity; reply "NNNN" when there is no usable card
     const char* kIdZoom         = "ZMC";    // 00 stop, 01 out, 02 in
     const char* kIdFocus        = "FCC";    // 00 stop, 01 near, 02 far, 10 auto
     const char* kIdDayNight     = "IRC";    // 0A toggle
@@ -35,7 +36,14 @@ SkydroidGimbalCamera::SkydroidGimbalCamera(const QString& cameraIp, const QStrin
     , _socket               (new QUdpSocket(this))
     , _cameraAddress        (cameraIp)
 {
-    _socket->bind(QHostAddress(QHostAddress::AnyIPv4), 0);
+    // Always the same local port: a camera that remembers its controller's address and port keeps
+    // answering after the app or the tablet restarts. Any free port if another program holds it.
+    if (_socket->bind(QHostAddress(QHostAddress::AnyIPv4), kControlPort, QUdpSocket::ShareAddress | QUdpSocket::ReuseAddressHint)) {
+        _logCommand(tr("Camera control on UDP port %1").arg(kControlPort));
+    } else {
+        _socket->bind(QHostAddress(QHostAddress::AnyIPv4), 0);
+        _logCommand(tr("UDP port %1 busy, camera control on port %2").arg(kControlPort).arg(_socket->localPort()));
+    }
     connect(_socket, &QUdpSocket::readyRead, this, &SkydroidGimbalCamera::_readBytes);
 
     _pollTimer.setInterval(kPollIntervalMs);
@@ -96,17 +104,41 @@ void SkydroidGimbalCamera::_sendFrame(const QByteArray& frame, const QString& de
 
 void SkydroidGimbalCamera::takePhoto()
 {
+    if (!sdCardProblem().isEmpty()) {
+        emit notice(tr("Photo not possible: %1").arg(sdCardProblem()));
+        return;
+    }
     _send(kAddressImage, true, kIdCapture, 0x01, tr("Take photo"));
+    emit notice(tr("Photo taken"));
 }
 
 void SkydroidGimbalCamera::startRecording()
 {
+    if (!sdCardProblem().isEmpty()) {
+        emit notice(tr("Recording not possible: %1").arg(sdCardProblem()));
+        return;
+    }
     _send(kAddressImage, true, kIdRecord, 0x01, tr("Start recording"));
-    _setRecording(true);    // confirmed or corrected by the next status poll
+    // Shown as recording only once the camera says so: ask now and give up after 3 s
+    _recordRequested = true;
+    emit notice(tr("Starting recording..."));
+    QTimer::singleShot(600, this, [this]() { _send(kAddressImage, false, kIdRecord, 0x00); });
+    QTimer::singleShot(1500, this, [this]() { _send(kAddressImage, false, kIdRecord, 0x00); });
+    QTimer::singleShot(3000, this, &SkydroidGimbalCamera::_checkRecordingStarted);
+}
+
+void SkydroidGimbalCamera::_checkRecordingStarted()
+{
+    if (_recordRequested && !recording()) {
+        _recordRequested = false;
+        emit notice(tr("Recording did not start (SD card missing or full?)"));
+        _logCommand(tr("Recording not confirmed by the camera"));
+    }
 }
 
 void SkydroidGimbalCamera::stopRecording()
 {
+    _recordRequested = false;
     _send(kAddressImage, true, kIdRecord, 0x00, tr("Stop recording"));
     _setRecording(false);
 }
@@ -241,6 +273,9 @@ void SkydroidGimbalCamera::_pollStatus()
 {
     // Recording status query doubles as a heartbeat: any valid reply marks the camera connected
     _send(kAddressImage, false, kIdRecord, 0x00);
+    if (_pollCount++ % 5 == 0) {
+        _send(kAddressImage, false, kIdSdCard, 0x00);
+    }
 
     if (connected() && (!_lastReceive.isValid() || _lastReceive.elapsed() > kConnectionTimeoutMs)) {
         _setConnected(false);
@@ -306,11 +341,25 @@ void SkydroidGimbalCamera::_handleFrame(const QByteArray& id, const QByteArray& 
 {
     if (id == kIdRecord) {
         // The 2 s status poll is answered with REC, so it is not logged
-        bool ok = false;
-        const int value = data.left(2).toInt(&ok, 16);
-        if (ok && data.size() >= 2) {
-            _setRecording(value == 1);
+        // '1' in either of the first two characters means recording (ArduPilot's Topotek driver)
+        if (data.size() >= 2) {
+            const bool recordingNow = data.at(0) == '1' || data.at(1) == '1';
+            if (recordingNow) {
+                _recordRequested = false;
+            }
+            _setRecording(recordingNow);
         }
+        return;
+    }
+
+    if (id == kIdSdCard) {
+        if (data.left(4).toUpper() == "NNNN") {
+            _setSdCardStatus(QStringLiteral("none"));
+            return;
+        }
+        bool ok = false;
+        const int remaining = data.toInt(&ok, 16);
+        _setSdCardStatus(ok && remaining == 0 ? QStringLiteral("full") : QStringLiteral("ok"));
         return;
     }
 

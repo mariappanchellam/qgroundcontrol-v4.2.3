@@ -32,6 +32,7 @@ public:
     Q_PROPERTY(bool     rangefinderSupported READ rangefinderSupported CONSTANT)   ///< Laser rangefinder (e.g. Skydroid C13)
     Q_PROPERTY(QString  distanceText        READ distanceText       NOTIFY distanceTextChanged) ///< Last laser range, e.g. "123.4 m"; empty before the first
     Q_PROPERTY(bool     rangingActive       READ rangingActive      NOTIFY rangingActiveChanged)    ///< Continuous laser ranging on
+    Q_PROPERTY(QString  sdCardStatus        READ sdCardStatus       NOTIFY sdCardStatusChanged)     ///< "" unknown, "ok", "none" (missing or error), "full"
 
     QString vendorName  () const { return _vendorName; }
     QString rtspUrl     () const { return _rtspUrl; }
@@ -40,6 +41,9 @@ public:
     QStringList commandLog() const { return _commandLog; }
     QString distanceText() const { return _distanceText; }
     bool    rangingActive() const { return _rangingActive; }
+    QString sdCardStatus() const { return _sdCardStatus; }
+    /// Why photos and recordings cannot be saved, or empty when the card is fine or unknown
+    QString sdCardProblem() const;
 
     virtual bool controlSupported() const { return false; }
     virtual bool rangefinderSupported() const { return false; }
@@ -83,6 +87,9 @@ signals:
     void commandLogChanged  ();
     void distanceTextChanged();
     void rangingActiveChanged();
+    void sdCardStatusChanged();
+    /// A short message for the operator, e.g. that recording did not start
+    void notice(const QString& text);
 
 protected:
     void _setConnected(bool connected);
@@ -90,6 +97,7 @@ protected:
     void _logCommand(const QString& entry);
     void _setDistanceText(const QString& text);
     void _setRangingActive(bool active);
+    void _setSdCardStatus(const QString& status);
 
 private:
     QString _vendorName;
@@ -99,6 +107,7 @@ private:
     QStringList _commandLog;
     QString _distanceText;
     bool    _rangingActive = false;
+    QString _sdCardStatus;
 
     static constexpr int kMaxLogEntries = 50;
 };

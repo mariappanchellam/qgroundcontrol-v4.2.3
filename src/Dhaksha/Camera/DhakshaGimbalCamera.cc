@@ -58,6 +58,28 @@ void DhakshaGimbalCamera::_setRangingActive(bool active)
     }
 }
 
+void DhakshaGimbalCamera::_setSdCardStatus(const QString& status)
+{
+    if (status != _sdCardStatus) {
+        _sdCardStatus = status;
+        emit sdCardStatusChanged();
+        if (!sdCardProblem().isEmpty()) {
+            _logCommand(sdCardProblem());
+        }
+    }
+}
+
+QString DhakshaGimbalCamera::sdCardProblem() const
+{
+    if (_sdCardStatus == QLatin1String("none")) {
+        return tr("No SD card in the camera");
+    }
+    if (_sdCardStatus == QLatin1String("full")) {
+        return tr("Camera SD card is full");
+    }
+    return QString();
+}
+
 void DhakshaGimbalCamera::clearCommandLog()
 {
     _commandLog.clear();
