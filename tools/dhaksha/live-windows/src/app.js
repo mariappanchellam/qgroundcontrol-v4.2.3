@@ -13,6 +13,7 @@ const LIVEPUSH_HOST = 'player.livepush.io';
 const HLS_PORT = '8888';
 const WEBRTC_PORT = '8889';
 const RETRY_MS = 3000;
+const MAX_DELAY_S = 3;      // seconds behind the newest video before a box jumps back to live
 const CONNECT_TIMEOUT_MS = 10000;
 
 /**
@@ -352,10 +353,25 @@ class Tile {
       enableWorker: false,
       lowLatencyMode: true,
       liveSyncDurationCount: 2,
-      liveMaxLatencyDurationCount: 5,
+      liveMaxLatencyDurationCount: 4,
       maxLiveSyncPlaybackRate: 1.5,
+      // Keep only a few seconds: by default played video is never dropped, so memory and delay kept growing
+      backBufferLength: 2,
+      maxBufferLength: 4,
+      maxMaxBufferLength: 6,
     });
-    this.player = { close: () => { hls.destroy(); video.remove(); } };
+    // Jump back to live whenever the picture falls behind (after a network hiccup or a busy laptop)
+    const catchUp = setInterval(() => {
+      const buffered = video.buffered;
+      if (!buffered.length || video.paused) {
+        return;
+      }
+      const liveEdge = buffered.end(buffered.length - 1);
+      if (liveEdge - video.currentTime > MAX_DELAY_S) {
+        video.currentTime = liveEdge - 0.3;
+      }
+    }, 1000);
+    this.player = { close: () => { clearInterval(catchUp); hls.destroy(); video.remove(); } };
     hls.on(Hls.Events.ERROR, (_, data) => {
       if (data.fatal) {
         this.retryLater(session, data.response && data.response.code === 404 ? 'No feed yet' : 'Feed lost');
