@@ -182,6 +182,10 @@ so details can be lost. To keep the context:
   always uses local UDP 5000 (camera may remember its controller's port until powered off). Recording shown only
   when the camera confirms (REC); SD card status (SDC, NNNN = none, 0 = full) blocks photo/record with a message.
   IR icon removed. Operator: power-cycle the camera once after installing.
+- DhakshaGroundControl (3d517f0): field Log showed every gimbal move stopped 60-80 ms later (MouseArea lost the
+  touch on Android, onCanceled sent the stop; zoom holds the same). Joystick and icon buttons now use
+  MultiPointTouchArea like QGC's JoystickThumbPad; joystick above other controls; telemetry bar right of the
+  joystick at 80 % so it no longer covers it. Camera link itself was fine (green dot).
 
 ## Open items
 - Find what blocks WebRTC (Lightsail UDP 8189 rule, TCP fallback, office/laptop network).
@@ -255,6 +259,7 @@ The newest build in each table is the last row.
 | 29 | 2026-10-12 | fix/stream-forwarder-codec | 7cac360 | feat(Camera): Skydroid day/night video addresses and a night camera switch | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38208593083/artifacts/11728391557)<br>[x86_64 (55MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38208593083/artifacts/11729355501) |
 | 30 | 2026-10-12 | fix/stream-forwarder-codec | 3016ac1 | feat(Camera): icon camera controls split around the screen, smooth gimbal joystick | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38240716835/artifacts/11743054936)<br>[x86_64 (55MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38240716835/artifacts/11742844645) |
 | 31 | 2026-10-13 | fix/stream-forwarder-codec | fb817ca | fix: MAVLink forwarding reaches the forwarding host; camera control after restarts; honest recording | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38350295409/artifacts/11790284769)<br>[x86_64 (55MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38350295409/artifacts/11790328976) |
+| 32 | 2026-10-13 | fix/stream-forwarder-codec | 3d517f0 | fix(Camera): joystick and held buttons keep the touch on Android | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38357399802/artifacts/11794012918)<br>[x86_64 (55MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38357399802/artifacts/11794326520) |
 
 ### DhakshaGroundControl (Linux desktop)
 
