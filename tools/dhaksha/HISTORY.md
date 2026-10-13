@@ -190,6 +190,15 @@ so details can be lost. To keep the context:
 - DhakshaGroundControl (c4d5a1e): GSY/GSP is the default gimbal command; zoom sends ZMC and DZM to both the lens
   (M) and image (D) address, repeated every 200 ms while held (C13 zoom command unpublished). The x86_64
   (emulator) job failed downloading GStreamer; the armeabi-v7a MK15 APK built.
+- Field report: with c4d5a1e no camera controls were shown (settings wiped by a reinstall: camera None, forwarding
+  off), position still missing on Dhaksha Live, delay accumulating in the viewer.
+- DhakshaGroundControl (c439b21 + 47cb509): Skydroid is the default camera and MAVLink forwarding to
+  localhost:14445 is on by default. CI: GStreamer server flaky (1.18.6 / 1.20.x downloads failed, fallback 1.22.12
+  does not compile QGC 4.2's qmlglsink); 1.22 dropped from fallbacks, harder retries, GStreamer cached.
+  This build used 1.18.6.
+- Dhaksha Live 3.2.0 (ccd4508): HLS back buffer 2 s (was infinite), forward buffer 4-6 s, jump to live when more than
+  3 s behind.
+- tools: position_check.sh (given to the operator) checks forwarding -> UDP 14445 -> reader -> drawtext.
 
 ## Open items
 - Find what blocks WebRTC (Lightsail UDP 8189 rule, TCP fallback, office/laptop network).
@@ -265,6 +274,7 @@ The newest build in each table is the last row.
 | 31 | 2026-10-13 | fix/stream-forwarder-codec | fb817ca | fix: MAVLink forwarding reaches the forwarding host; camera control after restarts; honest recording | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38350295409/artifacts/11790284769)<br>[x86_64 (55MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38350295409/artifacts/11790328976) |
 | 32 | 2026-10-13 | fix/stream-forwarder-codec | 3d517f0 | fix(Camera): joystick and held buttons keep the touch on Android | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38357399802/artifacts/11794012918)<br>[x86_64 (55MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38357399802/artifacts/11794326520) |
 | 33 | 2026-10-13 | fix/stream-forwarder-codec | c4d5a1e | fix(Camera): Skydroid zoom sends lens and digital zoom, repeated while held (+ GSY/GSP default) | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38364316896/artifacts/11796144821) |
+| 34 | 2026-10-13 | fix/stream-forwarder-codec | 47cb509 | Skydroid and MAVLink forwarding defaults; CI GStreamer cache | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38374977934/artifacts/11800984587)<br>[x86_64 (55MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38374977934/artifacts/11800818513) |
 
 ### DhakshaGroundControl (Linux desktop)
 
@@ -291,6 +301,7 @@ The newest build in each table is the last row.
 | 4 | 2026-10-08 | build/dhaksha-live-grid | fa2aea2 | feat(tools): Linux 64-bit and 32-bit packages for Dhaksha Live | [DhakshaLive-Windows (155MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/37725700853/artifacts/11527424317) |
 | 5 | 2026-10-08 | build/dhaksha-live-grid | 1d49cf1 | feat(tools): Dhaksha Live desktop shows 25 drones from the Dhaksha video server | [DhakshaLive-Windows (162MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/37850558059/artifacts/11582090375) |
 | 6 | 2026-10-09 | build/dhaksha-live-grid | 96a9bc8 | feat(tools): choose which drones Dhaksha Live shows (3.1.0) | [DhakshaLive-Windows (162MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/37861319829/artifacts/11586512398) |
+| 7 | 2026-10-13 | build/dhaksha-live-grid | ccd4508 | fix(tools): Dhaksha Live drops old video and jumps back to live (3.2.0) | [DhakshaLive-Windows (170MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38373769405/artifacts/11799633613) |
 
 ### Dhaksha Live (Linux desktop)
 
@@ -300,6 +311,7 @@ The newest build in each table is the last row.
 | 2 | 2026-10-08 | build/dhaksha-live-grid | 457fcef | ci(tools): upload the Dhaksha Live Linux .deb as its own artifact | [DhakshaLive-Linux-64bit-other (199MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/37726566375/artifacts/11528465215)<br>[DhakshaLive-Linux-64bit-deb (71MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/37726566375/artifacts/11528450274)<br>[DhakshaLive-Linux-32bit-other (153MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/37726566375/artifacts/11527309310)<br>[DhakshaLive-Linux-32bit-deb (56MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/37726566375/artifacts/11527049769) |
 | 3 | 2026-10-08 | build/dhaksha-live-grid | 1d49cf1 | feat(tools): Dhaksha Live desktop shows 25 drones from the Dhaksha video server | [DhakshaLive-Linux-64bit-deb (73MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/37850558072/artifacts/11581877950)<br>[DhakshaLive-Linux-64bit-other (208MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/37850558072/artifacts/11581927842)<br>[DhakshaLive-Linux-32bit-deb (58MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/37850558072/artifacts/11581489019)<br>[DhakshaLive-Linux-32bit-other (162MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/37850558072/artifacts/11581289226) |
 | 4 | 2026-10-09 | build/dhaksha-live-grid | 96a9bc8 | feat(tools): choose which drones Dhaksha Live shows (3.1.0) | [DhakshaLive-Linux-64bit-deb (73MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/37861319773/artifacts/11586014202)<br>[DhakshaLive-Linux-64bit-other (208MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/37861319773/artifacts/11586730153)<br>[DhakshaLive-Linux-32bit-deb (58MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/37861319773/artifacts/11586418303)<br>[DhakshaLive-Linux-32bit-other (162MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/37861319773/artifacts/11586577291) |
+| 5 | 2026-10-13 | build/dhaksha-live-grid | ccd4508 | fix(tools): Dhaksha Live drops old video and jumps back to live (3.2.0) | [DhakshaLive-Linux-64bit-deb (77MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38373769395/artifacts/11799704700)<br>[DhakshaLive-Linux-32bit-deb (61MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38373769395/artifacts/11800730229) |
 
 ### DhakshaKey (Android helper for Termux)
 
