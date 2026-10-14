@@ -203,6 +203,10 @@ so details can be lost. To keep the context:
   "Disconnected" (no flight-controller link), so there was no position to forward. Zoom went in one step and back.
 - DhakshaGroundControl (b2e1e35): DZM takes the digital zoom level (02 = 2x, 00 = 1x); holding zoom steps the level
   1x..30x every 0.4 s and releasing keeps it, shown in the label; ZMC still runs while held.
+- Field results 2026-10-14: zoom works 1x-4x (DZM 05 does nothing); full down (PTZ 0A) ignored; laser shows no value.
+- DhakshaGroundControl (ae00fc8): zoom capped at 4x ("Max zoom 4x"); tilt down also drives GSP -99 for 3 s then stops;
+  laser on/off/single/read sent to M, D and G addresses, label "measuring..." then distance or "no reply from laser";
+  bigger range label; PIP, auto focus and lock/follow buttons removed; HUD width 12 font widths.
 
 ## Open items
 - Find what blocks WebRTC (Lightsail UDP 8189 rule, TCP fallback, office/laptop network).
@@ -280,6 +284,7 @@ The newest build in each table is the last row.
 | 33 | 2026-10-13 | fix/stream-forwarder-codec | c4d5a1e | fix(Camera): Skydroid zoom sends lens and digital zoom, repeated while held (+ GSY/GSP default) | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38364316896/artifacts/11796144821) |
 | 34 | 2026-10-13 | fix/stream-forwarder-codec | 47cb509 | Skydroid and MAVLink forwarding defaults; CI GStreamer cache | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38374977934/artifacts/11800984587)<br>[x86_64 (55MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38374977934/artifacts/11800818513) |
 | 35 | 2026-10-13 | fix/stream-forwarder-codec | b2e1e35 | fix(Camera): Skydroid digital zoom steps a level and keeps it | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38390368436/artifacts/11809250220)<br>[x86_64 (55MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38390368436/artifacts/11809073881) |
+| 36 | 2026-10-14 | fix/stream-forwarder-codec | ae00fc8 | fix(Camera): Skydroid C13 tilt down, zoom up to 4x, laser on all addresses; simpler panel | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38508570498/artifacts/11869795819)<br>[x86_64 (55MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38508570498/artifacts/11869710985) |
 
 ### DhakshaGroundControl (Linux desktop)
 
