@@ -211,6 +211,11 @@ so details can be lost. To keep the context:
 - DhakshaGroundControl (0d88cdb): zoom to 30x = camera DZM up to 4x, then the video magnified on screen up to 7.5x
   (stream and recordings stay at the camera's 4x); buttons 1.9 / 1.6 font heights, joystick 5.5 with a small knob;
   HUD below the camera's date/time stamp.
+- Field 2026-10-14: zoom to 30x confirmed; lat/lon/alt stitching confirmed working with the Skydroid. ViewPro: video and
+  position stitching ready (stream_aws_viewpro.sh, camera_check.sh), gimbal control not yet (needs model / wiring).
+- Dhaksha Live note: every box has its own player, so the same drone in N boxes costs N times the download.
+- DhakshaKey 3.0 (3dbc529): "Skydroid day + night (two streams)": day -> droneN, thermal -> droneN-night on the same
+  MediaMTX (no server change), two send loops with their own watchdogs, one position reader, thermal fitted + padded.
 
 ## Open items
 - Find what blocks WebRTC (Lightsail UDP 8189 rule, TCP fallback, office/laptop network).
@@ -343,4 +348,5 @@ The newest build in each table is the last row.
 | 9 | 2026-10-11 | build/dhaksha-key | dca8e3a | feat(dhaksha-key): Home sends a TEST position, Office the real one; text never stops the video (2.6) | [DhakshaKey (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38164333517/artifacts/11711024215) |
 | 10 | 2026-10-12 | build/dhaksha-key | df03141 | fix(dhaksha-key): recover from unclean stops, a dead position reader and a stuck upload (2.7) | [DhakshaKey (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38194808974/artifacts/11722188647) |
 | 11 | 2026-10-12 | build/dhaksha-key | 1eff12e | feat(dhaksha-key): Skydroid first, with its real day and night addresses (2.9) | [DhakshaKey (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38208473806/artifacts/11728780347) |
+| 12 | 2026-10-14 | build/dhaksha-key | 3dbc529 | feat(dhaksha-key): Skydroid day + night as two streams at once (3.0) | [DhakshaKey (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38556096097/artifacts/11889732072) |
 
