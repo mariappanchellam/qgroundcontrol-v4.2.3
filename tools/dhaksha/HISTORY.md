@@ -207,6 +207,10 @@ so details can be lost. To keep the context:
 - DhakshaGroundControl (ae00fc8): zoom capped at 4x ("Max zoom 4x"); tilt down also drives GSP -99 for 3 s then stops;
   laser on/off/single/read sent to M, D and G addresses, label "measuring..." then distance or "no reply from laser";
   bigger range label; PIP, auto focus and lock/follow buttons removed; HUD width 12 font widths.
+- Field: full down works (GSP drive). Requests: zoom beyond 4x, smaller icons and knob, HUD hiding the time stamp.
+- DhakshaGroundControl (0d88cdb): zoom to 30x = camera DZM up to 4x, then the video magnified on screen up to 7.5x
+  (stream and recordings stay at the camera's 4x); buttons 1.9 / 1.6 font heights, joystick 5.5 with a small knob;
+  HUD below the camera's date/time stamp.
 
 ## Open items
 - Find what blocks WebRTC (Lightsail UDP 8189 rule, TCP fallback, office/laptop network).
@@ -285,6 +289,7 @@ The newest build in each table is the last row.
 | 34 | 2026-10-13 | fix/stream-forwarder-codec | 47cb509 | Skydroid and MAVLink forwarding defaults; CI GStreamer cache | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38374977934/artifacts/11800984587)<br>[x86_64 (55MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38374977934/artifacts/11800818513) |
 | 35 | 2026-10-13 | fix/stream-forwarder-codec | b2e1e35 | fix(Camera): Skydroid digital zoom steps a level and keeps it | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38390368436/artifacts/11809250220)<br>[x86_64 (55MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38390368436/artifacts/11809073881) |
 | 36 | 2026-10-14 | fix/stream-forwarder-codec | ae00fc8 | fix(Camera): Skydroid C13 tilt down, zoom up to 4x, laser on all addresses; simpler panel | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38508570498/artifacts/11869795819)<br>[x86_64 (55MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38508570498/artifacts/11869710985) |
+| 37 | 2026-10-14 | fix/stream-forwarder-codec | 0d88cdb | feat(Camera): zoom up to 30x, smaller controls, HUD below the camera time stamp | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38516889598/artifacts/11872143471)<br>[x86_64 (55MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38516889598/artifacts/11872666351) |
 
 ### DhakshaGroundControl (Linux desktop)
 
