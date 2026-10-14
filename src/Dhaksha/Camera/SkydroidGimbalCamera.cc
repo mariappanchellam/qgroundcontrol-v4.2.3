@@ -224,18 +224,25 @@ void SkydroidGimbalCamera::_sendZoom(quint8 value, bool log)
 
 void SkydroidGimbalCamera::_stepDigitalZoom()
 {
-    const int level = qBound(1, _digitalZoomLevel + _zoomDirection, kMaxDigitalZoom);
+    const int level = qBound(1, _digitalZoomLevel + _zoomDirection, kMaxZoom);
     if (level == _digitalZoomLevel && _zoomDirection != 0) {
         if (_zoomDirection > 0 && !_maxZoomShown) {
             _maxZoomShown = true;
-            emit notice(tr("Max zoom %1x").arg(kMaxDigitalZoom));
+            emit notice(tr("Max zoom %1x").arg(kMaxZoom));
         }
         return;
     }
     _maxZoomShown = false;
     _digitalZoomLevel = level;
-    _send(kAddressLens,  true, kIdDigitalZoom, static_cast<quint8>(level), tr("Digital zoom %1x").arg(level));
-    _send(kAddressImage, true, kIdDigitalZoom, static_cast<quint8>(level));
+
+    // The camera zooms up to kMaxCameraZoom itself; above that the video is magnified on screen
+    const int cameraLevel = qMin(level, kMaxCameraZoom);
+    if (cameraLevel != _cameraZoomSent) {
+        _cameraZoomSent = cameraLevel;
+        _send(kAddressLens,  true, kIdDigitalZoom, static_cast<quint8>(cameraLevel), tr("Digital zoom %1x").arg(cameraLevel));
+        _send(kAddressImage, true, kIdDigitalZoom, static_cast<quint8>(cameraLevel));
+    }
+    _setScreenZoom(static_cast<qreal>(level) / cameraLevel);
     emit notice(tr("Zoom %1x").arg(level));
 }
 

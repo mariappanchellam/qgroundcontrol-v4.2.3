@@ -13,10 +13,12 @@ import QGroundControl               1.0
 import QGroundControl.Controls      1.0
 import QGroundControl.Controllers   1.0
 import QGroundControl.ScreenTools   1.0
+import QGroundControl.DhakshaCamera 1.0
 
 Item {
     id:         _root
     visible:    QGroundControl.videoManager.hasVideo
+    clip:       true    // DhakshaGroundControl: zoom beyond the camera's own magnifies the video inside this area
 
     property Item pipState: videoPipState
     QGCPipState {
@@ -55,6 +57,7 @@ Item {
         anchors.fill:   parent
         useSmallFont:   _root.pipState.state !== _root.pipState.fullState
         visible:        QGroundControl.videoManager.isGStreamer
+        scale:          DhakshaCameraManager.camera ? DhakshaCameraManager.camera.screenZoom : 1
     }
     //-- UVC Video (USB Camera or Video Device)
     Loader {

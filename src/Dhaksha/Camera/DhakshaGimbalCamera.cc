@@ -69,6 +69,14 @@ void DhakshaGimbalCamera::_setSdCardStatus(const QString& status)
     }
 }
 
+void DhakshaGimbalCamera::_setScreenZoom(qreal zoom)
+{
+    if (!qFuzzyCompare(zoom, _screenZoom)) {
+        _screenZoom = zoom;
+        emit screenZoomChanged();
+    }
+}
+
 QString DhakshaGimbalCamera::sdCardProblem() const
 {
     if (_sdCardStatus == QLatin1String("none")) {

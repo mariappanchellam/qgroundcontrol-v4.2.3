@@ -33,6 +33,7 @@ public:
     Q_PROPERTY(QString  distanceText        READ distanceText       NOTIFY distanceTextChanged) ///< Last laser range, e.g. "123.4 m"; empty before the first
     Q_PROPERTY(bool     rangingActive       READ rangingActive      NOTIFY rangingActiveChanged)    ///< Continuous laser ranging on
     Q_PROPERTY(QString  sdCardStatus        READ sdCardStatus       NOTIFY sdCardStatusChanged)     ///< "" unknown, "ok", "none" (missing or error), "full"
+    Q_PROPERTY(qreal    screenZoom          READ screenZoom         NOTIFY screenZoomChanged)       ///< Extra magnification of the video on screen beyond the camera's own zoom
 
     QString vendorName  () const { return _vendorName; }
     QString rtspUrl     () const { return _rtspUrl; }
@@ -42,6 +43,7 @@ public:
     QString distanceText() const { return _distanceText; }
     bool    rangingActive() const { return _rangingActive; }
     QString sdCardStatus() const { return _sdCardStatus; }
+    qreal   screenZoom  () const { return _screenZoom; }
     /// Why photos and recordings cannot be saved, or empty when the card is fine or unknown
     QString sdCardProblem() const;
 
@@ -88,6 +90,7 @@ signals:
     void distanceTextChanged();
     void rangingActiveChanged();
     void sdCardStatusChanged();
+    void screenZoomChanged  ();
     /// A short message for the operator, e.g. that recording did not start
     void notice(const QString& text);
 
@@ -98,6 +101,7 @@ protected:
     void _setDistanceText(const QString& text);
     void _setRangingActive(bool active);
     void _setSdCardStatus(const QString& status);
+    void _setScreenZoom(qreal zoom);
 
 private:
     QString _vendorName;
@@ -108,6 +112,7 @@ private:
     QString _distanceText;
     bool    _rangingActive = false;
     QString _sdCardStatus;
+    qreal   _screenZoom = 1.0;
 
     static constexpr int kMaxLogEntries = 50;
 };

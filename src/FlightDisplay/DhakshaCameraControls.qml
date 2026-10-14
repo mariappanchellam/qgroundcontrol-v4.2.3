@@ -35,9 +35,9 @@ Item {
 
     property var    _camera:        DhakshaCameraManager.camera
     property real   _margin:        ScreenTools.defaultFontPixelHeight / 2
-    property real   _buttonSize:    ScreenTools.defaultFontPixelHeight * 2.6
-    property real   _smallButton:   ScreenTools.defaultFontPixelHeight * 2.1
-    property real   _joystickSize:  _buttonSize * 2.8
+    property real   _buttonSize:    ScreenTools.defaultFontPixelHeight * 1.9
+    property real   _smallButton:   ScreenTools.defaultFontPixelHeight * 1.6
+    property real   _joystickSize:  ScreenTools.defaultFontPixelHeight * 5.5
     property bool   _showLog:       false
     property int    _recordSeconds: 0
 
@@ -66,7 +66,7 @@ Item {
 
         QGCColoredImage {
             anchors.centerIn:   parent
-            width:              parent.width * 0.52
+            width:              parent.width * 0.5
             height:             width
             source:             _iconPath + button.icon + ".svg"
             sourceSize.height:  height
@@ -346,7 +346,7 @@ Item {
 
         Rectangle {
             id:         knob
-            width:      joystick.width * 0.3
+            width:      joystick.width * 0.18
             height:     width
             radius:     width / 2
             color:      _orange

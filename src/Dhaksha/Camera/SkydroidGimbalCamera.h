@@ -98,7 +98,8 @@ private:
     QTimer          _rangeTimer;
     QTimer          _zoomTimer;
     int             _zoomDirection  = 0;    ///< 1 zooming in, -1 out, 0 not zooming
-    int             _digitalZoomLevel = 1;
+    int             _digitalZoomLevel = 1;     ///< total zoom shown to the operator
+    int             _cameraZoomSent = 1;       ///< the part the camera does itself
     bool            _maxZoomShown   = false;
     QTimer          _downTimer;
     int             _rangeReads     = 0;
@@ -119,7 +120,8 @@ private:
     static constexpr int kGimbalResendMs        = 100;    ///< as ArduPilot; the camera stops between slower resends
     static constexpr int kRangeReadMs           = 1000;
     static constexpr int kZoomResendMs          = 400;    ///< also one digital zoom step
-    static constexpr int kMaxDigitalZoom        = 4;      ///< the C13 accepted DZM 01..04 in the field; 05 did nothing
+    static constexpr int kMaxCameraZoom         = 4;      ///< the C13 accepted DZM 01..04 in the field; 05 did nothing
+    static constexpr int kMaxZoom               = 30;     ///< camera 4x, then the video is magnified on screen up to 7.5x
     static constexpr int kTiltDownMs            = 3000;   ///< full speed down this long reaches the lowest point
     static constexpr int kConnectionTimeoutMs   = 5000;
 };

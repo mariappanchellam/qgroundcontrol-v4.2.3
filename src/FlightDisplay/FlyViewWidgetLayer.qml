@@ -110,6 +110,8 @@ Item {
     FlyViewInstrumentPanel {
         id:                         instrumentPanel
         anchors.margins:            _toolsMargin
+        // DhakshaGroundControl: below the camera's date / time stamp at the top right of the video
+        anchors.topMargin:          ScreenTools.defaultFontPixelHeight * 2.5
         anchors.top:                multiVehiclePanelSelector.visible ? multiVehiclePanelSelector.bottom : parent.top
         anchors.right:              parent.right
         width:                      _instrumentWidth
