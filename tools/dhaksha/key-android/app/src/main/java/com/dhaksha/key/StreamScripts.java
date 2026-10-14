@@ -39,12 +39,23 @@ final class StreamScripts {
         final String defaultIp;
         /** RTSP address with %s for the IP; null when the operator types the whole address. */
         final String rtspTemplate;
+        /** Second (night / thermal) RTSP address sent at the same time as droneN-night; null for one stream. */
+        final String nightTemplate;
 
         Camera(String name, String fileTag, String defaultIp, String rtspTemplate) {
+            this(name, fileTag, defaultIp, rtspTemplate, null);
+        }
+
+        Camera(String name, String fileTag, String defaultIp, String rtspTemplate, String nightTemplate) {
             this.name = name;
             this.fileTag = fileTag;
             this.defaultIp = defaultIp;
             this.rtspTemplate = rtspTemplate;
+            this.nightTemplate = nightTemplate;
+        }
+
+        String nightRtsp(String ip) {
+            return nightTemplate == null ? null : String.format(Locale.ROOT, nightTemplate, ip);
         }
 
         boolean customAddress() {
@@ -64,6 +75,8 @@ final class StreamScripts {
         // The Skydroid camera the fleet uses: day video on port 554, night (thermal) on port 555
         new Camera("Skydroid day", "skydroid", "192.168.144.108", "rtsp://%s:554/stream=1"),
         new Camera("Skydroid night (thermal)", "skydroid_night", "192.168.144.108", "rtsp://%s:555/stream=2"),
+        new Camera("Skydroid day + night (two streams)", "skydroid_both", "192.168.144.108",
+                   "rtsp://%s:554/stream=1", "rtsp://%s:555/stream=2"),
         new Camera("ZR10 (SIYI)", "zr10", "192.168.144.25", "rtsp://%s:8554/main.264"),
         new Camera("SIYI A8 mini", "siyi_a8", "192.168.144.25", "rtsp://%s:8554/main.264"),
         new Camera("ViewPro", "viewpro", "192.168.144.119", "rtsp://%s:554/stream0"),
@@ -112,6 +125,14 @@ final class StreamScripts {
 
     static String droneName(int number) {
         return "drone" + number;
+    }
+
+    static String nightName(int number) {
+        return droneName(number) + "-night";
+    }
+
+    static String nightWatchUrl(String serverIp, int droneNumber) {
+        return "http://" + serverIp + ":" + WATCH_PORT + "/live/" + nightName(droneNumber);
     }
 
     static String watchUrl(String serverIp, int droneNumber) {
@@ -183,18 +204,30 @@ final class StreamScripts {
      */
     static String streamScript(Camera camera, String cameraRtsp, String serverIp, int droneNumber,
                                String password, Quality quality, boolean showPosition) {
+        return streamScript(camera, cameraRtsp, null, serverIp, droneNumber, password, quality, showPosition);
+    }
+
+    /**
+     * With nightRtsp, the night (thermal) camera is sent at the same time as droneN-night: two ffmpeg
+     * loops, each with its own watchdog, and one position reader feeding the text on both.
+     */
+    static String streamScript(Camera camera, String cameraRtsp, String nightRtsp, String serverIp, int droneNumber,
+                               String password, Quality quality, boolean showPosition) {
         boolean home = camera == null;
+        boolean dual = !home && nightRtsp != null;
         return SHEBANG + "\n"
                 + "# Made by DhakshaKey: " + (home ? "home test video " + TEST_VIDEO : camera.name + " camera")
                 + " -> Dhaksha video server, "
                 + quality.height + "p, about " + quality.kbps + " kbit/s, low delay.\n"
                 + "# Watch: " + watchUrl(serverIp, droneNumber) + "\n"
+                + (dual ? "# Night: " + nightWatchUrl(serverIp, droneNumber) + "\n" : "")
                 + "# Stop with Ctrl+C, or the Stop button in DhakshaKey.\n"
                 + "\n"
                 + "SERVER_IP=" + shellQuote(serverIp) + "\n"
                 + "PASSWORD=" + shellQuote(password) + "\n"
                 + "DRONE=" + shellQuote(droneName(droneNumber)) + "\n"
                 + (home ? "" : "CAMERA=" + shellQuote(cameraRtsp) + "\n")
+                + (dual ? "NIGHT_CAMERA=" + shellQuote(nightRtsp) + "\n" : "")
                 + "WIDTH=" + quality.width() + "\n"
                 + "HEIGHT=" + quality.height + "\n"
                 + "FPS=" + quality.fps + "\n"
@@ -205,17 +238,23 @@ final class StreamScripts {
                 + "echo $$ > " + PID_FILE + "\n"
                 + "termux-wake-lock 2>/dev/null\n"
                 + "echo \"Watch this drone at http://$SERVER_IP:" + WATCH_PORT + "/live/$DRONE\"\n"
+                + (dual ? "echo \"Night camera at    http://$SERVER_IP:" + WATCH_PORT + "/live/$DRONE-night\"\n" : "")
                 + "\n"
                 + (home ? findTestVideo() : "")
                 + "# The width is written out: ffmpeg 8 turned scale=-2:360 into a 2-pixel-wide picture\n"
                 + "FILTER=\"scale=$WIDTH:$HEIGHT,fps=$FPS\"\n"
                 + (showPosition || home ? positionOverlay(home) : "")
-                + "PROGRESS=\"$HOME/.dhakshakey_progress\"\n"
+                + (dual
+                    // The thermal picture is not 16:9: fit it and pad with black instead of stretching it
+                    ? "NIGHT_FILTER=\"scale=$WIDTH:$HEIGHT:force_original_aspect_ratio=decrease,"
+                      + "pad=$WIDTH:$HEIGHT:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=$FPS${FILTER#scale=$WIDTH:$HEIGHT,fps=$FPS}\"\n"
+                    : "")
                 + "STALL_SECONDS=8\n"
                 + "# More than 2 s of video waiting to upload, for QUEUE_SECONDS, means the internet is not keeping up\n"
                 + "QUEUE_LIMIT_KB=$(( ${BITRATE%k} / 4 ))\n"
                 + "QUEUE_SECONDS=4\n"
                 + "FFMPEG_PID=\"\"\n"
+                + "LOOP_PIDS=\"\"\n"
                 + "# ffmpeg stuck writing to a dead connection may ignore a polite stop, so it is forced after 3 s\n"
                 + "stop_ffmpeg() {\n"
                 + "  [ -n \"$FFMPEG_PID\" ] || return\n"
@@ -223,7 +262,12 @@ final class StreamScripts {
                 + "  for i in 1 2 3 4 5 6; do kill -0 \"$FFMPEG_PID\" 2>/dev/null || return; sleep 0.5; done\n"
                 + "  kill -9 \"$FFMPEG_PID\" 2>/dev/null\n"
                 + "}\n"
-                + "cleanup() { stop_ffmpeg; kill $TELEMETRY_PID 2>/dev/null; rm -f " + PID_FILE + " " + TELEMETRY_PID_FILE + "; exit 0; }\n"
+                + "cleanup() {\n"
+                + "  stop_ffmpeg\n"
+                + "  [ -n \"$LOOP_PIDS\" ] && kill $LOOP_PIDS 2>/dev/null && wait $LOOP_PIDS 2>/dev/null\n"
+                + "  kill $TELEMETRY_PID $(cat " + TELEMETRY_PID_FILE + " 2>/dev/null) 2>/dev/null\n"
+                + "  rm -f " + PID_FILE + " " + TELEMETRY_PID_FILE + "; exit 0\n"
+                + "}\n"
                 + "trap cleanup INT TERM\n"
                 + "\n"
                 + "# KB of video waiting in this phone's upload queue to the server; empty when it cannot be read\n"
@@ -233,6 +277,12 @@ final class StreamScripts {
                 + "  [ -n \"$hex\" ] && echo $(( 16#$hex / 1024 ))\n"
                 + "}\n"
                 + "\n"
+                + "# One camera to one stream name, restarted by its own watchdog:\n"
+                + "# stream_loop CAMERA NAME PROGRESS_FILE FILTER LABEL   (LABEL empty for the only stream)\n"
+                + "stream_loop() {\n"
+                + "local CAMERA=\"$1\" DRONE=\"$2\" PROGRESS=\"$3\" FILTER=\"$4\" LABEL=\"$5\"\n"
+                + "# Run in the background next to another stream: stop its own ffmpeg when stopped\n"
+                + "[ -n \"$LABEL\" ] && trap 'stop_ffmpeg; exit 0' INT TERM\n"
                 + "while true; do\n"
                 + "  echo \"$(date '+%F %T') sending to $SERVER_IP ($DRONE)\"\n"
                 + "  : > \"$PROGRESS\"\n"
@@ -255,7 +305,7 @@ final class StreamScripts {
                 + "  last=\"\"; stuck=0; slow=0; queued=0; starting=0\n"
                 + "  while kill -0 \"$FFMPEG_PID\" 2>/dev/null; do\n"
                 + "    sleep 2\n"
-                + "    if [ -n \"$TELEMETRY_PID\" ] && ! kill -0 \"$TELEMETRY_PID\" 2>/dev/null; then\n"
+                + "    if [ \"$LABEL\" != night ] && [ -n \"$TELEMETRY_PID\" ] && ! kill -0 \"$TELEMETRY_PID\" 2>/dev/null; then\n"
                 + "      echo \"$(date '+%F %T') position reader stopped: starting it again\"\n"
                 + "      start_reader\n"
                 + "    fi\n"
@@ -287,9 +337,18 @@ final class StreamScripts {
                 + "  done\n"
                 + "  wait \"$FFMPEG_PID\" 2>/dev/null\n"
                 + "  FFMPEG_PID=\"\"\n"
-                + "  echo \"$(date '+%F %T') stream stopped, retrying in 3 s\"\n"
+                + "  echo \"$(date '+%F %T') $DRONE stopped, retrying in 3 s\"\n"
                 + "  sleep 3\n"
-                + "done\n";
+                + "done\n"
+                + "}\n"
+                + "\n"
+                + (dual
+                    ? "stream_loop \"$CAMERA\" \"$DRONE\" \"$HOME/.dhakshakey_progress\" \"$FILTER\" day &\n"
+                      + "LOOP_PIDS=\"$!\"\n"
+                      + "stream_loop \"$NIGHT_CAMERA\" \"$DRONE-night\" \"$HOME/.dhakshakey_progress_night\" \"$NIGHT_FILTER\" night &\n"
+                      + "LOOP_PIDS=\"$LOOP_PIDS $!\"\n"
+                      + "while true; do wait; sleep 1; done\n"
+                    : "stream_loop \"" + (home ? "$VIDEO" : "$CAMERA") + "\" \"$DRONE\" \"$HOME/.dhakshakey_progress\" \"$FILTER\" \"\"\n");
     }
 
     /**

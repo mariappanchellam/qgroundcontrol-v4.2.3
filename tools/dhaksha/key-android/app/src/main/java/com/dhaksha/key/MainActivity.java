@@ -379,8 +379,9 @@ public class MainActivity extends Activity {
         String server = text(serverIp);
         StreamScripts.Quality quality = StreamScripts.QUALITIES[qualitySpinner.getSelectedItemPosition()];
         boolean position = camera == null || showPosition.isChecked();
-        String stream = StreamScripts.streamScript(camera, rtsp, server, droneNumber(), text(password), quality,
-                position);
+        String nightRtsp = camera == null ? null : camera.nightRtsp(text(cameraIp));
+        String stream = StreamScripts.streamScript(camera, rtsp, nightRtsp, server, droneNumber(), text(password),
+                quality, position);
         String reader = null;
         if (position) {
             reader = readAsset("dhaksha_telemetry.py");
@@ -392,7 +393,8 @@ public class MainActivity extends Activity {
         if (runInTermux(StreamScripts.saveAndStartCommand(scriptPath, stream, reader), false)) {
             startAnyway.setVisibility(View.GONE);
             showBanner("Streaming started with " + scriptPath + ". The Termux window shows its progress.\n"
-                    + "Watch at " + StreamScripts.watchUrl(server, droneNumber()), false);
+                    + "Watch at " + StreamScripts.watchUrl(server, droneNumber())
+                    + (nightRtsp == null ? "" : "\nNight camera at " + StreamScripts.nightWatchUrl(server, droneNumber())), false);
             setStatus("If the camera or the internet drops or stalls, it restarts by itself within a few seconds. Stop ends it.", false);
         }
     }
