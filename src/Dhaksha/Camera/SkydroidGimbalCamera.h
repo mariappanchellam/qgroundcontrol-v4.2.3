@@ -85,6 +85,7 @@ private:
     void _sendFrame         (const QByteArray& frame, const QString& description);
     void _sendZoom          (quint8 value, bool log);
     void _stepDigitalZoom   ();
+    void _sendRange         (bool write, quint8 value, const QString& description);
     void _sendGimbalSpeed   (bool log);
     void _handleFrame       (const QByteArray& id, const QByteArray& data);
 
@@ -98,6 +99,9 @@ private:
     QTimer          _zoomTimer;
     int             _zoomDirection  = 0;    ///< 1 zooming in, -1 out, 0 not zooming
     int             _digitalZoomLevel = 1;
+    bool            _maxZoomShown   = false;
+    QTimer          _downTimer;
+    int             _rangeReads     = 0;
     int             _gimbalStyle    = kDefaultGimbalStyle;
     int             _pollCount      = 0;
     bool            _recordRequested = false;  ///< start sent, camera has not confirmed yet
@@ -115,6 +119,7 @@ private:
     static constexpr int kGimbalResendMs        = 100;    ///< as ArduPilot; the camera stops between slower resends
     static constexpr int kRangeReadMs           = 1000;
     static constexpr int kZoomResendMs          = 400;    ///< also one digital zoom step
-    static constexpr int kMaxDigitalZoom        = 30;
+    static constexpr int kMaxDigitalZoom        = 4;      ///< the C13 accepted DZM 01..04 in the field; 05 did nothing
+    static constexpr int kTiltDownMs            = 3000;   ///< full speed down this long reaches the lowest point
     static constexpr int kConnectionTimeoutMs   = 5000;
 };

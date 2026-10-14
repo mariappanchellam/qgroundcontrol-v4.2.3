@@ -48,7 +48,7 @@ Item {
     property real   _toolsMargin:           ScreenTools.defaultFontPixelWidth * 0.75
     property rect   _centerViewport:        Qt.rect(0, 0, width, height)
     property real   _rightPanelWidth:       ScreenTools.defaultFontPixelWidth * 30
-    property real   _instrumentWidth:       ScreenTools.defaultFontPixelWidth * 18  // DhakshaGroundControl: small HUD leaves room for the camera buttons
+    property real   _instrumentWidth:       ScreenTools.defaultFontPixelWidth * 12  // DhakshaGroundControl: small HUD leaves room for the camera buttons
 
     QGCToolInsets {
         id:                     _totalToolInsets

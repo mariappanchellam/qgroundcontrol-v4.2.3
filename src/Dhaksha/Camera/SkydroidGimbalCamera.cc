@@ -62,6 +62,10 @@ SkydroidGimbalCamera::SkydroidGimbalCamera(const QString& cameraIp, const QStrin
     });
 
     _rangeTimer.setInterval(kRangeReadMs);
+
+    _downTimer.setSingleShot(true);
+    _downTimer.setInterval(kTiltDownMs);
+    connect(&_downTimer, &QTimer::timeout, this, &SkydroidGimbalCamera::gimbalStop);
     connect(&_rangeTimer, &QTimer::timeout, this, &SkydroidGimbalCamera::_readRange);
 
     _gimbalStyle = QSettings().value(kGimbalStyleKey, kDefaultGimbalStyle).toInt() == GimbalStyleYpr ? GimbalStyleYpr : GimbalStyleGsy;
@@ -167,24 +171,41 @@ void SkydroidGimbalCamera::measureDistance()
     _send(kAddressLens, true, kIdRange, 0x02, tr("Laser range (single)"));
 }
 
+// The C13's laser address is not published (ArduPilot uses the lens address), so the laser commands go
+// to the lens, image and gimbal addresses; a reply from any of them is shown.
+void SkydroidGimbalCamera::_sendRange(bool write, quint8 value, const QString& description)
+{
+    _send(kAddressLens,   write, kIdRange, value, description);
+    _send(kAddressImage,  write, kIdRange, value);
+    _send(kAddressGimbal, write, kIdRange, value);
+}
+
 void SkydroidGimbalCamera::toggleRanging()
 {
     if (rangingActive()) {
         _rangeTimer.stop();
-        _send(kAddressLens, true, kIdRange, 0x00, tr("Laser range off"));
+        _sendRange(true, 0x00, tr("Laser range off"));
         _setRangingActive(false);
         _setDistanceText(QString());
     } else {
         // Continuous measurement, as ArduPilot enables it; the distance is also asked for every second
-        _send(kAddressLens, true, kIdRange, 0x03, tr("Laser range on (continuous)"));
+        _sendRange(true, 0x03, tr("Laser range on (continuous)"));
         _setRangingActive(true);
+        _setDistanceText(tr("measuring..."));
+        _rangeReads = 0;
         _rangeTimer.start();
     }
 }
 
 void SkydroidGimbalCamera::_readRange()
 {
-    _send(kAddressLens, false, kIdRange, 0x00);
+    // A single measurement each time as well, for cameras that do not measure continuously
+    _sendRange(true, 0x02, QString());
+    _sendRange(false, 0x00, QString());
+    if (++_rangeReads == 3 && distanceText() == tr("measuring...")) {
+        _setDistanceText(tr("no reply from laser"));
+        _logCommand(tr("Laser: no reply in 3 s"));
+    }
 }
 
 // ---------------------------------------------------------------------------- Lens
@@ -205,8 +226,13 @@ void SkydroidGimbalCamera::_stepDigitalZoom()
 {
     const int level = qBound(1, _digitalZoomLevel + _zoomDirection, kMaxDigitalZoom);
     if (level == _digitalZoomLevel && _zoomDirection != 0) {
+        if (_zoomDirection > 0 && !_maxZoomShown) {
+            _maxZoomShown = true;
+            emit notice(tr("Max zoom %1x").arg(kMaxDigitalZoom));
+        }
         return;
     }
+    _maxZoomShown = false;
     _digitalZoomLevel = level;
     _send(kAddressLens,  true, kIdDigitalZoom, static_cast<quint8>(level), tr("Digital zoom %1x").arg(level));
     _send(kAddressImage, true, kIdDigitalZoom, static_cast<quint8>(level));
@@ -249,6 +275,7 @@ int SkydroidGimbalCamera::_percentToSpeed(int percent)
 
 void SkydroidGimbalCamera::gimbalSpeed(int yawPercent, int pitchPercent)
 {
+    _downTimer.stop();
     // The joystick calls this many times a second: only the start of a movement is logged
     const bool wasMoving = _yawSpeed != 0 || _pitchSpeed != 0;
     _yawSpeed   = _percentToSpeed(yawPercent);
@@ -289,6 +316,7 @@ void SkydroidGimbalCamera::_resendGimbalSpeed()
 
 void SkydroidGimbalCamera::gimbalStop()
 {
+    _downTimer.stop();
     _gimbalTimer.stop();
     _yawSpeed   = 0;
     _pitchSpeed = 0;
@@ -314,8 +342,15 @@ void SkydroidGimbalCamera::gimbalFollow()
 
 void SkydroidGimbalCamera::gimbalDown()
 {
-    _gimbalTimer.stop();
+    // The C13 ignores the one-key-down command, so the gimbal is also driven down at full speed until it
+    // reaches its lowest point (90 degrees down), then stopped
     _send(kAddressGimbal, true, kIdGimbalMode, 0x0A, tr("Gimbal tilt down 90"));
+    _yawSpeed   = 0;
+    _pitchSpeed = -99;
+    _sendGimbalSpeed(false);
+    _gimbalTimer.start();
+    _downTimer.start();
+    emit notice(tr("Tilting down 90°"));
 }
 
 // ---------------------------------------------------------------------------- Status

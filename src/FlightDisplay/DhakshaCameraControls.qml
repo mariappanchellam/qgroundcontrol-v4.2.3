@@ -6,8 +6,8 @@
  * icon buttons split around the video instead of one panel.
  *   left:        record, photo, and a gimbal joystick (drag the knob; the
  *                further from the centre, the faster the gimbal turns)
- *   right:       centre, tilt down 90, lock / follow, zoom in / out, laser range
- *   top centre:  connection, day / night camera, PIP, auto focus, log
+ *   right:       centre, tilt down 90, zoom in / out, laser range
+ *   top centre:  connection, day / night camera, log
  * A small label under the top row shows recording time, the laser range and
  * other confirmations. Works with any DhakshaGimbalCamera; the vendor
  * protocol lives in the C++ camera classes.
@@ -38,9 +38,7 @@ Item {
     property real   _buttonSize:    ScreenTools.defaultFontPixelHeight * 2.6
     property real   _smallButton:   ScreenTools.defaultFontPixelHeight * 2.1
     property real   _joystickSize:  _buttonSize * 2.8
-    property bool   _locked:        true
     property bool   _showLog:       false
-    property int    _pipMode:       0
     property int    _recordSeconds: 0
 
     readonly property string _iconPath: "/res/DhakshaCamera/"
@@ -168,20 +166,6 @@ Item {
             }
             IconButton {
                 width:          _smallButton
-                icon:           "pip"
-                clickAction:    function() {
-                    _pipMode = (_pipMode + 1) % 4
-                    _camera.setPipMode(_pipMode)
-                    notify(qsTr("PIP mode %1").arg(_pipMode))
-                }
-            }
-            IconButton {
-                width:          _smallButton
-                icon:           "focus"
-                clickAction:    function() { _camera.autoFocus(); notify(qsTr("Auto focus")) }
-            }
-            IconButton {
-                width:          _smallButton
                 icon:           "log"
                 active:         _showLog
                 clickAction:    function() { _showLog = !_showLog }
@@ -225,16 +209,19 @@ Item {
             Rectangle {
                 visible:        _camera && _camera.rangingActive
                 width:          rangeText.width + height
-                height:         rangeText.height + _margin
+                height:         rangeText.height + _margin * 2
                 radius:         height / 2
-                color:          "#C0202020"
+                color:          "#D0202020"
+                border.color:   _orange
+                border.width:   2
 
                 QGCLabel {
                     id:                 rangeText
                     anchors.centerIn:   parent
                     color:              "white"
                     font.bold:          true
-                    text:               qsTr("Range %1").arg(_camera && _camera.distanceText !== "" ? _camera.distanceText : "…")
+                    font.pointSize:     ScreenTools.largeFontPointSize
+                    text:               qsTr("Range: %1").arg(_camera && _camera.distanceText !== "" ? _camera.distanceText : "...")
                 }
             }
             Rectangle {
@@ -440,19 +427,6 @@ Item {
             icon:           "zoom_out"
             holdAction:     function() { _camera.zoomOut() }
             releaseAction:  function() { _camera.zoomStop() }
-        }
-        IconButton {
-            icon:           _locked ? "lock" : "follow"
-            clickAction:    function() {
-                _locked = !_locked
-                if (_locked) {
-                    _camera.gimbalLock()
-                    notify(qsTr("Gimbal lock"))
-                } else {
-                    _camera.gimbalFollow()
-                    notify(qsTr("Gimbal follow"))
-                }
-            }
         }
         IconButton {
             visible:        _camera && _camera.rangefinderSupported
