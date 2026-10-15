@@ -4,13 +4,14 @@
  *
  * Laid out like the camera makers' own apps, for a 5.5 inch screen: round
  * icon buttons split around the video instead of one panel.
- *   left:        record, photo, and a gimbal joystick (drag the knob; the
- *                further from the centre, the faster the gimbal turns)
- *   right:       centre, tilt down 90, zoom in / out, laser range
- *   top centre:  connection, day / night camera, log
- * A small label under the top row shows recording time, the laser range and
- * other confirmations. Works with any DhakshaGimbalCamera; the vendor
- * protocol lives in the C++ camera classes.
+ *   bottom left: record and photo, with the gimbal joystick right under them
+ *                (drag the knob; the further from the centre, the faster the
+ *                gimbal turns)
+ *   right:       centre, tilt down 90, zoom in / out, just under the HUD
+ *   top centre:  connection, day / night camera (when there is a night camera)
+ * A small label under the top row shows recording time and other
+ * confirmations. Works with any DhakshaGimbalCamera; the vendor protocol
+ * lives in the C++ camera classes.
  *
  ****************************************************************************/
 
@@ -38,7 +39,6 @@ Item {
     property real   _buttonSize:    ScreenTools.defaultFontPixelHeight * 1.9
     property real   _smallButton:   ScreenTools.defaultFontPixelHeight * 1.6
     property real   _joystickSize:  ScreenTools.defaultFontPixelHeight * 5.5
-    property bool   _showLog:       false
     property int    _recordSeconds: 0
 
     readonly property string _iconPath: "/res/DhakshaCamera/"
@@ -164,15 +164,9 @@ Item {
                     notify(DhakshaCameraManager.nightView ? qsTr("Night camera") : qsTr("Day camera"))
                 }
             }
-            IconButton {
-                width:          _smallButton
-                icon:           "log"
-                active:         _showLog
-                clickAction:    function() { _showLog = !_showLog }
-            }
         }
 
-        // Recording time and laser range stay; other confirmations fade after 2 s
+        // Recording time stays; other confirmations fade after 2 s
         Row {
             anchors.horizontalCenter:   parent.horizontalCenter
             spacing:                    _margin
@@ -207,24 +201,6 @@ Item {
                 }
             }
             Rectangle {
-                visible:        _camera && _camera.rangingActive
-                width:          rangeText.width + height
-                height:         rangeText.height + _margin * 2
-                radius:         height / 2
-                color:          "#D0202020"
-                border.color:   _orange
-                border.width:   2
-
-                QGCLabel {
-                    id:                 rangeText
-                    anchors.centerIn:   parent
-                    color:              "white"
-                    font.bold:          true
-                    font.pointSize:     ScreenTools.largeFontPointSize
-                    text:               qsTr("Range: %1").arg(_camera && _camera.distanceText !== "" ? _camera.distanceText : "...")
-                }
-            }
-            Rectangle {
                 id:             toast
                 opacity:        0
                 visible:        opacity > 0
@@ -242,53 +218,15 @@ Item {
                 }
             }
         }
-
-        // Commands sent (TX) and camera replies (RX), newest first; press and hold to clear
-        Rectangle {
-            anchors.horizontalCenter:   parent.horizontalCenter
-            visible:                    _showLog
-            width:                      Math.min(root.width * 0.5, ScreenTools.defaultFontPixelWidth * 60)
-            height:                     logColumn.height + _margin
-            radius:                     _margin
-            color:                      "#C0000000"
-
-            Column {
-                id:                 logColumn
-                anchors.centerIn:   parent
-                width:              parent.width - _margin * 2
-
-                Repeater {
-                    model: _camera ? _camera.commandLog.slice(0, 6) : []
-                    QGCLabel {
-                        width:          logColumn.width
-                        text:           modelData
-                        color:          "white"
-                        elide:          Text.ElideRight
-                        font.family:    ScreenTools.fixedFontFamily
-                        font.pointSize: ScreenTools.smallFontPointSize
-                    }
-                }
-                QGCLabel {
-                    visible:        _camera && _camera.commandLog.length === 0
-                    text:           qsTr("No commands sent yet")
-                    color:          "white"
-                    font.pointSize: ScreenTools.smallFontPointSize
-                }
-            }
-            MouseArea {
-                anchors.fill:   parent
-                onPressAndHold: _camera.clearCommandLog()
-            }
-        }
     }
 
-    // ------------------------------------------------------------------ Left: record, photo
+    // ------------------------------------------------------------------ Bottom left: record, photo above the joystick
 
-    Column {
-        anchors.left:           parent.left
-        anchors.leftMargin:     leftInset + _margin
-        anchors.verticalCenter: parent.verticalCenter
-        spacing:                _margin
+    Row {
+        anchors.horizontalCenter:   joystick.horizontalCenter
+        anchors.bottom:             joystick.top
+        anchors.bottomMargin:       _margin
+        spacing:                    _margin
 
         IconButton {
             icon:           "record"
@@ -400,13 +338,13 @@ Item {
         }
     }
 
-    // ------------------------------------------------------------------ Right: gimbal and lens
+    // ------------------------------------------------------------------ Right: gimbal and lens, just under the HUD
 
     Grid {
         anchors.right:          parent.right
         anchors.rightMargin:    _margin
         anchors.top:            parent.top
-        anchors.topMargin:      Math.max(rightTopInset, topInset) + _margin
+        anchors.topMargin:      (rightTopInset > 0 ? rightTopInset : topInset) + _margin / 2
         columns:                2
         spacing:                _margin
 
@@ -427,17 +365,6 @@ Item {
             icon:           "zoom_out"
             holdAction:     function() { _camera.zoomOut() }
             releaseAction:  function() { _camera.zoomStop() }
-        }
-        IconButton {
-            visible:        _camera && _camera.rangefinderSupported
-            icon:           "laser"
-            active:         _camera && _camera.rangingActive
-            clickAction:    function() {
-                _camera.toggleRanging()
-                if (!_camera.rangingActive) {
-                    notify(qsTr("Laser range off"))
-                }
-            }
         }
     }
 }

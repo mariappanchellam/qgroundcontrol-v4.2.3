@@ -40,6 +40,7 @@ ColumnLayout {
 
         QGCAttitudeWidget {
             id:                     attitude
+            showPitch:              false   // DhakshaGroundControl: no pitch ladder numbers on the small HUD
             anchors.leftMargin:     _topBottomMargin
             anchors.left:           parent.left
             size:                   _innerRadius * 2

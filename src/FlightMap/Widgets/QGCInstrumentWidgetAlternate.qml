@@ -32,6 +32,7 @@ Rectangle {
 
     QGCAttitudeWidget {
         id:                         attitude
+        showPitch:                  false   // DhakshaGroundControl: no pitch ladder numbers on the small HUD
         anchors.horizontalCenter:   parent.horizontalCenter
         anchors.topMargin:          _outerMargin
         anchors.top:                parent.top
