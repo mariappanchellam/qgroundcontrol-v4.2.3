@@ -594,7 +594,15 @@ document.getElementById('tick-none').addEventListener('click', () => {
 for (let i = 0; i < STREAMS; i++) {
   tiles.push(new Tile(i, grid));
 }
-serverField.value = load(SERVER_KEY, '');
+// Opened from the video server in a browser (the web version): that server is the default, and the first
+// visit fills the boxes with drone1-drone25 and ticks drone1, so OK is the only step
+const servedFrom = /^https?:$/.test(location.protocol) ? location.hostname : '';
+serverField.value = load(SERVER_KEY, servedFrom);
+if (servedFrom && !saved.some((url) => url)) {
+  fillFromServer();
+  checks[0].checked = true;
+  updateShownCount();
+}
 setGlobalMode(globalMode);
 modeSelect.addEventListener('change', () => setGlobalMode(modeSelect.value));
 modeToggle.addEventListener('click', () => {

@@ -228,6 +228,11 @@ so details can be lost. To keep the context:
   Tested locally: camera off, server port closed and a 40 kbit/s upload each gave the right message, then Live.
   Added the INTERNET permission (the camera check could not connect without it). Termux scripts regenerated.
 - Field test runbook written as a Claude doc (private, has the real password).
+- Dhaksha Live in the browser: `tools/dhaksha/server/live_web.sh` serves the same Dhaksha Live page (app.js, style,
+  hls.js 1.5.20) from the video server on TCP 8080 (systemd `dhaksha-live-web`), for JioPC and other machines
+  that cannot install apps: open `http://<SERVER_IP>:8080`. Opened from a server, the page takes that server as
+  the default and the first visit fills drone1-drone25 and ticks drone1. Tested locally: drone1 and drone2 play
+  as HLS and WebRTC.
 
 ## Open items
 - Find what blocks WebRTC (Lightsail UDP 8189 rule, TCP fallback, office/laptop network).
