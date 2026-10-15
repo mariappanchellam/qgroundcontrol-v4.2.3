@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Checks the camera before streaming and hears the stream script's reports on 127.0.0.1 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- Lets this app start commands in Termux (Termux must also allow external apps) -->
     <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
 

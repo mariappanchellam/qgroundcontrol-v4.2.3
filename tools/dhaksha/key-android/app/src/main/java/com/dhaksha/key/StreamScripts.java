@@ -23,6 +23,8 @@ final class StreamScripts {
     static final String TELEMETRY_PID_FILE = "$HOME/.dhaksha_telemetry.pid";
     static final String TELEMETRY_SCRIPT = "~/dhaksha_telemetry.py";
     static final int TELEMETRY_PORT = 14445;
+    /** The script reports its state to DhakshaKey on this local UDP port (LIVE / SLOW / CAMERA / NET / DROP lines). */
+    static final int STATUS_PORT = 14446;
     static final String SHEBANG = "#!/data/data/com.termux/files/usr/bin/bash";
     static final String HOME_SCRIPT = "~/stream_aws_home.sh";
     static final String TEST_VIDEO = "test.mp4";
@@ -36,19 +38,22 @@ final class StreamScripts {
     static final class Camera {
         final String name;
         final String fileTag;
+        /** Cameras that are the same device (Dhaksha day / night) share one saved IP under this key. */
+        final String ipKey;
         final String defaultIp;
-        /** RTSP address with %s for the IP; null when the operator types the whole address. */
+        /** RTSP address with %s for the IP. */
         final String rtspTemplate;
         /** Second (night / thermal) RTSP address sent at the same time as droneN-night; null for one stream. */
         final String nightTemplate;
 
-        Camera(String name, String fileTag, String defaultIp, String rtspTemplate) {
-            this(name, fileTag, defaultIp, rtspTemplate, null);
+        Camera(String name, String fileTag, String ipKey, String defaultIp, String rtspTemplate) {
+            this(name, fileTag, ipKey, defaultIp, rtspTemplate, null);
         }
 
-        Camera(String name, String fileTag, String defaultIp, String rtspTemplate, String nightTemplate) {
+        Camera(String name, String fileTag, String ipKey, String defaultIp, String rtspTemplate, String nightTemplate) {
             this.name = name;
             this.fileTag = fileTag;
+            this.ipKey = ipKey;
             this.defaultIp = defaultIp;
             this.rtspTemplate = rtspTemplate;
             this.nightTemplate = nightTemplate;
@@ -58,12 +63,8 @@ final class StreamScripts {
             return nightTemplate == null ? null : String.format(Locale.ROOT, nightTemplate, ip);
         }
 
-        boolean customAddress() {
-            return rtspTemplate == null;
-        }
-
         String rtsp(String ip) {
-            return rtspTemplate == null ? "" : String.format(Locale.ROOT, rtspTemplate, ip);
+            return String.format(Locale.ROOT, rtspTemplate, ip);
         }
 
         String scriptPath() {
@@ -72,15 +73,12 @@ final class StreamScripts {
     }
 
     static final Camera[] CAMERAS = {
-        // The Skydroid camera the fleet uses: day video on port 554, night (thermal) on port 555
-        new Camera("Skydroid day", "skydroid", "192.168.144.108", "rtsp://%s:554/stream=1"),
-        new Camera("Skydroid night (thermal)", "skydroid_night", "192.168.144.108", "rtsp://%s:555/stream=2"),
-        new Camera("Skydroid day + night (two streams)", "skydroid_both", "192.168.144.108",
+        // The Dhaksha (Skydroid C13) camera the fleet uses: day video on port 554, night (thermal) on port 555
+        new Camera("Dhaksha - Day", "skydroid", "skydroid", "192.168.144.108", "rtsp://%s:554/stream=1"),
+        new Camera("Dhaksha - Night", "skydroid_night", "skydroid", "192.168.144.108", "rtsp://%s:555/stream=2"),
+        new Camera("Dhaksha - Day + Night", "skydroid_both", "skydroid", "192.168.144.108",
                    "rtsp://%s:554/stream=1", "rtsp://%s:555/stream=2"),
-        new Camera("ZR10 (SIYI)", "zr10", "192.168.144.25", "rtsp://%s:8554/main.264"),
-        new Camera("SIYI A8 mini", "siyi_a8", "192.168.144.25", "rtsp://%s:8554/main.264"),
-        new Camera("ViewPro", "viewpro", "192.168.144.119", "rtsp://%s:554/stream0"),
-        new Camera("Other camera", "other", "192.168.144.10", null),
+        new Camera("Dhaksha - ZR10", "zr10", "zr10", "192.168.144.25", "rtsp://%s:8554/main.264"),
     };
 
     /** A video size: the HEIGHT, FPS, BITRATE and BUFSIZE of the script. */
@@ -104,16 +102,16 @@ final class StreamScripts {
     }
 
     static final Quality[] QUALITIES = {
-        new Quality("Low: 240p (very slow internet, 0.15 Mbit/s)", 240, 10, 100),
-        new Quality("Normal: 360p (recommended, 0.2 Mbit/s)", 360, 15, 150),
-        new Quality("Good: 480p (0.4 Mbit/s)", 480, 15, 300),
-        new Quality("High: 720p (fast internet, 1 Mbit/s)", 720, 20, 800),
+        new Quality("Normal - 240p", 240, 10, 100),
+        new Quality("Good - 360p", 360, 15, 150),
+        new Quality("Very Good - 480p", 480, 15, 300),
+        new Quality("Exceptional - 720p", 720, 20, 800),
     };
     static final int DEFAULT_QUALITY = 1;
 
     private StreamScripts() {}
 
-    /** Index of the camera with this file tag, or 0 (Skydroid day) when there is none. */
+    /** Index of the camera with this file tag, or 0 (Dhaksha - Day) when there is none. */
     static int cameraIndex(String fileTag) {
         for (int i = 0; i < CAMERAS.length; i++) {
             if (CAMERAS[i].fileTag.equals(fileTag)) {
@@ -269,6 +267,25 @@ final class StreamScripts {
                 + "  rm -f " + PID_FILE + " " + TELEMETRY_PID_FILE + "; exit 0\n"
                 + "}\n"
                 + "trap cleanup INT TERM\n"
+                + "# Tells DhakshaKey how the stream is doing (shown on its screen); nothing happens when it is closed\n"
+                + "report() { { echo \"$*\" > /dev/udp/127.0.0.1/" + STATUS_PORT + "; } 2>/dev/null; }\n"
+                + "# ffmpeg ended by itself: tell whether the camera, the server or neither can be reached\n"
+                + "# why_stopped CAMERA_ADDRESS (an rtsp:// address, or the test video file)\n"
+                + "why_stopped() {\n"
+                + "  local hp=${1#rtsp://} port=554\n"
+                + "  if [ \"$hp\" != \"$1\" ]; then\n"
+                + "    hp=${hp%%/*}; hp=${hp##*@}\n"
+                + "    case \"$hp\" in *:*) port=${hp##*:} ;; esac\n"
+                + "    if ! timeout 3 bash -c \"exec 3<>/dev/tcp/${hp%%:*}/$port\" 2>/dev/null; then\n"
+                + "      echo \"$(date '+%F %T') camera not reachable at ${hp%%:*}:$port\"; report \"CAMERA $DRONE\"; return\n"
+                + "    fi\n"
+                + "  fi\n"
+                + "  if ! timeout 3 bash -c \"exec 3<>/dev/tcp/$SERVER_IP/" + RTMP_PORT + "\" 2>/dev/null; then\n"
+                + "    echo \"$(date '+%F %T') server not reachable at $SERVER_IP:" + RTMP_PORT + " (internet or server IP)\"\n"
+                + "    report \"NET $DRONE\"; return\n"
+                + "  fi\n"
+                + "  report \"DROP $DRONE\"\n"
+                + "}\n"
                 + "\n"
                 + "# KB of video waiting in this phone's upload queue to the server; empty when it cannot be read\n"
                 + "queued_kb() {\n"
@@ -302,7 +319,7 @@ final class StreamScripts {
                 + "  # Watchdog: when the video stops moving or runs below 0.8x for STALL_SECONDS, or piles up\n"
                 + "  # waiting to upload for QUEUE_SECONDS, restart at once.\n"
                 + "  # The video waiting behind the stall is dropped, so viewers get live video back instead of a growing delay.\n"
-                + "  last=\"\"; stuck=0; slow=0; queued=0; starting=0\n"
+                + "  last=\"\"; stuck=0; slow=0; queued=0; starting=0; restarted=0\n"
                 + "  while kill -0 \"$FFMPEG_PID\" 2>/dev/null; do\n"
                 + "    sleep 2\n"
                 + "    if [ \"$LABEL\" != night ] && [ -n \"$TELEMETRY_PID\" ] && ! kill -0 \"$TELEMETRY_PID\" 2>/dev/null; then\n"
@@ -317,6 +334,7 @@ final class StreamScripts {
                 + "    *) stuck=0 ;;\n"
                 + "    esac\n"
                 + "    last=\"$now\"\n"
+                + "    case \"$now\" in ''|*N/A) ;; *) [ \"$stuck\" -eq 0 ] && report \"LIVE $DRONE\" ;; esac\n"
                 + "    case \"$speed\" in\n"
                 + "    ''|N/A|*[!0-9.]*) slow=0 ;;\n"
                 + "    *) if awk -v s=\"$speed\" 'BEGIN { exit !(s < 0.8) }'; then slow=$((slow + 2)); else slow=0; fi ;;\n"
@@ -327,16 +345,20 @@ final class StreamScripts {
                 + "        || [ \"$queued\" -ge \"$QUEUE_SECONDS\" ] || [ \"$starting\" -ge 20 ]; then\n"
                 + "      if [ -n \"$kb\" ] && [ \"$kb\" -ge \"$QUEUE_LIMIT_KB\" ]; then\n"
                 + "        echo \"$(date '+%F %T') internet stalled ($kb KB waiting to upload): restarting\"\n"
+                + "        report \"SLOW $DRONE $kb\"\n"
                 + "      else\n"
                 + "        echo \"$(date '+%F %T') " + (home ? "test video" : "camera / radio link")
                 + " stalled: restarting\"\n"
+                + "        report \"CAMERA $DRONE\"\n"
                 + "      fi\n"
+                + "      restarted=1\n"
                 + "      stop_ffmpeg\n"
                 + "      break\n"
                 + "    fi\n"
                 + "  done\n"
                 + "  wait \"$FFMPEG_PID\" 2>/dev/null\n"
                 + "  FFMPEG_PID=\"\"\n"
+                + "  [ \"$restarted\" = 1 ] || why_stopped \"$CAMERA\"\n"
                 + "  echo \"$(date '+%F %T') $DRONE stopped, retrying in 3 s\"\n"
                 + "  sleep 3\n"
                 + "done\n"
