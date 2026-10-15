@@ -17,6 +17,7 @@ INSTALL_DIR="/opt/dhaksha-live-web"
 SOURCE="https://raw.githubusercontent.com/mariappanchellam/qgroundcontrol-v4.2.3/$BRANCH/tools/dhaksha/live-windows/src"
 # The same hls.js version the desktop app is built with (tools/dhaksha/live-windows/package.json)
 HLS_JS="https://cdn.jsdelivr.net/npm/hls.js@1.5.20/dist/hls.min.js"
+HLS_NPM="https://registry.npmjs.org/hls.js/-/hls.js-1.5.20.tgz"
 
 die() { echo "ERROR: $*" >&2; exit 1; }
 
@@ -29,7 +30,12 @@ trap 'rm -rf "$NEW_DIR"' EXIT
 for f in index.html app.js style.css logo.svg; do
     curl -fsSL --retry 3 -o "$NEW_DIR/$f" "$SOURCE/$f" || die "could not download $f"
 done
-curl -fsSL --retry 3 -o "$NEW_DIR/hls.min.js" "$HLS_JS" || die "could not download hls.js"
+if ! curl -fsSL --retry 3 -o "$NEW_DIR/hls.min.js" "$HLS_JS"; then
+    # Same file from the npm package itself, when the CDN cannot be reached
+    curl -fsSL --retry 3 "$HLS_NPM" | tar -xzO package/dist/hls.min.js > "$NEW_DIR/hls.min.js" \
+        || die "could not download hls.js"
+fi
+[[ -s "$NEW_DIR/hls.min.js" ]] || die "hls.js download is empty"
 # The desktop app loads hls.js from its node_modules; the web page serves it next to app.js
 sed -i 's|\.\./node_modules/hls\.js/dist/hls\.min\.js|hls.min.js|' "$NEW_DIR/index.html"
 grep -q 'src="hls.min.js"' "$NEW_DIR/index.html" || die "index.html did not take the hls.js path"
