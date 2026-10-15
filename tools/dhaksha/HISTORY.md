@@ -216,6 +216,10 @@ so details can be lost. To keep the context:
 - Dhaksha Live note: every box has its own player, so the same drone in N boxes costs N times the download.
 - DhakshaKey 3.0 (3dbc529): "Skydroid day + night (two streams)": day -> droneN, thermal -> droneN-night on the same
   MediaMTX (no server change), two send loops with their own watchdogs, one position reader, thermal fitted + padded.
+- 15 Oct 2026: the field scripts given to the operator are now in `tools/dhaksha/termux` (credentials replaced by
+  placeholders): Skydroid day / night / day + night, ViewPro, Home, the check tools and the probes.
+  WebRTC blocking explained: the server must advertise its public IP (`webrtcAdditionalHosts`) and Lightsail must
+  allow UDP 8189 (TCP 8189 as fallback for networks that block UDP) next to TCP 8889.
 
 ## Open items
 - Find what blocks WebRTC (Lightsail UDP 8189 rule, TCP fallback, office/laptop network).
@@ -239,6 +243,13 @@ real values, because this repository is public. Put the real values in your copy
 | `stream_aws_position.sh` + `dhaksha_telemetry.py` | Like `stream_aws.sh`, with `DRONE1  Lat .. Lon .. Alt .. m  time` written on the video | DhakshaGroundControl: MAVLink forwarding on (localhost:14445); Termux: `pkg install python` |
 | `boot_stream_aws.sh` | Termux:Boot: waits for camera and server, then runs `stream_aws.sh` (the boot script in use) | set `SERVER_IP` inside; copy to `~/.termux/boot/` |
 | `boot_autostart_aws.sh` | Termux:Boot for the own server: waits for camera and server, then runs `stream_aws_internetspeed.sh` | set `SERVER_IP` (and `DRONE`) inside; copy to `~/.termux/boot/` |
+| `stream_aws_skydroid.sh` / `_night.sh` | Skydroid C13 day (554/stream=1) or thermal (555/stream=2) with position, as DhakshaKey writes them | set `SERVER_IP` and `PASSWORD` inside |
+| `stream_aws_skydroid_both.sh` | Skydroid day -> `droneN` and thermal -> `droneN-night` at the same time | same |
+| `stream_aws_viewpro.sh` | ViewPro camera (192.168.144.119) with position | same |
+| `stream_aws_home.sh` | Home test: loops `test.mp4` with a made-up position (`dhaksha_telemetry.py --fake`) | same |
+| `position_check.sh` | Checks forwarding -> UDP 14445 -> `dhaksha_telemetry.py` -> drawtext | `bash ~/position_check.sh` |
+| `skydroid_check.sh` / `camera_check.sh` | Checks the Skydroid / ViewPro camera's network, RTSP and control port | `bash ~/skydroid_check.sh` |
+| `gimbal_test.py` / `skydroid_probe.py` | Sends Skydroid gimbal / zoom / laser commands and prints the replies | `python ~/gimbal_test.py` |
 | `stream_aws_internetspeed.sh` | Own server: `bash ~/stream_aws_internetspeed.sh <SERVER_IP> [auto\|720\|480\|360\|240\|copy] [drone]` | auto (default) adapts to the internet speed |
 
 Test drones on the server (second SSH session on the AWS server):
