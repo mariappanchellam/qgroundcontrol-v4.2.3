@@ -238,6 +238,12 @@ so details can be lost. To keep the context:
   plus the video through /hls/ (MediaMTX 8888) and /webrtc/ (WHEP on 8889). Opened on port 80, the page plays
   its own server's streams through those paths. Tested locally with nginx: page, playlists, segments and
   WHEP all through port 80, drone1 and drone2 playing as HLS and WebRTC. Nothing changes on the MK15.
+- DhakshaGroundControl (6cebb93 + c0ba6c1, Android run 38721450006, armeabi-v7a artifact 11966376673): HUD at the
+  top edge without the pitch ladder numbers; right camera buttons just under the HUD; record / photo above the
+  joystick; Log and laser buttons removed. New Gimbal Command choice "ZR10 (MAVLink through the flight
+  controller)": gimbal rates / angles (DO_GIMBAL_MANAGER_PITCHYAW), continuous zoom (SET_CAMERA_ZOOM), photo
+  (IMAGE_START_CAPTURE, DO_DIGICAM_CONTROL fallback), recording (VIDEO_START/STOP_CAPTURE) to the active vehicle;
+  needs ArduPilot MNT1_TYPE 8, CAM1_TYPE 4. Skydroid unchanged. Not yet tried with a real ZR10.
 
 ## Open items
 - Find what blocks WebRTC (Lightsail UDP 8189 rule, TCP fallback, office/laptop network).
