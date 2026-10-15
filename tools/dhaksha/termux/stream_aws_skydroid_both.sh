@@ -1,7 +1,7 @@
 #!/data/data/com.termux/files/usr/bin/bash
-# Made by DhakshaKey: Skydroid day + night (two streams) camera -> Dhaksha video server, 360p, about 150 kbit/s, low delay.
-# Watch: http://<SERVER_IP>:8888/live/drone1
-# Night: http://<SERVER_IP>:8888/live/drone1-night
+# Made by DhakshaKey: Dhaksha - Day + Night camera -> Dhaksha video server, 360p, about 150 kbit/s, low delay.
+# Watch: http://YOUR_SERVER_IP:8888/live/drone1
+# Night: http://YOUR_SERVER_IP:8888/live/drone1-night
 # Stop with Ctrl+C, or the Stop button in DhakshaKey.
 
 SERVER_IP='YOUR_SERVER_IP'      # DhakshaKey fills in the real values
@@ -84,6 +84,25 @@ cleanup() {
   rm -f $HOME/.dhakshakey.pid $HOME/.dhaksha_telemetry.pid; exit 0
 }
 trap cleanup INT TERM
+# Tells DhakshaKey how the stream is doing (shown on its screen); nothing happens when it is closed
+report() { { echo "$*" > /dev/udp/127.0.0.1/14446; } 2>/dev/null; }
+# ffmpeg ended by itself: tell whether the camera, the server or neither can be reached
+# why_stopped CAMERA_ADDRESS (an rtsp:// address, or the test video file)
+why_stopped() {
+  local hp=${1#rtsp://} port=554
+  if [ "$hp" != "$1" ]; then
+    hp=${hp%%/*}; hp=${hp##*@}
+    case "$hp" in *:*) port=${hp##*:} ;; esac
+    if ! timeout 3 bash -c "exec 3<>/dev/tcp/${hp%%:*}/$port" 2>/dev/null; then
+      echo "$(date '+%F %T') camera not reachable at ${hp%%:*}:$port"; report "CAMERA $DRONE"; return
+    fi
+  fi
+  if ! timeout 3 bash -c "exec 3<>/dev/tcp/$SERVER_IP/1935" 2>/dev/null; then
+    echo "$(date '+%F %T') server not reachable at $SERVER_IP:1935 (internet or server IP)"
+    report "NET $DRONE"; return
+  fi
+  report "DROP $DRONE"
+}
 
 # KB of video waiting in this phone's upload queue to the server; empty when it cannot be read
 queued_kb() {
@@ -113,7 +132,7 @@ while true; do
   # Watchdog: when the video stops moving or runs below 0.8x for STALL_SECONDS, or piles up
   # waiting to upload for QUEUE_SECONDS, restart at once.
   # The video waiting behind the stall is dropped, so viewers get live video back instead of a growing delay.
-  last=""; stuck=0; slow=0; queued=0; starting=0
+  last=""; stuck=0; slow=0; queued=0; starting=0; restarted=0
   while kill -0 "$FFMPEG_PID" 2>/dev/null; do
     sleep 2
     if [ "$LABEL" != night ] && [ -n "$TELEMETRY_PID" ] && ! kill -0 "$TELEMETRY_PID" 2>/dev/null; then
@@ -128,6 +147,7 @@ while true; do
     *) stuck=0 ;;
     esac
     last="$now"
+    case "$now" in ''|*N/A) ;; *) [ "$stuck" -eq 0 ] && report "LIVE $DRONE" ;; esac
     case "$speed" in
     ''|N/A|*[!0-9.]*) slow=0 ;;
     *) if awk -v s="$speed" 'BEGIN { exit !(s < 0.8) }'; then slow=$((slow + 2)); else slow=0; fi ;;
@@ -138,15 +158,19 @@ while true; do
         || [ "$queued" -ge "$QUEUE_SECONDS" ] || [ "$starting" -ge 20 ]; then
       if [ -n "$kb" ] && [ "$kb" -ge "$QUEUE_LIMIT_KB" ]; then
         echo "$(date '+%F %T') internet stalled ($kb KB waiting to upload): restarting"
+        report "SLOW $DRONE $kb"
       else
         echo "$(date '+%F %T') camera / radio link stalled: restarting"
+        report "CAMERA $DRONE"
       fi
+      restarted=1
       stop_ffmpeg
       break
     fi
   done
   wait "$FFMPEG_PID" 2>/dev/null
   FFMPEG_PID=""
+  [ "$restarted" = 1 ] || why_stopped "$CAMERA"
   echo "$(date '+%F %T') $DRONE stopped, retrying in 3 s"
   sleep 3
 done

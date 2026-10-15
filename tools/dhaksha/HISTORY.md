@@ -220,6 +220,14 @@ so details can be lost. To keep the context:
   placeholders): Skydroid day / night / day + night, ViewPro, Home, the check tools and the probes.
   WebRTC blocking explained: the server must advertise its public IP (`webrtcAdditionalHosts`) and Lightsail must
   allow UDP 8189 (TCP 8189 as fallback for networks that block UDP) next to TCP 8889.
+- DhakshaKey 4.0 (a21fd4d): one screen from the operator's sketch: message bar; camera (Dhaksha - Day, Night,
+  Day + Night, ZR10) and quality (Normal 240p, Good 360p, Very Good 480p, Exceptional 720p) side by side; Camera IP
+  and Server IP editable with Save buttons active only after an edit; Start / Stop side by side; password, home
+  test and setup under "Setup and more". The script reports LIVE / SLOW / CAMERA / NET / DROP to UDP
+  127.0.0.1:14446 and the bar shows "Data rate too low to stream video. Reduce resolution and try again." etc.
+  Tested locally: camera off, server port closed and a 40 kbit/s upload each gave the right message, then Live.
+  Added the INTERNET permission (the camera check could not connect without it). Termux scripts regenerated.
+- Field test runbook written as a Claude doc (private, has the real password).
 
 ## Open items
 - Find what blocks WebRTC (Lightsail UDP 8189 rule, TCP fallback, office/laptop network).
@@ -245,6 +253,7 @@ real values, because this repository is public. Put the real values in your copy
 | `boot_autostart_aws.sh` | Termux:Boot for the own server: waits for camera and server, then runs `stream_aws_internetspeed.sh` | set `SERVER_IP` (and `DRONE`) inside; copy to `~/.termux/boot/` |
 | `stream_aws_skydroid.sh` / `_night.sh` | Skydroid C13 day (554/stream=1) or thermal (555/stream=2) with position, as DhakshaKey writes them | set `SERVER_IP` and `PASSWORD` inside |
 | `stream_aws_skydroid_both.sh` | Skydroid day -> `droneN` and thermal -> `droneN-night` at the same time | same |
+| `stream_aws_zr10.sh` | Dhaksha ZR10 with position | same |
 | `stream_aws_viewpro.sh` | ViewPro camera (192.168.144.119) with position | same |
 | `stream_aws_home.sh` | Home test: loops `test.mp4` with a made-up position (`dhaksha_telemetry.py --fake`) | same |
 | `position_check.sh` | Checks forwarding -> UDP 14445 -> `dhaksha_telemetry.py` -> drawtext | `bash ~/position_check.sh` |

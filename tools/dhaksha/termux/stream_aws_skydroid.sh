@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
-# Made by DhakshaKey: Skydroid day camera -> Dhaksha video server, 360p, about 150 kbit/s, low delay.
-# Watch: http://<SERVER_IP>:8888/live/drone1
+# Made by DhakshaKey: Dhaksha - Day camera -> Dhaksha video server, 360p, about 150 kbit/s, low delay.
+# Watch: http://YOUR_SERVER_IP:8888/live/drone1
 # Stop with Ctrl+C, or the Stop button in DhakshaKey.
 
 SERVER_IP='YOUR_SERVER_IP'      # DhakshaKey fills in the real values
@@ -60,12 +60,12 @@ else
   fi
 fi
 
-PROGRESS="$HOME/.dhakshakey_progress"
 STALL_SECONDS=8
 # More than 2 s of video waiting to upload, for QUEUE_SECONDS, means the internet is not keeping up
 QUEUE_LIMIT_KB=$(( ${BITRATE%k} / 4 ))
 QUEUE_SECONDS=4
 FFMPEG_PID=""
+LOOP_PIDS=""
 # ffmpeg stuck writing to a dead connection may ignore a polite stop, so it is forced after 3 s
 stop_ffmpeg() {
   [ -n "$FFMPEG_PID" ] || return
@@ -73,8 +73,32 @@ stop_ffmpeg() {
   for i in 1 2 3 4 5 6; do kill -0 "$FFMPEG_PID" 2>/dev/null || return; sleep 0.5; done
   kill -9 "$FFMPEG_PID" 2>/dev/null
 }
-cleanup() { stop_ffmpeg; kill $TELEMETRY_PID 2>/dev/null; rm -f $HOME/.dhakshakey.pid $HOME/.dhaksha_telemetry.pid; exit 0; }
+cleanup() {
+  stop_ffmpeg
+  [ -n "$LOOP_PIDS" ] && kill $LOOP_PIDS 2>/dev/null && wait $LOOP_PIDS 2>/dev/null
+  kill $TELEMETRY_PID $(cat $HOME/.dhaksha_telemetry.pid 2>/dev/null) 2>/dev/null
+  rm -f $HOME/.dhakshakey.pid $HOME/.dhaksha_telemetry.pid; exit 0
+}
 trap cleanup INT TERM
+# Tells DhakshaKey how the stream is doing (shown on its screen); nothing happens when it is closed
+report() { { echo "$*" > /dev/udp/127.0.0.1/14446; } 2>/dev/null; }
+# ffmpeg ended by itself: tell whether the camera, the server or neither can be reached
+# why_stopped CAMERA_ADDRESS (an rtsp:// address, or the test video file)
+why_stopped() {
+  local hp=${1#rtsp://} port=554
+  if [ "$hp" != "$1" ]; then
+    hp=${hp%%/*}; hp=${hp##*@}
+    case "$hp" in *:*) port=${hp##*:} ;; esac
+    if ! timeout 3 bash -c "exec 3<>/dev/tcp/${hp%%:*}/$port" 2>/dev/null; then
+      echo "$(date '+%F %T') camera not reachable at ${hp%%:*}:$port"; report "CAMERA $DRONE"; return
+    fi
+  fi
+  if ! timeout 3 bash -c "exec 3<>/dev/tcp/$SERVER_IP/1935" 2>/dev/null; then
+    echo "$(date '+%F %T') server not reachable at $SERVER_IP:1935 (internet or server IP)"
+    report "NET $DRONE"; return
+  fi
+  report "DROP $DRONE"
+}
 
 # KB of video waiting in this phone's upload queue to the server; empty when it cannot be read
 queued_kb() {
@@ -83,6 +107,12 @@ queued_kb() {
   [ -n "$hex" ] && echo $(( 16#$hex / 1024 ))
 }
 
+# One camera to one stream name, restarted by its own watchdog:
+# stream_loop CAMERA NAME PROGRESS_FILE FILTER LABEL   (LABEL empty for the only stream)
+stream_loop() {
+local CAMERA="$1" DRONE="$2" PROGRESS="$3" FILTER="$4" LABEL="$5"
+# Run in the background next to another stream: stop its own ffmpeg when stopped
+[ -n "$LABEL" ] && trap 'stop_ffmpeg; exit 0' INT TERM
 while true; do
   echo "$(date '+%F %T') sending to $SERVER_IP ($DRONE)"
   : > "$PROGRESS"
@@ -98,10 +128,10 @@ while true; do
   # Watchdog: when the video stops moving or runs below 0.8x for STALL_SECONDS, or piles up
   # waiting to upload for QUEUE_SECONDS, restart at once.
   # The video waiting behind the stall is dropped, so viewers get live video back instead of a growing delay.
-  last=""; stuck=0; slow=0; queued=0; starting=0
+  last=""; stuck=0; slow=0; queued=0; starting=0; restarted=0
   while kill -0 "$FFMPEG_PID" 2>/dev/null; do
     sleep 2
-    if [ -n "$TELEMETRY_PID" ] && ! kill -0 "$TELEMETRY_PID" 2>/dev/null; then
+    if [ "$LABEL" != night ] && [ -n "$TELEMETRY_PID" ] && ! kill -0 "$TELEMETRY_PID" 2>/dev/null; then
       echo "$(date '+%F %T') position reader stopped: starting it again"
       start_reader
     fi
@@ -113,6 +143,7 @@ while true; do
     *) stuck=0 ;;
     esac
     last="$now"
+    case "$now" in ''|*N/A) ;; *) [ "$stuck" -eq 0 ] && report "LIVE $DRONE" ;; esac
     case "$speed" in
     ''|N/A|*[!0-9.]*) slow=0 ;;
     *) if awk -v s="$speed" 'BEGIN { exit !(s < 0.8) }'; then slow=$((slow + 2)); else slow=0; fi ;;
@@ -123,15 +154,22 @@ while true; do
         || [ "$queued" -ge "$QUEUE_SECONDS" ] || [ "$starting" -ge 20 ]; then
       if [ -n "$kb" ] && [ "$kb" -ge "$QUEUE_LIMIT_KB" ]; then
         echo "$(date '+%F %T') internet stalled ($kb KB waiting to upload): restarting"
+        report "SLOW $DRONE $kb"
       else
         echo "$(date '+%F %T') camera / radio link stalled: restarting"
+        report "CAMERA $DRONE"
       fi
+      restarted=1
       stop_ffmpeg
       break
     fi
   done
   wait "$FFMPEG_PID" 2>/dev/null
   FFMPEG_PID=""
-  echo "$(date '+%F %T') stream stopped, retrying in 3 s"
+  [ "$restarted" = 1 ] || why_stopped "$CAMERA"
+  echo "$(date '+%F %T') $DRONE stopped, retrying in 3 s"
   sleep 3
 done
+}
+
+stream_loop "$CAMERA" "$DRONE" "$HOME/.dhakshakey_progress" "$FILTER" ""
