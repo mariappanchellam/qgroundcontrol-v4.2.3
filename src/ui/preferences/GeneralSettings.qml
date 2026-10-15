@@ -398,16 +398,32 @@ Rectangle {
                                 onEditingFinished:      DhakshaCameraManager.rtspUrl = text
                             }
 
+                            // Skydroid's two command styles, or the ZR10 through the flight controller (vendor 4)
                             QGCLabel {
                                 text:       qsTr("Gimbal Command")
-                                visible:    DhakshaCameraManager.vendor === 1
+                                visible:    DhakshaCameraManager.vendor === 1 || DhakshaCameraManager.vendor === 4
                             }
                             QGCComboBox {
-                                Layout.preferredWidth:  _comboFieldWidth
-                                visible:                DhakshaCameraManager.vendor === 1
-                                model:                  [ qsTr("YPR (other Topotek cameras)"), qsTr("GSY / GSP (Skydroid C10 / C13)") ]
-                                currentIndex:           DhakshaCameraManager.skydroidGimbalStyle
-                                onActivated:            DhakshaCameraManager.skydroidGimbalStyle = index
+                                Layout.preferredWidth:  _comboFieldWidth * 1.6
+                                visible:                DhakshaCameraManager.vendor === 1 || DhakshaCameraManager.vendor === 4
+                                model:                  [ qsTr("YPR (other Topotek cameras)"), qsTr("GSY / GSP (Skydroid C10 / C13)"), qsTr("ZR10 (MAVLink through the flight controller)") ]
+                                currentIndex:           DhakshaCameraManager.vendor === 4 ? 2 : DhakshaCameraManager.skydroidGimbalStyle
+                                onActivated: {
+                                    if (index === 2) {
+                                        DhakshaCameraManager.vendor = 4
+                                    } else {
+                                        DhakshaCameraManager.vendor = 1
+                                        DhakshaCameraManager.skydroidGimbalStyle = index
+                                    }
+                                }
+                            }
+                            QGCLabel {
+                                Layout.columnSpan:      2
+                                Layout.maximumWidth:    _comboFieldWidth * 2.6
+                                visible:                DhakshaCameraManager.vendor === 4
+                                wrapMode:               Text.WordWrap
+                                font.pointSize:         ScreenTools.smallFontPointSize
+                                text:                   qsTr("ZR10 wired to the flight controller (ArduPilot: MNT1_TYPE = 8 SIYI, CAM1_TYPE = 4 Mount). Press Apply and Start Video.")
                             }
 
                             QGCLabel { text: qsTr("Night RTSP URL") }

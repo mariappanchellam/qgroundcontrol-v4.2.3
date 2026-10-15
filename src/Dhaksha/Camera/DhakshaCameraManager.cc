@@ -8,6 +8,7 @@
 #include "SkydroidGimbalCamera.h"
 
 #ifndef DHAKSHA_CAMERA_NO_QGC
+#include "Zr10MavlinkGimbalCamera.h"
 #include "QGCApplication.h"
 #include "QGCToolbox.h"
 #include "SettingsManager.h"
@@ -71,14 +72,15 @@ DhakshaCameraManager::DhakshaCameraManager(QObject* parent)
 
 QStringList DhakshaCameraManager::vendorNames() const
 {
-    return { tr("None"), QStringLiteral("Skydroid"), QStringLiteral("SIYI"), QStringLiteral("ViewPro") };
+    return { tr("None"), QStringLiteral("Skydroid"), QStringLiteral("SIYI"), QStringLiteral("ViewPro"), tr("ZR10 (MAVLink)") };
 }
 
 QString DhakshaCameraManager::defaultCameraIp(int vendor)
 {
     switch (vendor) {
     case VendorSkydroid:    return QStringLiteral("192.168.144.108");
-    case VendorSiyi:        return QStringLiteral("192.168.144.25");
+    case VendorSiyi:
+    case VendorZr10Mavlink: return QStringLiteral("192.168.144.25");
     default:                return QString();
     }
 }
@@ -87,7 +89,8 @@ QString DhakshaCameraManager::defaultRtspUrl(int vendor)
 {
     switch (vendor) {
     case VendorSkydroid:    return QStringLiteral("rtsp://192.168.144.108:554/stream=1");
-    case VendorSiyi:        return QStringLiteral("rtsp://192.168.144.25:8554/main.264");
+    case VendorSiyi:
+    case VendorZr10Mavlink: return QStringLiteral("rtsp://192.168.144.25:8554/main.264");
     default:                return QString();
     }
 }
@@ -241,6 +244,13 @@ void DhakshaCameraManager::_createCamera()
         break;
     case VendorViewPro:
         _camera = new DhakshaGimbalCamera(QStringLiteral("ViewPro"), _rtspUrl, this);      // video stream only for now
+        break;
+    case VendorZr10Mavlink:
+#ifndef DHAKSHA_CAMERA_NO_QGC
+        _camera = new Zr10MavlinkGimbalCamera(_rtspUrl, this);
+#else
+        _camera = new DhakshaGimbalCamera(QStringLiteral("ZR10"), _rtspUrl, this);
+#endif
         break;
     default:
         break;

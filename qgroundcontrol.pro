@@ -585,6 +585,7 @@ HEADERS += \
     src/Dhaksha/Camera/DhakshaCameraManager.h \
     src/Dhaksha/Camera/DhakshaGimbalCamera.h \
     src/Dhaksha/Camera/SkydroidGimbalCamera.h \
+    src/Dhaksha/Camera/Zr10MavlinkGimbalCamera.h \
     src/CmdLineOptParser.h \
     src/Compression/QGCLZMA.h \
     src/Compression/QGCZlib.h \
@@ -843,6 +844,7 @@ SOURCES += \
     src/Dhaksha/Camera/DhakshaCameraManager.cc \
     src/Dhaksha/Camera/DhakshaGimbalCamera.cc \
     src/Dhaksha/Camera/SkydroidGimbalCamera.cc \
+    src/Dhaksha/Camera/Zr10MavlinkGimbalCamera.cc \
     src/CmdLineOptParser.cc \
     src/Compression/QGCLZMA.cc \
     src/Compression/QGCZlib.cc \

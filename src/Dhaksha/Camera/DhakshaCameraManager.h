@@ -2,7 +2,7 @@
  *
  * DhakshaGroundControl: owns the single active gimbal camera.
  *
- * The operator picks the vendor (SIYI, ViewPro, Skydroid) plus its IP and
+ * The operator picks the vendor (Skydroid, SIYI, ViewPro, ZR10) plus its IP and
  * RTSP URL once; the choice is stored when applied and, on every start-up,
  * the manager creates the matching DhakshaGimbalCamera and points QGC's video
  * stream at the camera's RTSP URL so video starts automatically. Until a
@@ -32,6 +32,7 @@ public:
         VendorSkydroid,
         VendorSiyi,
         VendorViewPro,
+        VendorZr10Mavlink,      ///< SIYI ZR10 on the flight controller, controlled with MAVLink commands
         VendorCount
     };
     Q_ENUM(Vendor)
