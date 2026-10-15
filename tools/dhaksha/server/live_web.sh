@@ -1,19 +1,23 @@
 #!/usr/bin/env bash
 # Dhaksha Live in the browser: serves the Dhaksha Live grid from the video server, so any browser
-# (JioPC, a laptop, a phone, a TV) can watch the drones at http://<SERVER_IP>:8080 with nothing to install.
+# (JioPC, a laptop, a phone, a TV) can watch the drones with nothing to install:
+#   http://<SERVER_IP>        page and video through the normal web port 80; works on networks that
+#                             block other ports (JioPC, many offices)
+#   http://<SERVER_IP>:8080   same page, video straight from MediaMTX on 8888 / 8889
 #
 # Run on the video server (the one running MediaMTX), as root. Run it again to update to the latest version.
 #   curl -fsSL -o live_web.sh https://raw.githubusercontent.com/mariappanchellam/qgroundcontrol-v4.2.3/build/dhaksha-live-grid/tools/dhaksha/server/live_web.sh
 #   sudo bash live_web.sh
 #
-# Open TCP 8080 in the cloud firewall (Lightsail: Networking > IPv4 Firewall). The page plays the streams
-# from MediaMTX on the same server (HLS 8888, WebRTC 8889), exactly like the desktop app.
+# Open TCP 80 (and 8080 if wanted) in the cloud firewall (Lightsail: Networking > IPv4 Firewall).
+# The drones keep sending to MediaMTX on 1935 as before; nothing changes on the MK15.
 
 set -euo pipefail
 
-PORT="${PORT:-8080}"
 BRANCH="${BRANCH:-build/dhaksha-live-grid}"
 INSTALL_DIR="/opt/dhaksha-live-web"
+SITE="/etc/nginx/sites-available/dhaksha-live"
+OLD_SERVICE="/etc/systemd/system/dhaksha-live-web.service"
 SOURCE="https://raw.githubusercontent.com/mariappanchellam/qgroundcontrol-v4.2.3/$BRANCH/tools/dhaksha/live-windows/src"
 # The same hls.js version the desktop app is built with (tools/dhaksha/live-windows/package.json)
 HLS_JS="https://cdn.jsdelivr.net/npm/hls.js@1.5.20/dist/hls.min.js"
@@ -22,7 +26,11 @@ HLS_NPM="https://registry.npmjs.org/hls.js/-/hls.js-1.5.20.tgz"
 die() { echo "ERROR: $*" >&2; exit 1; }
 
 [[ $EUID -eq 0 ]] || die "run with sudo"
-command -v python3 >/dev/null || die "python3 is needed: apt install -y python3"
+
+# Port 80 must be free, or already ours (nginx)
+if ss -ltnpH 'sport = :80' 2>/dev/null | grep -v nginx | grep -q .; then
+    die "port 80 is used by another program: $(ss -ltnpH 'sport = :80' | head -n 1)"
+fi
 
 # Download into a new folder first, so a failed download never leaves a half-updated page
 NEW_DIR="$(mktemp -d)"
@@ -45,33 +53,60 @@ cp "$NEW_DIR"/* "$INSTALL_DIR"/
 chmod 755 "$INSTALL_DIR"
 chmod 644 "$INSTALL_DIR"/*
 
-cat > /etc/systemd/system/dhaksha-live-web.service <<EOF
-[Unit]
-Description=Dhaksha Live in the browser (port $PORT)
-After=network-online.target
-Wants=network-online.target
+# The first version served the page with Python on 8080; nginx serves both ports now
+if [[ -f "$OLD_SERVICE" ]]; then
+    systemctl disable --now dhaksha-live-web.service 2>/dev/null || true
+    rm -f "$OLD_SERVICE"
+    systemctl daemon-reload
+fi
 
-[Service]
-ExecStart=/usr/bin/python3 -m http.server $PORT --bind 0.0.0.0 --directory $INSTALL_DIR
-Restart=always
-RestartSec=3
-DynamicUser=yes
+command -v nginx >/dev/null || { apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nginx; }
 
-[Install]
-WantedBy=multi-user.target
+cat > "$SITE" <<EOF
+# Dhaksha Live in the browser (written by live_web.sh)
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    listen 8080;
+    root $INSTALL_DIR;
+    index index.html;
+
+    location / {
+        # Always the newest page after an update
+        add_header Cache-Control "no-cache";
+    }
+
+    # Video through the same address: /hls/live/drone1/index.m3u8 -> MediaMTX HLS on 8888
+    location /hls/ {
+        proxy_pass http://127.0.0.1:8888/;
+        proxy_http_version 1.1;
+        proxy_buffering off;
+        proxy_read_timeout 60s;
+    }
+
+    # WebRTC set-up (WHEP) through the same address; the video itself still uses UDP / TCP 8189
+    location /webrtc/ {
+        proxy_pass http://127.0.0.1:8889/;
+        proxy_http_version 1.1;
+        proxy_redirect / /webrtc/;
+    }
+}
 EOF
-systemctl daemon-reload
-systemctl enable --now dhaksha-live-web.service
-systemctl restart dhaksha-live-web.service
+ln -sf "$SITE" /etc/nginx/sites-enabled/dhaksha-live
+rm -f /etc/nginx/sites-enabled/default
+nginx -t -q || die "nginx did not accept the settings"
+systemctl enable nginx >/dev/null 2>&1
+systemctl restart nginx
 
 if command -v ufw >/dev/null && ufw status | grep -q "Status: active"; then
-    ufw allow "$PORT"/tcp
+    ufw allow 80/tcp
+    ufw allow 8080/tcp
 fi
 
 PUBLIC_IP="$(curl -fsS --max-time 5 https://api.ipify.org || echo '<SERVER_IP>')"
 cat <<EOF
 
-Dhaksha Live is served at  http://$PUBLIC_IP:$PORT   (service: dhaksha-live-web, starts on boot)
-Open TCP $PORT in the cloud firewall if the page does not load from outside.
+Dhaksha Live is served at  http://$PUBLIC_IP   (and http://$PUBLIC_IP:8080; nginx, starts on boot)
+Open TCP 80 in the cloud firewall if the page does not load from outside.
 To update later, run this script again.
 EOF

@@ -233,6 +233,11 @@ so details can be lost. To keep the context:
   that cannot install apps: open `http://<SERVER_IP>:8080`. Opened from a server, the page takes that server as
   the default and the first visit fills drone1-drone25 and ticks drone1. Tested locally: drone1 and drone2 play
   as HLS and WebRTC.
+- Dhaksha Live in the browser on port 80: JioPC's browser gateway answered 504 for :8080 (it allows only web
+  ports), while a phone on mobile data opened :8080. live_web.sh now installs nginx on 80 (and 8080): the page
+  plus the video through /hls/ (MediaMTX 8888) and /webrtc/ (WHEP on 8889). Opened on port 80, the page plays
+  its own server's streams through those paths. Tested locally with nginx: page, playlists, segments and
+  WHEP all through port 80, drone1 and drone2 playing as HLS and WebRTC. Nothing changes on the MK15.
 
 ## Open items
 - Find what blocks WebRTC (Lightsail UDP 8189 rule, TCP fallback, office/laptop network).

@@ -15,6 +15,10 @@ const WEBRTC_PORT = '8889';
 const RETRY_MS = 3000;
 const MAX_DELAY_S = 3;      // seconds behind the newest video before a box jumps back to live
 const CONNECT_TIMEOUT_MS = 10000;
+// The web version: the page's own server, and whether it was opened on the plain web port (80), where the
+// server also passes the video through /hls/ and /webrtc/ so networks that allow only web ports still play it
+const PAGE_HOST = /^https?:$/.test(location.protocol) ? location.hostname : '';
+const VIDEO_THROUGH_PAGE = PAGE_HOST !== '' && (location.port === '' || location.port === '80');
 
 /**
  * Reads a box's address. Returns null for an empty box, { error } when it cannot be played, or one of:
@@ -81,6 +85,11 @@ function parseAddress(input) {
 function resolve(source, mode) {
   if (!source || source.kind !== 'server') {
     return source;
+  }
+  if (VIDEO_THROUGH_PAGE && source.host === PAGE_HOST) {
+    return mode === 'webrtc'
+      ? { kind: 'webrtc', url: location.origin + '/webrtc' + source.path + '/whep' }
+      : { kind: 'hls', url: location.origin + '/hls' + source.path + '/index.m3u8' };
   }
   const origin = (source.secure ? 'https://' : 'http://') + source.host;
   return mode === 'webrtc'
@@ -596,9 +605,8 @@ for (let i = 0; i < STREAMS; i++) {
 }
 // Opened from the video server in a browser (the web version): that server is the default, and the first
 // visit fills the boxes with drone1-drone25 and ticks drone1, so OK is the only step
-const servedFrom = /^https?:$/.test(location.protocol) ? location.hostname : '';
-serverField.value = load(SERVER_KEY, servedFrom);
-if (servedFrom && !saved.some((url) => url)) {
+serverField.value = load(SERVER_KEY, PAGE_HOST);
+if (PAGE_HOST && !saved.some((url) => url)) {
   fillFromServer();
   checks[0].checked = true;
   updateShownCount();
