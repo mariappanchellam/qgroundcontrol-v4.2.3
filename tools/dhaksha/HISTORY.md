@@ -244,6 +244,13 @@ so details can be lost. To keep the context:
   controller)": gimbal rates / angles (DO_GIMBAL_MANAGER_PITCHYAW), continuous zoom (SET_CAMERA_ZOOM), photo
   (IMAGE_START_CAPTURE, DO_DIGICAM_CONTROL fallback), recording (VIDEO_START/STOP_CAPTURE) to the active vehicle;
   needs ArduPilot MNT1_TYPE 8, CAM1_TYPE 4. Skydroid unchanged. Not yet tried with a real ZR10.
+- Field: the ZR10 is on the RC's Ethernet (works in the SIYI FPV app); MAVLink control not wanted.
+- DhakshaGroundControl (3d2106d + d46344c, Android run 38860250852, armeabi-v7a artifact 12028959047): ZR10 controlled
+  directly with SIYI's protocol over UDP 192.168.144.25:37260 (rotate 0x07, centre 0x08, angles 0x0E, zoom 0x05,
+  photo / record 0x0C, feedback 0x0B, config poll 0x0A); checked against SIYI's example frames and a simulated
+  ZR10. Camera choice only Skydroid / ZR10. Layout from the operator's sketch: record / photo at the left,
+  joystick right of them, settings button under the HUD with a gimbal speed panel (10-60 deg/s, Confirm saves).
+  Skydroid code unchanged.
 
 ## Open items
 - Find what blocks WebRTC (Lightsail UDP 8189 rule, TCP fallback, office/laptop network).
