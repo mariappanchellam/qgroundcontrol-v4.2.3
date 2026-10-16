@@ -251,6 +251,11 @@ so details can be lost. To keep the context:
   ZR10. Camera choice only Skydroid / ZR10. Layout from the operator's sketch: record / photo at the left,
   joystick right of them, settings button under the HUD with a gimbal speed panel (10-60 deg/s, Confirm saves).
   Skydroid code unchanged.
+- Field: ZR10 controls work. ZR10 video (720p H.264) froze now and then while the SIYI app played it smoothly; Low
+  Latency Mode helped. Cause: QGC's 17 ms RTSP jitter buffer drops late radio packets.
+- DhakshaGroundControl (203b870, Android run 38867492181, armeabi-v7a artifact 12031814845): Settings > Gimbal Camera >
+  Video per camera: Low delay (UDP 17 ms, Skydroid default), Smooth (UDP 150 ms, drop-on-latency, ZR10 default),
+  Reliable (TCP 100 ms). All three checked receiving a 30 fps RTSP stream.
 
 ## Open items
 - Find what blocks WebRTC (Lightsail UDP 8189 rule, TCP fallback, office/laptop network).
