@@ -377,9 +377,10 @@ Rectangle {
                             QGCLabel { text: qsTr("Camera Vendor") }
                             QGCComboBox {
                                 Layout.preferredWidth:  _comboFieldWidth
-                                model:                  DhakshaCameraManager.vendorNames
-                                currentIndex:           DhakshaCameraManager.vendor
-                                onActivated:            DhakshaCameraManager.vendor = index
+                                // The fleet's two cameras: Skydroid (vendor 1) and SIYI ZR10 (vendor 2)
+                                model:                  [ "Skydroid", "ZR10" ]
+                                currentIndex:           DhakshaCameraManager.vendor - 1
+                                onActivated:            DhakshaCameraManager.vendor = index + 1
                             }
 
                             QGCLabel { text: qsTr("Camera IP") }
@@ -398,32 +399,16 @@ Rectangle {
                                 onEditingFinished:      DhakshaCameraManager.rtspUrl = text
                             }
 
-                            // Skydroid's two command styles, or the ZR10 through the flight controller (vendor 4)
                             QGCLabel {
                                 text:       qsTr("Gimbal Command")
-                                visible:    DhakshaCameraManager.vendor === 1 || DhakshaCameraManager.vendor === 4
+                                visible:    DhakshaCameraManager.vendor === 1
                             }
                             QGCComboBox {
-                                Layout.preferredWidth:  _comboFieldWidth * 1.6
-                                visible:                DhakshaCameraManager.vendor === 1 || DhakshaCameraManager.vendor === 4
-                                model:                  [ qsTr("YPR (other Topotek cameras)"), qsTr("GSY / GSP (Skydroid C10 / C13)"), qsTr("ZR10 (MAVLink through the flight controller)") ]
-                                currentIndex:           DhakshaCameraManager.vendor === 4 ? 2 : DhakshaCameraManager.skydroidGimbalStyle
-                                onActivated: {
-                                    if (index === 2) {
-                                        DhakshaCameraManager.vendor = 4
-                                    } else {
-                                        DhakshaCameraManager.vendor = 1
-                                        DhakshaCameraManager.skydroidGimbalStyle = index
-                                    }
-                                }
-                            }
-                            QGCLabel {
-                                Layout.columnSpan:      2
-                                Layout.maximumWidth:    _comboFieldWidth * 2.6
-                                visible:                DhakshaCameraManager.vendor === 4
-                                wrapMode:               Text.WordWrap
-                                font.pointSize:         ScreenTools.smallFontPointSize
-                                text:                   qsTr("ZR10 wired to the flight controller (ArduPilot: MNT1_TYPE = 8 SIYI, CAM1_TYPE = 4 Mount). Press Apply and Start Video.")
+                                Layout.preferredWidth:  _comboFieldWidth
+                                visible:                DhakshaCameraManager.vendor === 1
+                                model:                  [ qsTr("YPR (other Topotek cameras)"), qsTr("GSY / GSP (Skydroid C10 / C13)") ]
+                                currentIndex:           DhakshaCameraManager.skydroidGimbalStyle
+                                onActivated:            DhakshaCameraManager.skydroidGimbalStyle = index
                             }
 
                             QGCLabel { text: qsTr("Night RTSP URL") }

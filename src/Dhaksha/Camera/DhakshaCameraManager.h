@@ -2,7 +2,7 @@
  *
  * DhakshaGroundControl: owns the single active gimbal camera.
  *
- * The operator picks the vendor (Skydroid, SIYI, ViewPro, ZR10) plus its IP and
+ * The operator picks the camera (Skydroid or SIYI ZR10) plus its IP and
  * RTSP URL once; the choice is stored when applied and, on every start-up,
  * the manager creates the matching DhakshaGimbalCamera and points QGC's video
  * stream at the camera's RTSP URL so video starts automatically. Until a
@@ -30,9 +30,7 @@ public:
     enum Vendor {
         VendorNone = 0,
         VendorSkydroid,
-        VendorSiyi,
-        VendorViewPro,
-        VendorZr10Mavlink,      ///< SIYI ZR10 on the flight controller, controlled with MAVLink commands
+        VendorZr10,             ///< SIYI ZR10 on the RC's Ethernet, SIYI's own protocol
         VendorCount
     };
     Q_ENUM(Vendor)
@@ -45,6 +43,7 @@ public:
     Q_PROPERTY(bool                 nightView   READ nightView                      NOTIFY nightViewChanged)    ///< Night video on screen
     Q_PROPERTY(int  skydroidGimbalStyle READ skydroidGimbalStyle WRITE setSkydroidGimbalStyle NOTIFY skydroidGimbalStyleChanged) ///< 0 YPR (C13), 1 GSY/GSP (C10); used from the next apply()
     Q_PROPERTY(DhakshaGimbalCamera* camera      READ camera                         NOTIFY cameraChanged)
+    Q_PROPERTY(int  gimbalMaxSpeed  READ gimbalMaxSpeed WRITE setGimbalMaxSpeed NOTIFY gimbalMaxSpeedChanged)  ///< Degrees per second at full joystick, 10..60
     Q_PROPERTY(bool     streamForwardEnabled    READ streamForwardEnabled   WRITE setStreamForwardEnabled   NOTIFY streamForwardEnabledChanged)
     Q_PROPERTY(QString  streamForwardUrl        READ streamForwardUrl       WRITE setStreamForwardUrl       NOTIFY streamForwardUrlChanged)
 
@@ -59,6 +58,10 @@ public:
     bool                    nightView   () const { return _nightView; }
     int                     skydroidGimbalStyle() const;
     void                    setSkydroidGimbalStyle(int style);
+    int                     gimbalMaxSpeed() const;
+    void                    setGimbalMaxSpeed(int degreesPerSecond);
+    static constexpr int    kMinGimbalSpeed = 10;
+    static constexpr int    kMaxGimbalSpeed = 60;
     DhakshaGimbalCamera*    camera      () const { return _camera; }
     bool                    streamForwardEnabled() const { return _streamForwardEnabled; }
     QString                 streamForwardUrl    () const { return _streamForwardUrl; }
@@ -94,6 +97,7 @@ signals:
     void nightRtspUrlChanged();
     void nightViewChanged();
     void skydroidGimbalStyleChanged();
+    void gimbalMaxSpeedChanged();
     void cameraChanged  ();
     void streamForwardEnabledChanged();
     void streamForwardUrlChanged    ();

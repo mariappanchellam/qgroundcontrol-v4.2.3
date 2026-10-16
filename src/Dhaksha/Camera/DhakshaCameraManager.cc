@@ -5,10 +5,10 @@
  ****************************************************************************/
 
 #include "DhakshaCameraManager.h"
+#include "SiyiGimbalCamera.h"
 #include "SkydroidGimbalCamera.h"
 
 #ifndef DHAKSHA_CAMERA_NO_QGC
-#include "Zr10MavlinkGimbalCamera.h"
 #include "QGCApplication.h"
 #include "QGCToolbox.h"
 #include "SettingsManager.h"
@@ -30,6 +30,7 @@ namespace {
     const char* kOldSkydroidRtsp = "rtsp://192.168.144.108:554/stream=0";
     const char* kForwardKey     = "streamForwardEnabled";
     const char* kForwardUrlKey  = "streamForwardUrl";
+    const char* kGimbalSpeedKey = "DhakshaCamera/gimbalMaxSpeed";
 
     QString vendorKey(int vendor)
     {
@@ -59,7 +60,9 @@ DhakshaCameraManager::DhakshaCameraManager(QObject* parent)
     // reinstalling) starts with it; a vendor the operator applied is used as saved
     _vendor = VendorSkydroid;
     if (settings.value(kConfiguredKey, false).toBool()) {
-        _vendor = qBound(0, settings.value(kVendorKey, VendorSkydroid).toInt(), VendorCount - 1);
+        // Only Skydroid and the ZR10 remain; a camera type an earlier build saved (ViewPro, ZR10 over MAVLink) becomes Skydroid
+        const int saved = settings.value(kVendorKey, VendorSkydroid).toInt();
+        _vendor = saved == VendorZr10 ? VendorZr10 : VendorSkydroid;
     }
     // DhakshaKey sends the video to the server from Termux now, so forwarding always starts off,
     // whatever an earlier build saved; forwarding inside the app as well could crash it
@@ -72,15 +75,14 @@ DhakshaCameraManager::DhakshaCameraManager(QObject* parent)
 
 QStringList DhakshaCameraManager::vendorNames() const
 {
-    return { tr("None"), QStringLiteral("Skydroid"), QStringLiteral("SIYI"), QStringLiteral("ViewPro"), tr("ZR10 (MAVLink)") };
+    return { tr("None"), QStringLiteral("Skydroid"), QStringLiteral("ZR10") };
 }
 
 QString DhakshaCameraManager::defaultCameraIp(int vendor)
 {
     switch (vendor) {
     case VendorSkydroid:    return QStringLiteral("192.168.144.108");
-    case VendorSiyi:
-    case VendorZr10Mavlink: return QStringLiteral("192.168.144.25");
+    case VendorZr10:        return QStringLiteral("192.168.144.25");
     default:                return QString();
     }
 }
@@ -89,8 +91,7 @@ QString DhakshaCameraManager::defaultRtspUrl(int vendor)
 {
     switch (vendor) {
     case VendorSkydroid:    return QStringLiteral("rtsp://192.168.144.108:554/stream=1");
-    case VendorSiyi:
-    case VendorZr10Mavlink: return QStringLiteral("rtsp://192.168.144.25:8554/main.264");
+    case VendorZr10:        return QStringLiteral("rtsp://192.168.144.25:8554/main.264");
     default:                return QString();
     }
 }
@@ -198,6 +199,20 @@ void DhakshaCameraManager::setSkydroidGimbalStyle(int style)
     }
 }
 
+int DhakshaCameraManager::gimbalMaxSpeed() const
+{
+    return qBound(kMinGimbalSpeed, QSettings().value(kGimbalSpeedKey, kMaxGimbalSpeed).toInt(), kMaxGimbalSpeed);
+}
+
+void DhakshaCameraManager::setGimbalMaxSpeed(int degreesPerSecond)
+{
+    degreesPerSecond = qBound(kMinGimbalSpeed, degreesPerSecond, kMaxGimbalSpeed);
+    if (degreesPerSecond != gimbalMaxSpeed()) {
+        QSettings().setValue(kGimbalSpeedKey, degreesPerSecond);
+        emit gimbalMaxSpeedChanged();
+    }
+}
+
 void DhakshaCameraManager::restoreVendorDefaults()
 {
     setCameraIp(defaultCameraIp(_vendor));
@@ -239,18 +254,8 @@ void DhakshaCameraManager::_createCamera()
     case VendorSkydroid:
         _camera = new SkydroidGimbalCamera(_cameraIp, _rtspUrl, this);
         break;
-    case VendorSiyi:
-        _camera = new DhakshaGimbalCamera(QStringLiteral("SIYI"), _rtspUrl, this);         // video stream only for now
-        break;
-    case VendorViewPro:
-        _camera = new DhakshaGimbalCamera(QStringLiteral("ViewPro"), _rtspUrl, this);      // video stream only for now
-        break;
-    case VendorZr10Mavlink:
-#ifndef DHAKSHA_CAMERA_NO_QGC
-        _camera = new Zr10MavlinkGimbalCamera(_rtspUrl, this);
-#else
-        _camera = new DhakshaGimbalCamera(QStringLiteral("ZR10"), _rtspUrl, this);
-#endif
+    case VendorZr10:
+        _camera = new SiyiGimbalCamera(_cameraIp, _rtspUrl, this);
         break;
     default:
         break;
