@@ -4,10 +4,11 @@
  *
  * Laid out like the camera makers' own apps, for a 5.5 inch screen: round
  * icon buttons split around the video instead of one panel.
- *   bottom left: record and photo, with the gimbal joystick right under them
+ *   left:        record and photo, with the gimbal joystick to their right
  *                (drag the knob; the further from the centre, the faster the
- *                gimbal turns)
- *   right:       centre, tilt down 90, zoom in / out, just under the HUD
+ *                gimbal turns, up to the speed set under settings)
+ *   right:       centre, tilt down 90, zoom in / out and settings, just under
+ *                the HUD
  *   top centre:  connection, day / night camera (when there is a night camera)
  * A small label under the top row shows recording time and other
  * confirmations. Works with any DhakshaGimbalCamera; the vendor protocol
@@ -29,10 +30,8 @@ Item {
 
     // Space taken by other Fly View widgets, set by the parent layer
     property real leftInset:        0   ///< right edge of the tool strip
-    property real bottomLeftInset:  0   ///< right edge of the picture-in-picture window at the bottom left
     property real topInset:         0
     property real rightTopInset:    0   ///< bottom of the instrument panel at the top right
-    readonly property real joystickRight: joystick.x + joystick.width   ///< bottom left area used by the joystick
 
     property var    _camera:        DhakshaCameraManager.camera
     property real   _margin:        ScreenTools.defaultFontPixelHeight / 2
@@ -220,13 +219,14 @@ Item {
         }
     }
 
-    // ------------------------------------------------------------------ Bottom left: record, photo above the joystick
+    // ------------------------------------------------------------------ Left: record and photo, joystick to their right
 
-    Row {
-        anchors.horizontalCenter:   joystick.horizontalCenter
-        anchors.bottom:             joystick.top
-        anchors.bottomMargin:       _margin
-        spacing:                    _margin
+    Column {
+        id:                     captureButtons
+        anchors.left:           parent.left
+        anchors.leftMargin:     leftInset + _margin
+        anchors.verticalCenter: joystick.verticalCenter
+        spacing:                _margin
 
         IconButton {
             icon:           "record"
@@ -240,16 +240,13 @@ Item {
         }
     }
 
-    // ------------------------------------------------------------------ Bottom left: gimbal joystick
-
     Item {
         id:                     joystick
         width:                  _joystickSize
         height:                 width
-        anchors.left:           parent.left
-        anchors.leftMargin:     Math.max(leftInset, bottomLeftInset) + _margin
-        anchors.bottom:         parent.bottom
-        anchors.bottomMargin:   _margin
+        anchors.left:           captureButtons.right
+        anchors.leftMargin:     _margin
+        anchors.verticalCenter: parent.verticalCenter
         z:                      1
 
         property real   _range:     (width - knob.width) / 2
@@ -264,9 +261,11 @@ Item {
             return Math.round((fraction < 0 ? -1 : 1) * magnitude * magnitude * 100)
         }
 
+        // Full deflection = the gimbal speed set under settings (10..60 deg/s); 60 is the cameras' full speed
         function sendSpeed() {
-            var yaw   = speed(_dx / _range)
-            var pitch = speed(-_dy / _range)
+            var limit = DhakshaCameraManager.gimbalMaxSpeed / 60
+            var yaw   = Math.round(speed(_dx / _range) * limit)
+            var pitch = Math.round(speed(-_dy / _range) * limit)
             if (yaw !== _yawSent || pitch !== _pitchSent) {
                 _yawSent   = yaw
                 _pitchSent = pitch
@@ -365,6 +364,96 @@ Item {
             icon:           "zoom_out"
             holdAction:     function() { _camera.zoomOut() }
             releaseAction:  function() { _camera.zoomStop() }
+        }
+        IconButton {
+            icon:           "settings"
+            active:         speedSettings.visible
+            clickAction:    function() { speedSettings.open() }
+        }
+    }
+
+    // ------------------------------------------------------------------ Settings: gimbal speed
+
+    Rectangle {
+        id:             speedSettings
+        anchors.fill:   parent
+        visible:        false
+        color:          "#80000000"
+        z:              2
+
+        property int _speed: DhakshaCameraManager.gimbalMaxSpeed
+
+        function open() {
+            _speed = DhakshaCameraManager.gimbalMaxSpeed
+            visible = true
+        }
+
+        // Touches outside the panel close it without saving
+        MouseArea {
+            anchors.fill:   parent
+            onClicked:      speedSettings.visible = false
+        }
+
+        Rectangle {
+            anchors.centerIn:   parent
+            width:              speedColumn.width + _margin * 4
+            height:             speedColumn.height + _margin * 3
+            radius:             _margin
+            color:              "#E0202020"
+            border.color:       _orange
+
+            MouseArea { anchors.fill: parent }  // keep touches on the panel from closing it
+
+            Column {
+                id:                 speedColumn
+                anchors.centerIn:   parent
+                spacing:            _margin
+
+                QGCLabel {
+                    anchors.horizontalCenter:   parent.horizontalCenter
+                    text:                       qsTr("Gimbal speed")
+                    color:                      "white"
+                    font.bold:                  true
+                }
+                QGCLabel {
+                    anchors.horizontalCenter:   parent.horizontalCenter
+                    text:                       qsTr("%1 °/s").arg(speedSettings._speed)
+                    color:                      _orange
+                    font.bold:                  true
+                    font.pointSize:             ScreenTools.largeFontPointSize
+                }
+                Row {
+                    spacing: _margin
+                    QGCLabel { anchors.verticalCenter: parent.verticalCenter; text: "10"; color: "white" }
+                    Slider {
+                        width:      ScreenTools.defaultFontPixelWidth * 28
+                        from:       10
+                        to:         60
+                        stepSize:   5
+                        snapMode:   Slider.SnapAlways
+                        value:      speedSettings._speed
+                        onMoved:    speedSettings._speed = Math.round(value)
+                    }
+                    QGCLabel { anchors.verticalCenter: parent.verticalCenter; text: "60"; color: "white" }
+                }
+                Row {
+                    anchors.horizontalCenter:   parent.horizontalCenter
+                    spacing:                    _margin * 2
+                    QGCButton {
+                        text:       qsTr("Cancel")
+                        onClicked:  speedSettings.visible = false
+                    }
+                    QGCButton {
+                        text:       qsTr("Confirm")
+                        primary:    true
+                        onClicked: {
+                            DhakshaCameraManager.gimbalMaxSpeed = speedSettings._speed
+                            speedSettings.visible = false
+                            notify(qsTr("Gimbal speed %1 °/s saved").arg(speedSettings._speed))
+                        }
+                    }
+                }
+            }
         }
     }
 }

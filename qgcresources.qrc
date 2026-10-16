@@ -57,6 +57,7 @@
         <file alias="DhakshaCamera/log.svg">resources/DhakshaCamera/log.svg</file>
         <file alias="DhakshaCamera/night.svg">resources/DhakshaCamera/night.svg</file>
         <file alias="DhakshaCamera/photo.svg">resources/DhakshaCamera/photo.svg</file>
+        <file alias="DhakshaCamera/settings.svg">resources/DhakshaCamera/settings.svg</file>
         <file alias="DhakshaCamera/pip.svg">resources/DhakshaCamera/pip.svg</file>
         <file alias="DhakshaCamera/record.svg">resources/DhakshaCamera/record.svg</file>
         <file alias="DhakshaCamera/zoom_in.svg">resources/DhakshaCamera/zoom_in.svg</file>

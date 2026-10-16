@@ -158,7 +158,6 @@ Item {
         anchors.fill:       parent
         z:                  QGroundControl.zOrderWidgets
         leftInset:          toolStrip.visible ? toolStrip.leftInset : 0
-        bottomLeftInset:    parentToolInsets.leftEdgeBottomInset
         topInset:           parentToolInsets.topEdgeCenterInset
         rightTopInset:      instrumentPanel.visible ? instrumentPanel.y + instrumentPanel.height : 0
     }
@@ -188,8 +187,8 @@ Item {
                 }
             },
 
-            // The camera buttons use the right edge and the joystick the bottom left, so the values go
-            // to the bottom, right of the joystick, a little smaller, never over the joystick
+            // With the camera controls the values stay at the bottom centre (clear of the map window),
+            // a little smaller, below the joystick at the left and the buttons at the right
             State {
                 name: "right-video"
                 when: cameraControls.visible
@@ -204,7 +203,7 @@ Item {
 
                 PropertyChanges {
                     target:             telemetryPanel
-                    x:                  cameraControls.joystickRight + _toolsMargin
+                    x:                  recalcXPosition()
                     scale:              0.8
                     transformOrigin:    Item.BottomLeft
                 }
