@@ -25,6 +25,7 @@ import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Spinner;
@@ -48,7 +49,8 @@ import java.nio.charset.StandardCharsets;
  * answers, writes the tested streaming script with these values to ~/stream_aws_<camera>.sh in Termux and
  * runs it in a Termux window. The script retries by itself when the camera or the internet drops, and reports
  * how it is doing on a local UDP port, shown in the message bar at the top ("Data rate too low ...").
- * The drone's lat, lon and altitude are always written on the video.
+ * The drone's lat, lon and altitude are always written on the video. The server password is built in (or the
+ * one saved by an earlier version); the home test video runs from Termux with ~/stream_aws_home.sh.
  *
  * Termux runs commands through its RUN_COMMAND service, which needs once:
  * allow-external-apps = true in Termux, and the "Run commands in Termux environment" permission.
@@ -90,7 +92,6 @@ public class MainActivity extends Activity {
     private TextView watchLink;
     private Button startButton;
     private Button startAnyway;
-    private EditText password;
 
     private boolean checking;
     private boolean streaming;
@@ -115,11 +116,17 @@ public class MainActivity extends Activity {
         int pad = dp(16);
         page.setPadding(pad, pad, pad, pad);
 
+        LinearLayout titleRow = row(page);
+        ImageView logo = new ImageView(this);
+        logo.setImageResource(R.drawable.ic_logo);
+        LinearLayout.LayoutParams logoParams = new LinearLayout.LayoutParams(dp(40), dp(40));
+        logoParams.rightMargin = dp(10);
+        titleRow.addView(logo, logoParams);
         TextView title = new TextView(this);
         title.setText("Dhaksha Key");
         title.setTextSize(24);
         title.setTypeface(Typeface.DEFAULT_BOLD);
-        page.addView(title);
+        titleRow.addView(title);
 
         banner = new TextView(this);
         banner.setTextSize(16);
@@ -185,9 +192,9 @@ public class MainActivity extends Activity {
         LinearLayout buttons = new LinearLayout(this);
         buttons.setOrientation(LinearLayout.HORIZONTAL);
         page.addView(buttons, fullWidth(dp(16)));
-        startButton = addBigButton(buttons, "Start streaming", GREEN, 0, v -> start(false, false));
+        startButton = addBigButton(buttons, "Start streaming", GREEN, 0, v -> start(false));
         addBigButton(buttons, "Stop streaming", RED, dp(16), v -> stop());
-        startAnyway = addBigButton(page, "Start anyway (camera not answering yet)", ORANGE, 0, v -> start(true, false));
+        startAnyway = addBigButton(page, "Start anyway (camera not answering yet)", ORANGE, 0, v -> start(true));
         ((LinearLayout.LayoutParams) startAnyway.getLayoutParams()).topMargin = dp(8);
         startAnyway.setVisibility(View.GONE);
 
@@ -226,16 +233,6 @@ public class MainActivity extends Activity {
     }
 
     private void buildSetup(LinearLayout block) {
-        addLabel(block, "Server password (the one given when the server was set up)");
-        password = addField(block, StreamScripts.DEFAULT_PASSWORD);
-        password.setText(prefs.getString("password", StreamScripts.DEFAULT_PASSWORD));
-        password.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD);
-
-        addLabel(block, "Home test without a camera: copy " + StreamScripts.TEST_VIDEO
-                + " to the Download folder and run  termux-setup-storage  once in Termux. A made-up TEST "
-                + "position is written on the video.");
-        addButton(block, "Start home test video", v -> start(false, true));
-
         addLabel(block, "First time on this MK15:\n"
                 + "1. Install Termux from F-Droid.\n"
                 + "2. In Termux run once:  pkg install ffmpeg python  and then the command below.\n"
@@ -270,7 +267,6 @@ public class MainActivity extends Activity {
                 .putString("cameraTag", camera().fileTag)
                 .putInt("drone", droneSpinner.getSelectedItemPosition())
                 .putInt("quality", qualitySpinner.getSelectedItemPosition())
-                .putString("password", text(password))
                 .apply();
     }
 
@@ -335,25 +331,28 @@ public class MainActivity extends Activity {
         return droneSpinner.getSelectedItemPosition() + 1;
     }
 
+    /** The built-in server password, or the one an earlier version let the operator save */
+    private String password() {
+        return prefs.getString("password", StreamScripts.DEFAULT_PASSWORD);
+    }
+
     // ---- Start / Stop ----
 
     /** Checks the inputs and the camera, then saves the script and runs it in Termux. */
-    private void start(boolean skipCameraCheck, boolean homeTest) {
+    private void start(boolean skipCameraCheck) {
         if (checking) {
             return;
         }
-        final String rtsp = homeTest ? null : camera().rtsp(text(cameraIp));
-        String problem = StreamScripts.validate(rtsp, text(serverIp), droneNumber(), text(password));
+        final String rtsp = camera().rtsp(text(cameraIp));
+        String problem = StreamScripts.validate(rtsp, text(serverIp), droneNumber(), password());
         if (problem != null) {
             showBanner(problem, RED);
             return;
         }
         // Starting uses what is typed, so it is kept as the saved IPs too
-        if (!homeTest) {
-            saveCameraIp(false);
-        }
+        saveCameraIp(false);
         saveServerIp(false);
-        if (skipCameraCheck || homeTest) {
+        if (skipCameraCheck) {
             saveAndRun(rtsp);
             return;
         }
@@ -376,13 +375,12 @@ public class MainActivity extends Activity {
         }).start();
     }
 
-    /** rtsp is null for the home test, where test.mp4 is sent instead of a camera. */
     private void saveAndRun(String rtsp) {
-        StreamScripts.Camera camera = rtsp == null ? null : camera();
-        String scriptPath = camera == null ? StreamScripts.HOME_SCRIPT : camera.scriptPath();
-        String nightRtsp = camera == null ? null : camera.nightRtsp(text(cameraIp));
+        StreamScripts.Camera camera = camera();
+        String scriptPath = camera.scriptPath();
+        String nightRtsp = camera.nightRtsp(text(cameraIp));
         String stream = StreamScripts.streamScript(camera, rtsp, nightRtsp, text(serverIp), droneNumber(),
-                text(password), quality(), true);
+                password(), quality(), true);
         String reader = readAsset("dhaksha_telemetry.py");
         if (reader == null) {
             showBanner("The position reader is missing from this app.", RED);
