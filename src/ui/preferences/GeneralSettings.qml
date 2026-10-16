@@ -411,6 +411,14 @@ Rectangle {
                                 onActivated:            DhakshaCameraManager.skydroidGimbalStyle = index
                             }
 
+                            QGCLabel { text: qsTr("Video") }
+                            QGCComboBox {
+                                Layout.preferredWidth:  _comboFieldWidth * 1.6
+                                model:                  [ qsTr("Low delay (UDP, 17 ms buffer)"), qsTr("Smooth (UDP, 150 ms buffer)"), qsTr("Reliable (TCP)") ]
+                                currentIndex:           DhakshaCameraManager.videoMode
+                                onActivated:            DhakshaCameraManager.videoMode = index
+                            }
+
                             QGCLabel { text: qsTr("Night RTSP URL") }
                             QGCTextField {
                                 Layout.preferredWidth:  _comboFieldWidth * 1.6

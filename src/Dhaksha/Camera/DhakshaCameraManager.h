@@ -35,6 +35,14 @@ public:
     };
     Q_ENUM(Vendor)
 
+    /// How the RTSP video is received
+    enum VideoMode {
+        VideoLowDelay = 0,      ///< UDP, 17 ms buffer (QGC's own setting)
+        VideoSmooth,            ///< UDP, 150 ms buffer that absorbs radio jitter; older video is dropped
+        VideoReliable,          ///< TCP: nothing lost, a little more delay when the link is poor
+    };
+    Q_ENUM(VideoMode)
+
     Q_PROPERTY(QStringList          vendorNames READ vendorNames                    CONSTANT)
     Q_PROPERTY(int                  vendor      READ vendor     WRITE setVendor     NOTIFY vendorChanged)
     Q_PROPERTY(QString              cameraIp    READ cameraIp   WRITE setCameraIp   NOTIFY cameraIpChanged)
@@ -44,6 +52,7 @@ public:
     Q_PROPERTY(int  skydroidGimbalStyle READ skydroidGimbalStyle WRITE setSkydroidGimbalStyle NOTIFY skydroidGimbalStyleChanged) ///< 0 YPR (C13), 1 GSY/GSP (C10); used from the next apply()
     Q_PROPERTY(DhakshaGimbalCamera* camera      READ camera                         NOTIFY cameraChanged)
     Q_PROPERTY(int  gimbalMaxSpeed  READ gimbalMaxSpeed WRITE setGimbalMaxSpeed NOTIFY gimbalMaxSpeedChanged)  ///< Degrees per second at full joystick, 10..60
+    Q_PROPERTY(int  videoMode       READ videoMode      WRITE setVideoMode      NOTIFY videoModeChanged)       ///< VideoMode, saved per camera; used from the next apply()
     Q_PROPERTY(bool     streamForwardEnabled    READ streamForwardEnabled   WRITE setStreamForwardEnabled   NOTIFY streamForwardEnabledChanged)
     Q_PROPERTY(QString  streamForwardUrl        READ streamForwardUrl       WRITE setStreamForwardUrl       NOTIFY streamForwardUrlChanged)
 
@@ -58,6 +67,9 @@ public:
     bool                    nightView   () const { return _nightView; }
     int                     skydroidGimbalStyle() const;
     void                    setSkydroidGimbalStyle(int style);
+    int                     videoMode() const { return _videoMode; }
+    void                    setVideoMode(int mode);
+    static int              defaultVideoMode(int vendor);
     int                     gimbalMaxSpeed() const;
     void                    setGimbalMaxSpeed(int degreesPerSecond);
     static constexpr int    kMinGimbalSpeed = 10;
@@ -98,6 +110,7 @@ signals:
     void nightViewChanged();
     void skydroidGimbalStyleChanged();
     void gimbalMaxSpeedChanged();
+    void videoModeChanged();
     void cameraChanged  ();
     void streamForwardEnabledChanged();
     void streamForwardUrlChanged    ();
@@ -111,11 +124,13 @@ private:
     void _startVideoStream      ();
     void _showVideo             (const QString& rtspUrl);
     void _applyStreamForward    ();
+    void _applyVideoMode        ();
 
     int                     _vendor     = VendorNone;
     QString                 _cameraIp;
     QString                 _rtspUrl;
     QString                 _nightRtspUrl;
+    int                     _videoMode  = VideoLowDelay;
     bool                    _nightView  = false;
     DhakshaGimbalCamera*    _camera     = nullptr;
     bool                    _streamForwardEnabled = false;

@@ -17,6 +17,7 @@
 #include "GstVideoReceiver.h"
 
 #include <QDebug>
+#include <QSettings>
 #include <QUrl>
 #include <QDateTime>
 #include <QSysInfo>
@@ -798,7 +799,21 @@ GstVideoReceiver::_makeSource(const QString& uri)
             }
         } else if (isRtsp) {
             if ((source = gst_element_factory_make("rtspsrc", "source")) != nullptr) {
-                g_object_set(static_cast<gpointer>(source), "location", qPrintable(uri), "latency", 17, "udp-reconnect", 1, "timeout", _udpReconnect_us, NULL);
+                // DhakshaGroundControl: reception chosen per camera in Settings > Gimbal Camera > Video, written by
+                // DhakshaCameraManager. A larger buffer absorbs radio jitter instead of dropping late packets (which
+                // freezes the picture until the next key frame); TCP never loses packets.
+                QSettings settings;
+                const int latencyMs = qBound(0, settings.value(QStringLiteral("DhakshaCamera/rtspLatencyMs"), 17).toInt(), 1000);
+                const bool tcp = settings.value(QStringLiteral("DhakshaCamera/rtspTcp"), false).toBool();
+                g_object_set(static_cast<gpointer>(source), "location", qPrintable(uri), "latency", latencyMs, "udp-reconnect", 1, "timeout", _udpReconnect_us, NULL);
+                if (latencyMs > 17) {
+                    // Never let the delay build up: video older than the buffer is dropped
+                    g_object_set(static_cast<gpointer>(source), "drop-on-latency", TRUE, NULL);
+                }
+                if (tcp) {
+                    g_object_set(static_cast<gpointer>(source), "protocols", 0x00000004 /* GST_RTSP_LOWER_TRANS_TCP */, NULL);
+                }
+                qCDebug(VideoReceiverLog) << "RTSP buffer" << latencyMs << "ms" << (tcp ? "TCP" : "UDP");
             }
         } else if(isUdp264 || isUdp265 || isUdpMPEGTS || isTaisync) {
             if ((source = gst_element_factory_make("udpsrc", "source")) != nullptr) {

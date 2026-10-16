@@ -26,6 +26,10 @@ namespace {
     const char* kIpKey          = "ip";
     const char* kRtspKey        = "rtspUrl";
     const char* kNightRtspKey   = "nightRtspUrl";
+    const char* kVideoModeKey   = "videoMode";
+    // Read by GstVideoReceiver when it opens the RTSP stream
+    const char* kRtspLatencyKey = "DhakshaCamera/rtspLatencyMs";
+    const char* kRtspTcpKey     = "DhakshaCamera/rtspTcp";
     // Day address saved by builds before the Skydroid's real one (port 554 stream=1) was known
     const char* kOldSkydroidRtsp = "rtsp://192.168.144.108:554/stream=0";
     const char* kForwardKey     = "streamForwardEnabled";
@@ -116,6 +120,7 @@ void DhakshaCameraManager::_loadVendorSettings()
     }
     setRtspUrl(rtspUrl);
     setNightRtspUrl(settings.value(kNightRtspKey, defaultNightRtspUrl(_vendor)).toString());
+    setVideoMode(settings.value(kVideoModeKey, defaultVideoMode(_vendor)).toInt());
 }
 
 void DhakshaCameraManager::_saveSettings()
@@ -130,6 +135,7 @@ void DhakshaCameraManager::_saveSettings()
     settings.setValue(kIpKey, _cameraIp);
     settings.setValue(kRtspKey, _rtspUrl);
     settings.setValue(kNightRtspKey, _nightRtspUrl);
+    settings.setValue(kVideoModeKey, _videoMode);
 }
 
 void DhakshaCameraManager::setVendor(int vendor)
@@ -199,6 +205,21 @@ void DhakshaCameraManager::setSkydroidGimbalStyle(int style)
     }
 }
 
+int DhakshaCameraManager::defaultVideoMode(int vendor)
+{
+    // The ZR10 over the SIYI link froze with QGC's 17 ms buffer; Skydroid plays well with it
+    return vendor == VendorZr10 ? VideoSmooth : VideoLowDelay;
+}
+
+void DhakshaCameraManager::setVideoMode(int mode)
+{
+    mode = qBound(static_cast<int>(VideoLowDelay), mode, static_cast<int>(VideoReliable));
+    if (mode != _videoMode) {
+        _videoMode = mode;
+        emit videoModeChanged();
+    }
+}
+
 int DhakshaCameraManager::gimbalMaxSpeed() const
 {
     return qBound(kMinGimbalSpeed, QSettings().value(kGimbalSpeedKey, kMaxGimbalSpeed).toInt(), kMaxGimbalSpeed);
@@ -239,6 +260,7 @@ void DhakshaCameraManager::apply()
 void DhakshaCameraManager::start()
 {
     _createCamera();
+    _applyVideoMode();
     _startVideoStream();
     _applyStreamForward();
 }
@@ -285,6 +307,27 @@ void DhakshaCameraManager::_showVideo(const QString& rtspUrl)
     videoSettings->videoSource()->setRawValue(VideoSettings::videoSourceRTSP);
 #else
     Q_UNUSED(rtspUrl)
+#endif
+}
+
+void DhakshaCameraManager::_applyVideoMode()
+{
+    const int  latencyMs = _videoMode == VideoSmooth ? 150 : _videoMode == VideoReliable ? 100 : 17;
+    const bool tcp       = _videoMode == VideoReliable;
+
+    QSettings settings;
+    const bool changed = settings.value(kRtspLatencyKey, 17).toInt() != latencyMs || settings.value(kRtspTcpKey, false).toBool() != tcp;
+    settings.setValue(kRtspLatencyKey, latencyMs);
+    settings.setValue(kRtspTcpKey, tcp);
+#ifndef DHAKSHA_CAMERA_NO_QGC
+    // The receiver reads these when it opens the stream, so a running stream is reopened
+    VideoManager* videoManager = qgcApp()->toolbox()->videoManager();
+    if (changed && videoManager) {
+        videoManager->stopVideo();
+        videoManager->startVideo();
+    }
+#else
+    Q_UNUSED(changed)
 #endif
 }
 
