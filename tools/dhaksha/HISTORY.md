@@ -256,6 +256,8 @@ so details can be lost. To keep the context:
 - DhakshaGroundControl (203b870, Android run 38867492181, armeabi-v7a artifact 12031814845): Settings > Gimbal Camera >
   Video per camera: Low delay (UDP 17 ms, Skydroid default), Smooth (UDP 150 ms, drop-on-latency, ZR10 default),
   Reliable (TCP 100 ms). All three checked receiving a 30 fps RTSP stream.
+- DhakshaKey 4.1 (275c14d, run 38876010932, artifact 12035426968): key-and-lock app logo (adaptive icon + title);
+  Setup and more without the server password and the home test video (built-in password; home test from Termux).
 
 ## Open items
 - Find what blocks WebRTC (Lightsail UDP 8189 rule, TCP fallback, office/laptop network).
