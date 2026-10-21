@@ -49,6 +49,8 @@ public:
     Q_PROPERTY(QString              rtspUrl     READ rtspUrl    WRITE setRtspUrl    NOTIFY rtspUrlChanged)
     Q_PROPERTY(QString              nightRtspUrl READ nightRtspUrl WRITE setNightRtspUrl NOTIFY nightRtspUrlChanged)   ///< Thermal camera; empty when there is none
     Q_PROPERTY(bool                 nightView   READ nightView                      NOTIFY nightViewChanged)    ///< Night video on screen
+    Q_PROPERTY(bool     pipAvailable    READ pipAvailable                       NOTIFY pipAvailableChanged)     ///< The camera has a second (night / day) stream for the PiP box
+    Q_PROPERTY(bool     pipCamera       READ pipCamera      WRITE setPipCamera  NOTIFY pipCameraChanged)        ///< PiP box shows the other camera (true) or the map (false)
     Q_PROPERTY(int  skydroidGimbalStyle READ skydroidGimbalStyle WRITE setSkydroidGimbalStyle NOTIFY skydroidGimbalStyleChanged) ///< 0 YPR (C13), 1 GSY/GSP (C10); used from the next apply()
     Q_PROPERTY(DhakshaGimbalCamera* camera      READ camera                         NOTIFY cameraChanged)
     Q_PROPERTY(int  gimbalMaxSpeed  READ gimbalMaxSpeed WRITE setGimbalMaxSpeed NOTIFY gimbalMaxSpeedChanged)  ///< Degrees per second at full joystick, 10..60
@@ -65,6 +67,9 @@ public:
     QString                 rtspUrl     () const { return _rtspUrl; }
     QString                 nightRtspUrl() const { return _nightRtspUrl; }
     bool                    nightView   () const { return _nightView; }
+    bool                    pipAvailable() const;
+    bool                    pipCamera   () const { return _pipCamera; }
+    void                    setPipCamera(bool camera);
     int                     skydroidGimbalStyle() const;
     void                    setSkydroidGimbalStyle(int style);
     int                     videoMode() const { return _videoMode; }
@@ -108,6 +113,8 @@ signals:
     void rtspUrlChanged ();
     void nightRtspUrlChanged();
     void nightViewChanged();
+    void pipAvailableChanged();
+    void pipCameraChanged();
     void skydroidGimbalStyleChanged();
     void gimbalMaxSpeedChanged();
     void videoModeChanged();
@@ -125,6 +132,7 @@ private:
     void _showVideo             (const QString& rtspUrl);
     void _applyStreamForward    ();
     void _applyVideoMode        ();
+    void _updatePipVideo        ();
 
     int                     _vendor     = VendorNone;
     QString                 _cameraIp;
@@ -132,6 +140,7 @@ private:
     QString                 _nightRtspUrl;
     int                     _videoMode  = VideoLowDelay;
     bool                    _nightView  = false;
+    bool                    _pipCamera  = true;
     DhakshaGimbalCamera*    _camera     = nullptr;
     bool                    _streamForwardEnabled = false;
     QString                 _streamForwardUrl;

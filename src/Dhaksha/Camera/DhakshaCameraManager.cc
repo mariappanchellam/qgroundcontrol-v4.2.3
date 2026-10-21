@@ -35,6 +35,7 @@ namespace {
     const char* kForwardKey     = "streamForwardEnabled";
     const char* kForwardUrlKey  = "streamForwardUrl";
     const char* kGimbalSpeedKey = "DhakshaCamera/gimbalMaxSpeed";
+    const char* kPipCameraKey   = "pipCamera";
 
     QString vendorKey(int vendor)
     {
@@ -73,6 +74,7 @@ DhakshaCameraManager::DhakshaCameraManager(QObject* parent)
     _streamForwardEnabled = false;
     settings.setValue(kForwardKey, false);
     _streamForwardUrl = settings.value(kForwardUrlKey).toString();
+    _pipCamera = settings.value(kPipCameraKey, true).toBool();
     settings.endGroup();
     _loadVendorSettings();
 }
@@ -144,6 +146,7 @@ void DhakshaCameraManager::setVendor(int vendor)
     if (vendor != _vendor) {
         _vendor = vendor;
         emit vendorChanged();
+        emit pipAvailableChanged();
         _loadVendorSettings();
     }
 }
@@ -163,6 +166,7 @@ void DhakshaCameraManager::setRtspUrl(const QString& rtspUrl)
     if (trimmed != _rtspUrl) {
         _rtspUrl = trimmed;
         emit rtspUrlChanged();
+        emit pipAvailableChanged();
     }
 }
 
@@ -189,6 +193,7 @@ void DhakshaCameraManager::setNightRtspUrl(const QString& rtspUrl)
     if (trimmed != _nightRtspUrl) {
         _nightRtspUrl = trimmed;
         emit nightRtspUrlChanged();
+        emit pipAvailableChanged();
     }
 }
 
@@ -249,6 +254,39 @@ void DhakshaCameraManager::toggleNightView()
     _nightView = !_nightView;
     emit nightViewChanged();
     _showVideo(_nightView ? _nightRtspUrl : _rtspUrl);
+    _updatePipVideo();
+}
+
+bool DhakshaCameraManager::pipAvailable() const
+{
+    return _vendor != VendorNone && !_nightRtspUrl.isEmpty() && !_rtspUrl.isEmpty();
+}
+
+void DhakshaCameraManager::setPipCamera(bool camera)
+{
+    if (camera != _pipCamera) {
+        _pipCamera = camera;
+        QSettings settings;
+        settings.beginGroup(kSettingsGroup);
+        settings.setValue(kPipCameraKey, camera);
+        emit pipCameraChanged();
+        _updatePipVideo();
+    }
+}
+
+void DhakshaCameraManager::_updatePipVideo()
+{
+    // The box shows whichever camera is not on the main screen; with the map in the box the second
+    // stream stops, so the radio and the MK15 only carry it while it is shown
+    const QString url = _pipCamera && pipAvailable() ? (_nightView ? _rtspUrl : _nightRtspUrl) : QString();
+#ifndef DHAKSHA_CAMERA_NO_QGC
+    VideoManager* videoManager = qgcApp()->toolbox()->videoManager();
+    if (videoManager) {
+        videoManager->setSecondaryRtspUrl(url);
+    }
+#else
+    Q_UNUSED(url)
+#endif
 }
 
 void DhakshaCameraManager::apply()
@@ -262,6 +300,7 @@ void DhakshaCameraManager::start()
     _createCamera();
     _applyVideoMode();
     _startVideoStream();
+    _updatePipVideo();
     _applyStreamForward();
 }
 

@@ -115,6 +115,9 @@ public:
 
     /// Forwards the main camera video to a remote server (rtmp://...); empty stops forwarding
     Q_INVOKABLE void setStreamForwardUrl(const QString& url);
+    /// DhakshaGroundControl: RTSP address shown in the picture-in-picture box (the camera not on the main
+    /// screen), played by the second receiver; empty stops it. Used when no MAVLink camera gives a thermal stream.
+    void setSecondaryRtspUrl(const QString& url);
     bool    streamForwardActive () const { return _streamForwardActive; }
     QString streamForwardStatus () const { return _streamForwardStatus; }
 
@@ -167,6 +170,7 @@ protected:
     VideoReceiver*          _videoReceiver[2]       = { nullptr, nullptr };
     void*                   _videoSink[2]           = { nullptr, nullptr };
     QString                 _videoUri[2];
+    QString                 _secondaryRtspUrl;
     // FIXME: AV: _videoStarted seems to be access from 3 different threads, from time to time
     // 1) Video Receiver thread
     // 2) Video Manager/main app thread

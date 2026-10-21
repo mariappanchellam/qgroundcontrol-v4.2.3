@@ -55,6 +55,7 @@
         <file alias="DhakshaCamera/laser.svg">resources/DhakshaCamera/laser.svg</file>
         <file alias="DhakshaCamera/lock.svg">resources/DhakshaCamera/lock.svg</file>
         <file alias="DhakshaCamera/log.svg">resources/DhakshaCamera/log.svg</file>
+        <file alias="DhakshaCamera/map.svg">resources/DhakshaCamera/map.svg</file>
         <file alias="DhakshaCamera/night.svg">resources/DhakshaCamera/night.svg</file>
         <file alias="DhakshaCamera/photo.svg">resources/DhakshaCamera/photo.svg</file>
         <file alias="DhakshaCamera/settings.svg">resources/DhakshaCamera/settings.svg</file>
