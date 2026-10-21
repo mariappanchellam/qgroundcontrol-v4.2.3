@@ -258,6 +258,9 @@ so details can be lost. To keep the context:
   Reliable (TCP 100 ms). All three checked receiving a 30 fps RTSP stream.
 - DhakshaKey 4.1 (275c14d, run 38876010932, artifact 12035426968): key-and-lock app logo (adaptive icon + title);
   Setup and more without the server password and the home test video (built-in password; home test from Termux).
+- DhakshaGroundControl (30b4ac5, Android run 39579499234, armeabi-v7a artifact 12335658586): day / night PiP in the
+  bottom-left box via QGC's second (thermal) receiver: the box shows the Skydroid camera not on the main screen,
+  tap swaps, map button puts the map back and stops the second stream. ZR10 (no night) unchanged.
 
 ## Open items
 - Find what blocks WebRTC (Lightsail UDP 8189 rule, TCP fallback, office/laptop network).
