@@ -12,15 +12,17 @@
   <section id="setup" class="page">
     <header id="header" class="flight-area">
       <h1 id="title"><img class="title-logo" src="logo.svg" alt="Dhaksha Drones"><span class="live-word">Live</span></h1>
-      <p>Up to 25 drones; tick the ones to watch. Each box takes a link from your own video server
-         (<code>http://SERVER_IP:8888/live/drone1</code>, <code>:8889</code>, <code>rtsp://</code>, <code>rtmp://</code> or <code>.m3u8</code>)
-         or a Livepush player link. Boxes show the Dhaksha logo until their video arrives.</p>
+      <p>Ten drones: boxes 1&ndash;5 are Skydroid (day in the box, night in the small corner picture; click it to
+         swap), boxes 6&ndash;10 are ZR10. Each box plays from the Dhaksha video server at the IP and port below
+         (8888 = HLS port, 80 = through the server's web port). Boxes show the Dhaksha logo until their video arrives.</p>
     </header>
     <div class="server">
-      <label for="server-ip">Server address</label>
-      <input id="server-ip" type="text" spellcheck="false" placeholder="e.g. 13.233.10.20">
-      <button id="fill" type="button">Fill empty boxes with drone1&ndash;drone25</button>
-      <label for="mode">Play server streams as</label>
+      <label for="all-ip">Server IP</label>
+      <input id="all-ip" type="text" spellcheck="false" placeholder="e.g. 15.252.170.151">
+      <label for="all-port">Port</label>
+      <input id="all-port" class="port" type="text" inputmode="numeric" placeholder="8888">
+      <button id="apply-all" type="button">Use for all drones</button>
+      <label for="mode">Play as</label>
       <select id="mode">
         <option value="hls">HLS (reliable, a few seconds delay)</option>
         <option value="webrtc">WebRTC (about 1 second delay)</option>
@@ -28,11 +30,12 @@
     </div>
     <div class="select">
       <span>Tick the drones to show; unticked drones use no CPU or network.</span>
-      <button id="tick-all" type="button">Tick all with an address</button>
+      <button id="tick-all" type="button">Tick all</button>
       <button id="tick-none" type="button">Untick all</button>
       <span id="shown-count"></span>
     </div>
-    <form id="addresses" autocomplete="off"></form>
+    <div class="camera-head"><span></span><span>Box</span><span>Camera</span><span>Server IP</span><span>Port</span><span>Streams</span></div>
+    <form id="cameras" autocomplete="off"></form>
     <div class="actions">
       <button id="ok" class="primary" type="button">OK: show the ticked drones</button>
       <div id="ok-note"></div>
@@ -41,9 +44,9 @@
 
   <section id="grid-page" class="page hidden">
     <div class="toolbar">
-      <button id="back" type="button">&#8592; Addresses</button>
+      <button id="back" type="button">&#8592; Cameras</button>
       <button id="mode-toggle" type="button"></button>
-      <span class="hint">Hover a box for controls &middot; Enlarge shows one drone &middot; Esc to return &middot; F11 full screen</span>
+      <span class="hint">Hover a box for controls &middot; Click the small picture to swap day / night &middot; Enlarge shows one drone &middot; Esc to return &middot; F11 full screen</span>
     </div>
     <div id="grid"></div>
   </section>

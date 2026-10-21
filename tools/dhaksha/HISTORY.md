@@ -261,6 +261,10 @@ so details can be lost. To keep the context:
 - DhakshaGroundControl (30b4ac5, Android run 39579499234, armeabi-v7a artifact 12335658586): day / night PiP in the
   bottom-left box via QGC's second (thermal) receiver: the box shows the Skydroid camera not on the main screen,
   tap swaps, map button puts the map back and stops the second stream. ZR10 (no night) unchanged.
+- Dhaksha Live 4.0 (Windows / Linux / browser): 10 fixed boxes. 1-5 Skydroid: droneN in the box and droneN-night as
+  a picture-in-picture in its corner, click swaps; 6-10 ZR10: droneN. Camera window per box: server IP + port
+  (8888 HLS, 80 through live_web.sh's nginx), "Use for all drones", tick to show. Tested in Electron with a
+  local MediaMTX: day, night and ZR10 playing, swap working.
 
 ## Open items
 - Find what blocks WebRTC (Lightsail UDP 8189 rule, TCP fallback, office/laptop network).

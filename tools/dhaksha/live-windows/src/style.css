@@ -33,22 +33,28 @@ code { color: var(--text); }
   background: #171a21; border: 1px solid #262a33; border-radius: 8px; }
 .server label { color: var(--muted); }
 .server input { width: 200px; }
-#addresses { display: grid; grid-template-columns: 1fr 1fr; column-gap: 18px; }
-.row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; padding: 3px 6px; border-radius: 6px;
-  transition: background .15s; }
-.row:hover { background: #1a1d24; }
-.row label { width: 66px; flex: none; white-space: nowrap; color: var(--muted); font-size: 14px; }
-.row input[type="checkbox"] { flex: none; width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; }
+.server input.port, .camera-row input.port { width: 80px; }
+/* Camera window: one row per box */
+.camera-head, .camera-row { display: grid; grid-template-columns: 26px 40px 190px minmax(140px, 260px) 90px 1fr;
+  align-items: center; gap: 10px; padding: 4px 8px; }
+.camera-head { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+.camera-row { margin-bottom: 4px; border-radius: 6px; transition: background .15s; }
+.camera-row:hover { background: #1a1d24; }
+.camera-row input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; }
+.camera-row .box { color: var(--accent); font-weight: 600; }
+.camera-row.skydroid .type { color: #9fd3ff; }
+.camera-row.zr10 .type { color: #ffcc80; }
+.camera-row input { padding: 6px 8px; }
+.camera-row .streams { color: var(--muted); font-size: 13px; }
+.camera-row.skydroid + .camera-row.zr10 { margin-top: 10px; }
 .select { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 10px; color: var(--muted); }
 .select button { padding: 4px 12px; }
 #shown-count { color: var(--accent); }
 #ok-note { color: #ff8a80; margin-top: 8px; min-height: 1em; }
-.row input { flex: 1; min-width: 0; padding: 6px 8px; }
-.row button { padding: 4px 10px; }
 .actions { margin-top: 16px; }
 .actions .primary { width: 100%; padding: 10px; }
 
-/* Grid page: 25 boxes, 5 x 5 */
+/* Grid page: up to 10 boxes */
 #grid-page { display: flex; flex-direction: column; height: 100vh; }
 .toolbar { display: flex; align-items: center; gap: 12px; padding: 6px 8px; background: #0b0b0b; }
 .hint { color: var(--muted); font-size: 12px; }
@@ -72,13 +78,21 @@ code { color: var(--text); }
 .logo .sub { color: var(--muted); font-size: 12px; }
 .logo .note { color: #9fb3c8; font-size: 11px; text-align: center; padding: 0 6px; }
 .logo .note.error { color: #ff8a80; }
-.tile.live .logo { opacity: 0; pointer-events: none; }
-.tile.waiting .logo img { animation: breathe 2.4s ease-in-out infinite; }
+.tile.live > .logo { opacity: 0; pointer-events: none; }
+.tile.waiting > .logo img { animation: breathe 2.4s ease-in-out infinite; }
 @keyframes breathe { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
 
 .badge { position: absolute; top: 4px; left: 4px; padding: 1px 7px; border-radius: 4px; font-size: 11px;
   background: rgba(0,0,0,.6); z-index: 3; }
-.tile.live .badge::before { content: "\25CF  "; color: var(--live); }
+.tile.live > .badge::before { content: "\25CF  "; color: var(--live); }
+
+/* Skydroid: the second stream (night, or day after a swap) small in the bottom-right corner */
+.tile.pip { position: absolute; left: auto; top: auto; right: 6px; bottom: 6px; width: 32%; aspect-ratio: 16 / 9;
+  border: 1px solid rgba(255,255,255,.55); border-radius: 4px; z-index: 4; cursor: pointer; }
+.tile.pip:hover { transform: none; border-color: var(--accent); box-shadow: 0 0 10px rgba(222,226,27,.4); }
+.tile.pip .logo { background: #0b1426; }
+.tile.pip .note { font-size: 10px; }
+.tile.pip .badge { top: 2px; left: 2px; font-size: 10px; padding: 0 5px; }
 
 /* Controls fade in while the mouse is over a box */
 .overlay { position: absolute; left: 0; right: 0; top: 0; display: flex; align-items: center; gap: 5px; z-index: 3;
@@ -115,7 +129,11 @@ code { color: var(--text); }
 }
 #splash.done { opacity: 0; pointer-events: none; }
 
-@media (max-width: 900px) { #addresses { grid-template-columns: 1fr; } }
+@media (max-width: 900px) {
+  .camera-head { display: none; }
+  .camera-row { grid-template-columns: 26px 30px 1fr 80px; }
+  .camera-row .type, .camera-row .streams { grid-column: 3 / 5; }
+}
 @media (prefers-reduced-motion: reduce) {
   .splash-logo, .drone, .drone .rotor, .tile.waiting .logo img { animation: none; }
 }

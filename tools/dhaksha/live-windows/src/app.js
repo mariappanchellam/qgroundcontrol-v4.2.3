@@ -1,15 +1,17 @@
 'use strict';
 
-// Dhaksha Live desktop: 25 boxes, each showing one drone.
-// A box plays a stream from the Dhaksha video server (MediaMTX) as HLS or WebRTC, or shows a Livepush player page.
-// Until a box's video is actually playing it shows the Dhaksha logo. The addresses are kept between runs.
+// Dhaksha Live: 10 boxes, one per drone, playing from the Dhaksha video server (MediaMTX) as HLS or WebRTC.
+//   Boxes 1-5: Skydroid, day stream droneN in the box and the night stream droneN-night in a small
+//              picture-in-picture at its corner; clicking the small picture swaps day and night.
+//   Boxes 6-10: SIYI ZR10, one stream droneN.
+// The camera window sets each box's server IP and port. Until a box's video is actually playing it shows
+// the Dhaksha logo. The settings are kept between runs.
 
-const STREAMS = 25;
-const STORAGE_KEY = 'dhakshaLive.urls';
-const SHOW_KEY = 'dhakshaLive.show';
+const BOXES = 10;
+const SKYDROID_BOXES = 5;
+const CAMERAS_KEY = 'dhakshaLive.cameras';
 const MODE_KEY = 'dhakshaLive.mode';
-const SERVER_KEY = 'dhakshaLive.server';
-const LIVEPUSH_HOST = 'player.livepush.io';
+const DEFAULT_SERVER = '15.252.170.151';
 const HLS_PORT = '8888';
 const WEBRTC_PORT = '8889';
 const RETRY_MS = 3000;
@@ -20,81 +22,32 @@ const CONNECT_TIMEOUT_MS = 10000;
 const PAGE_HOST = /^https?:$/.test(location.protocol) ? location.hostname : '';
 const VIDEO_THROUGH_PAGE = PAGE_HOST !== '' && (location.port === '' || location.port === '80');
 
-/**
- * Reads a box's address. Returns null for an empty box, { error } when it cannot be played, or one of:
- *   { kind: 'page', url }              Livepush player or another web page, shown as it is
- *   { kind: 'hls', url }               an .m3u8 playlist
- *   { kind: 'webrtc', url }            a WHEP address
- *   { kind: 'server', host, path }     a stream on the Dhaksha server; plays as HLS or WebRTC (see resolve)
- * rtsp:// and rtmp:// addresses are read as the same stream on the server, because a viewer cannot play them directly.
- */
-function parseAddress(input) {
-  let text = (input || '').trim();
-  if (!text) {
-    return null;
-  }
-  if (!text.includes('://')) {
-    text = (text.startsWith(LIVEPUSH_HOST) ? 'https://' : 'http://') + text;
-  }
-  // Older Chromium (the 32-bit Linux build) does not split rtsp:// or rtmp:// addresses into host and path,
-  // so the address is read as http:// and its own scheme is kept aside
-  const match = text.match(/^([a-z][a-z0-9+.-]*):\/\//i);
-  if (!match) {
-    return { error: 'Not a valid address' };
-  }
-  const scheme = match[1].toLowerCase() + ':';
-  let url;
-  try {
-    url = new URL('http' + text.slice(text.indexOf('://')));
-  } catch (e) {
-    return { error: 'Not a valid address' };
-  }
-  const path = url.pathname.replace(/\/+$/, '');
-  if (url.hostname === LIVEPUSH_HOST) {
-    url.protocol = 'https:';
-    return path ? { kind: 'page', url: url.toString() } : { error: 'Livepush link has no stream id' };
-  }
-  if (scheme === 'https:') {
-    url.protocol = 'https:';
-  }
-  switch (scheme) {
-  case 'rtsp:':
-  case 'rtsps:':
-  case 'rtmp:':
-  case 'rtmps:':
-    return path ? { kind: 'server', host: url.hostname, path } : { error: 'Address has no stream name' };
-  case 'http:':
-  case 'https:':
-    if (path.endsWith('.m3u8')) {
-      return { kind: 'hls', url: url.toString() };
-    }
-    if (path.endsWith('/whep')) {
-      return { kind: 'webrtc', url: url.toString() };
-    }
-    if (url.port === HLS_PORT || url.port === WEBRTC_PORT) {
-      return path ? { kind: 'server', host: url.hostname, path, secure: url.protocol === 'https:' }
-        : { error: 'Address has no stream name' };
-    }
-    return { kind: 'page', url: url.toString() };
-  default:
-    return { error: scheme.replace(':', '').toUpperCase() + ' links cannot be played here' };
-  }
+function isSkydroid(box) {
+  return box < SKYDROID_BOXES;
 }
 
-/** Turns a server stream into the HLS playlist or WebRTC (WHEP) address for `mode`. */
+function streamName(box, night) {
+  return 'drone' + (box + 1) + (night ? '-night' : '');
+}
+
+/** A stream on the Dhaksha server: `port` is the one typed in the camera window (8888 HLS, or 80 through the web port). */
+function serverSource(ip, port, name) {
+  return { host: ip, port: port, path: '/live/' + name, name: name };
+}
+
+/** The HLS playlist or WebRTC (WHEP) address of a server stream for `mode`. */
 function resolve(source, mode) {
-  if (!source || source.kind !== 'server') {
-    return source;
-  }
-  if (VIDEO_THROUGH_PAGE && source.host === PAGE_HOST) {
+  if (source.port === '80') {
+    const origin = 'http://' + source.host;
     return mode === 'webrtc'
-      ? { kind: 'webrtc', url: location.origin + '/webrtc' + source.path + '/whep' }
-      : { kind: 'hls', url: location.origin + '/hls' + source.path + '/index.m3u8' };
+      ? { kind: 'webrtc', url: origin + '/webrtc' + source.path + '/whep' }
+      : { kind: 'hls', url: origin + '/hls' + source.path + '/index.m3u8' };
   }
-  const origin = (source.secure ? 'https://' : 'http://') + source.host;
+  const origin = 'http://' + source.host;
+  const hlsPort = source.port && source.port !== WEBRTC_PORT ? source.port : HLS_PORT;
   return mode === 'webrtc'
     ? { kind: 'webrtc', url: origin + ':' + WEBRTC_PORT + source.path + '/whep' }
-    : { kind: 'hls', url: origin + ':' + HLS_PORT + source.path + '/index.m3u8' };
+    : { kind: 'hls', url: origin + ':' + hlsPort + source.path + '/index.m3u8' };
 }
 
 function load(key, fallback) {
@@ -114,26 +67,27 @@ function store(key, value) {
   }
 }
 
-function loadUrls() {
-  try {
-    const saved = JSON.parse(load(STORAGE_KEY, '[]'));
-    return Array.from({ length: STREAMS }, (_, i) => (typeof saved[i] === 'string' ? saved[i] : ''));
-  } catch (e) {
-    return new Array(STREAMS).fill('');
-  }
+function defaultCamera() {
+  return { ip: PAGE_HOST || DEFAULT_SERVER, port: VIDEO_THROUGH_PAGE ? '80' : HLS_PORT, show: true };
 }
 
-/** Which drones are ticked to be shown; the first time, every drone that has an address. */
-function loadShown(urls) {
+/** The camera window's settings: server IP, port and whether the box is shown, for each of the 10 boxes. */
+function loadCameras() {
+  let saved = [];
   try {
-    const saved = JSON.parse(load(SHOW_KEY, 'null'));
-    if (Array.isArray(saved)) {
-      return Array.from({ length: STREAMS }, (_, i) => saved[i] === true);
-    }
+    saved = JSON.parse(load(CAMERAS_KEY, '[]'));
   } catch (e) {
-    // Fall through to the default
+    saved = [];
   }
-  return urls.map((text) => !!text);
+  return Array.from({ length: BOXES }, (_, i) => {
+    const camera = Array.isArray(saved) && saved[i] ? saved[i] : {};
+    const fallback = defaultCamera();
+    return {
+      ip: typeof camera.ip === 'string' ? camera.ip : fallback.ip,
+      port: typeof camera.port === 'string' ? camera.port : fallback.port,
+      show: typeof camera.show === 'boolean' ? camera.show : fallback.show,
+    };
+  });
 }
 
 const DRONE_SVG =
@@ -192,18 +146,33 @@ function waitForCandidates(pc) {
 let globalMode = load(MODE_KEY, 'hls') === 'webrtc' ? 'webrtc' : 'hls';
 
 class Tile {
-  constructor(index, grid) {
+  /** A box in the grid; with `pip` a small picture inside another box instead (no controls of its own). */
+  constructor(index, parent, pip) {
     this.source = null;
     this.modeOverride = null;
     this.player = null;
     this.retryTimer = 0;
     this.session = 0;
+    this.pip = null;
+    this.isPip = !!pip;
 
     this.el = document.createElement('div');
-    this.el.className = 'tile';
+    this.el.className = this.isPip ? 'tile pip' : 'tile';
 
     const logo = document.createElement('div');
     logo.className = 'logo';
+    this.note = document.createElement('div');
+    this.note.className = 'note';
+    this.label = document.createElement('div');
+    this.label.className = 'badge';
+
+    if (this.isPip) {
+      logo.append(this.note);
+      this.el.append(logo, this.label);
+      parent.appendChild(this.el);
+      return;
+    }
+
     const img = document.createElement('img');
     img.src = 'logo.svg';
     img.alt = 'Dhaksha Drones';
@@ -213,14 +182,8 @@ class Tile {
     });
     const sub = document.createElement('div');
     sub.className = 'sub';
-    sub.textContent = 'Drone ' + (index + 1);
-    this.note = document.createElement('div');
-    this.note.className = 'note';
+    sub.textContent = 'Drone ' + (index + 1) + (isSkydroid(index) ? ' · Skydroid' : ' · ZR10');
     logo.append(img, sub, this.note);
-
-    const badge = document.createElement('div');
-    badge.className = 'badge';
-    badge.textContent = String(index + 1);
 
     const overlay = document.createElement('div');
     overlay.className = 'overlay';
@@ -230,13 +193,13 @@ class Tile {
     reload.type = 'button';
     reload.textContent = '↻';
     reload.title = 'Reload';
-    reload.addEventListener('click', () => this.start());
+    reload.addEventListener('click', () => this.startAll());
     this.modeButton = document.createElement('button');
     this.modeButton.type = 'button';
     this.modeButton.title = 'Switch this box between HLS and WebRTC';
     this.modeButton.addEventListener('click', () => {
       this.modeOverride = this.mode() === 'hls' ? 'webrtc' : 'hls';
-      this.start();
+      this.startAll();
     });
     const enlarge = document.createElement('button');
     enlarge.type = 'button';
@@ -245,18 +208,71 @@ class Tile {
     enlarge.addEventListener('click', () => toggleFocus(this));
     overlay.append(this.urlText, reload, this.modeButton, enlarge);
 
-    this.el.append(logo, badge, overlay);
+    this.el.append(logo, this.label, overlay);
     this.el.addEventListener('dblclick', () => toggleFocus(this));
-    grid.appendChild(this.el);
+    parent.appendChild(this.el);
+
+    if (isSkydroid(index)) {
+      // The night (or day) stream in the corner; a click swaps it with the big picture
+      this.pip = new Tile(index, this.el, true);
+      this.pip.el.title = 'Click to swap day and night';
+      this.pip.el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.swap();
+      });
+      this.pip.el.addEventListener('dblclick', (e) => e.stopPropagation());
+    }
   }
 
   mode() {
-    return this.modeOverride || globalMode;
+    return this.isPip && this.owner ? this.owner.mode() : (this.modeOverride || globalMode);
   }
 
-  setAddress(text) {
-    this.source = parseAddress(text);
+  /** Day stream `source`, and for a Skydroid box its night stream `nightSource`; day starts in the big picture. */
+  setSources(box, source, nightSource) {
+    this.box = box;
+    this.source = source;
     this.modeOverride = null;
+    this.nightOnMain = false;
+    if (this.pip) {
+      this.pip.owner = this;
+      this.pip.source = nightSource;
+    }
+    this.updateLabels();
+  }
+
+  updateLabels() {
+    if (!this.pip) {
+      this.label.textContent = (this.box + 1) + ' · ZR10';
+      return;
+    }
+    this.label.textContent = (this.box + 1) + (this.nightOnMain ? ' · NIGHT' : ' · DAY');
+    this.pip.label.textContent = this.nightOnMain ? 'DAY' : 'NIGHT';
+  }
+
+  /** Day and night change places between the big and the small picture. */
+  swap() {
+    if (!this.pip) {
+      return;
+    }
+    [this.source, this.pip.source] = [this.pip.source, this.source];
+    this.nightOnMain = !this.nightOnMain;
+    this.updateLabels();
+    this.startAll();
+  }
+
+  startAll() {
+    this.start();
+    if (this.pip) {
+      this.pip.start();
+    }
+  }
+
+  stopAll() {
+    this.stop();
+    if (this.pip) {
+      this.pip.stop();
+    }
   }
 
   setNote(text, isError) {
@@ -266,7 +282,7 @@ class Tile {
 
   setLive(live) {
     this.el.classList.toggle('live', live);
-    this.el.classList.toggle('waiting', !live && !!this.source && !this.source.error);
+    this.el.classList.toggle('waiting', !live && !!this.source);
     if (live) {
       this.setNote('');
     }
@@ -274,29 +290,21 @@ class Tile {
 
   start() {
     this.stop();
-    this.modeButton.classList.toggle('hidden', !this.source || this.source.kind !== 'server');
-    this.modeButton.textContent = this.mode() === 'hls' ? 'HLS' : 'WebRTC';
     if (!this.source) {
-      this.urlText.textContent = 'No address';
       this.setNote('No address');
       return;
     }
-    if (this.source.error) {
-      this.urlText.textContent = this.source.error;
-      this.setNote(this.source.error, true);
-      return;
-    }
     const target = resolve(this.source, this.mode());
-    this.urlText.textContent = target.url;
     const session = this.session;
-    if (target.kind === 'page') {
-      this.setNote('Loading player page…');
-      this.playPage(target.url);
-    } else if (target.kind === 'hls') {
-      this.setNote('Waiting for feed (HLS)…');
+    if (!this.isPip) {
+      this.modeButton.textContent = this.mode() === 'hls' ? 'HLS' : 'WebRTC';
+      this.urlText.textContent = target.url;
+    }
+    if (target.kind === 'hls') {
+      this.setNote(this.isPip ? 'Waiting…' : 'Waiting for feed (HLS)…');
       this.playHls(target.url, session);
     } else {
-      this.setNote('Waiting for feed (WebRTC)…');
+      this.setNote(this.isPip ? 'Waiting…' : 'Waiting for feed (WebRTC)…');
       this.playWebrtc(target.url, session);
     }
   }
@@ -317,7 +325,7 @@ class Tile {
       return;
     }
     this.stop();
-    this.setNote(reason + ' · retrying…');
+    this.setNote(this.isPip ? reason : reason + ' · retrying…');
     const next = this.session;
     this.retryTimer = setTimeout(() => {
       if (next === this.session) {
@@ -338,16 +346,6 @@ class Tile {
     });
     this.el.insertBefore(video, this.el.firstChild);
     return video;
-  }
-
-  playPage(url) {
-    const frame = document.createElement('iframe');
-    frame.allow = 'autoplay; fullscreen; picture-in-picture; encrypted-media';
-    // Pages from other sites cannot report when their video plays, so the box counts as live once the page has loaded
-    frame.addEventListener('load', () => this.setLive(true));
-    frame.src = url;
-    this.el.insertBefore(frame, this.el.firstChild);
-    this.player = { close: () => frame.remove() };
   }
 
   playHls(url, session) {
@@ -437,83 +435,87 @@ class Tile {
 }
 
 const grid = document.getElementById('grid');
-const form = document.getElementById('addresses');
-const serverField = document.getElementById('server-ip');
+const cameraRows = document.getElementById('cameras');
+const allIp = document.getElementById('all-ip');
+const allPort = document.getElementById('all-port');
 const modeSelect = document.getElementById('mode');
 const modeToggle = document.getElementById('mode-toggle');
 const tiles = [];
-const fields = [];
-const checks = [];
+const rows = [];
 const shownCount = document.getElementById('shown-count');
 let focused = null;
 
 function updateShownCount() {
-  const n = checks.filter((check) => check.checked).length;
+  const n = rows.filter((row) => row.check.checked).length;
   shownCount.textContent = n === 1 ? '1 drone ticked' : n + ' drones ticked';
 }
 
-function buildAddressForm(urls, shown) {
-  for (let i = 0; i < STREAMS; i++) {
+/** One row per box: show, box number, camera type, server IP, port and the stream names it plays. */
+function buildCameraWindow(cameras) {
+  for (let i = 0; i < BOXES; i++) {
     const row = document.createElement('div');
-    row.className = 'row';
+    row.className = 'camera-row' + (isSkydroid(i) ? ' skydroid' : ' zr10');
     const check = document.createElement('input');
     check.type = 'checkbox';
-    check.checked = shown[i];
+    check.checked = cameras[i].show;
     check.title = 'Show this drone (unticked drones use no CPU or network)';
     check.addEventListener('change', updateShownCount);
-    const label = document.createElement('label');
-    label.textContent = 'Drone ' + (i + 1);
-    label.htmlFor = 'url' + i;
-    const input = document.createElement('input');
-    input.id = 'url' + i;
-    input.type = 'text';
-    input.spellcheck = false;
-    input.placeholder = 'http://SERVER_IP:8888/live/drone' + (i + 1);
-    input.value = urls[i];
-    // Typing an address into an empty row ticks it
-    let wasEmpty = !input.value.trim();
-    input.addEventListener('input', () => {
-      const empty = !input.value.trim();
-      if (wasEmpty && !empty && !check.checked) {
-        check.checked = true;
-        updateShownCount();
-      }
-      wasEmpty = empty;
-    });
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        applyAddresses();
-      }
-    });
-    const clear = document.createElement('button');
-    clear.type = 'button';
-    clear.textContent = 'Clear';
-    clear.addEventListener('click', () => {
-      input.value = '';
-      check.checked = false;
-      updateShownCount();
-      input.focus();
-    });
-    row.append(check, label, input, clear);
-    form.appendChild(row);
-    fields.push(input);
-    checks.push(check);
+    const box = document.createElement('span');
+    box.className = 'box';
+    box.textContent = String(i + 1);
+    const type = document.createElement('span');
+    type.className = 'type';
+    type.textContent = isSkydroid(i) ? 'Skydroid · day + night' : 'ZR10';
+    const ip = document.createElement('input');
+    ip.type = 'text';
+    ip.spellcheck = false;
+    ip.className = 'ip';
+    ip.placeholder = DEFAULT_SERVER;
+    ip.value = cameras[i].ip;
+    const port = document.createElement('input');
+    port.type = 'text';
+    port.inputMode = 'numeric';
+    port.className = 'port';
+    port.placeholder = HLS_PORT;
+    port.value = cameras[i].port;
+    const streams = document.createElement('span');
+    streams.className = 'streams';
+    streams.textContent = isSkydroid(i) ? streamName(i, false) + ' + ' + streamName(i, true) : streamName(i, false);
+    for (const field of [ip, port]) {
+      field.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          applyCameras();
+        }
+      });
+    }
+    row.append(check, box, type, ip, port, streams);
+    cameraRows.appendChild(row);
+    rows.push({ check, ip, port });
   }
 }
 
-/** Puts http://SERVER:8888/live/droneN into every empty box; boxes that already have an address keep it. */
-function fillFromServer() {
-  const server = serverField.value.trim().replace(/^[a-z]+:\/\//i, '').replace(/[/:].*$/, '');
-  if (!server) {
-    serverField.focus();
+function cleanIp(text) {
+  return text.trim().replace(/^[a-z]+:\/\//i, '').replace(/[/:].*$/, '');
+}
+
+function cleanPort(text) {
+  const port = text.trim().replace(/[^0-9]/g, '');
+  return port || HLS_PORT;
+}
+
+/** Puts the IP and port at the top into every box. */
+function applyToAll() {
+  const ip = cleanIp(allIp.value);
+  if (!ip) {
+    allIp.focus();
     return;
   }
-  serverField.value = server;
-  store(SERVER_KEY, server);
-  fields.forEach((field, i) => {
-    if (!field.value.trim()) {
-      field.value = 'http://' + server + ':' + HLS_PORT + '/live/drone' + (i + 1);
-    }
+  const port = cleanPort(allPort.value);
+  allIp.value = ip;
+  allPort.value = port;
+  rows.forEach((row) => {
+    row.ip.value = ip;
+    row.port.value = port;
   });
 }
 
@@ -521,8 +523,8 @@ function setGlobalMode(mode) {
   globalMode = mode;
   store(MODE_KEY, mode);
   modeSelect.value = mode;
-  modeToggle.textContent = 'Server streams: ' + (mode === 'hls' ? 'HLS' : 'WebRTC');
-  modeToggle.title = 'Switch every server box to ' + (mode === 'hls' ? 'WebRTC (lower delay)' : 'HLS (more reliable)');
+  modeToggle.textContent = 'Streams: ' + (mode === 'hls' ? 'HLS' : 'WebRTC');
+  modeToggle.title = 'Switch every box to ' + (mode === 'hls' ? 'WebRTC (lower delay)' : 'HLS (more reliable)');
 }
 
 function showPage(gridPage) {
@@ -532,36 +534,46 @@ function showPage(gridPage) {
   document.getElementById('grid-page').classList.toggle('hidden', !gridPage);
   if (!gridPage) {
     setFocus(null);
-    tiles.forEach((tile) => tile.stop());
+    tiles.forEach((tile) => tile.stopAll());
   }
 }
 
-/** Shows only the ticked drones; unticked boxes are removed from the grid and run no player at all. */
-function applyAddresses() {
-  const texts = fields.map((field) => field.value.trim());
-  texts.forEach((text, i) => { fields[i].value = text; });
-  const shown = checks.map((check) => check.checked);
-  store(STORAGE_KEY, JSON.stringify(texts));
-  store(SHOW_KEY, JSON.stringify(shown));
-  const count = shown.filter(Boolean).length;
+/** Saves the camera window and shows only the ticked drones; unticked boxes run no player at all. */
+function applyCameras() {
+  const cameras = rows.map((row) => ({ ip: cleanIp(row.ip.value), port: cleanPort(row.port.value), show: row.check.checked }));
+  cameras.forEach((camera, i) => {
+    rows[i].ip.value = camera.ip;
+    rows[i].port.value = camera.port;
+  });
+  store(CAMERAS_KEY, JSON.stringify(cameras));
   const okNote = document.getElementById('ok-note');
+  const missing = cameras.findIndex((camera) => camera.show && !camera.ip);
+  if (missing >= 0) {
+    okNote.textContent = 'Drone ' + (missing + 1) + ' has no IP.';
+    rows[missing].ip.focus();
+    return;
+  }
+  const count = cameras.filter((camera) => camera.show).length;
   okNote.textContent = count ? '' : 'Tick at least one drone to show.';
   if (!count) {
     return;
   }
-  // As square as possible: 1 drone fills the window, 4 make 2 x 2, 9 make 3 x 3, 25 make 5 x 5
+  // As square as possible: 1 drone fills the window, 4 make 2 x 2, 10 make 4 x 3
   const columns = Math.ceil(Math.sqrt(count));
   grid.style.setProperty('--columns', columns);
   grid.style.setProperty('--rows', Math.ceil(count / columns));
   showPage(true);
   tiles.forEach((tile, i) => {
-    tile.el.classList.toggle('hidden', !shown[i]);
-    tile.setAddress(shown[i] ? texts[i] : '');
-    if (shown[i]) {
-      tile.start();
-    } else {
-      tile.stop();
+    const camera = cameras[i];
+    tile.el.classList.toggle('hidden', !camera.show);
+    if (!camera.show) {
+      tile.stopAll();
+      return;
     }
+    const day = serverSource(camera.ip, camera.port, streamName(i, false));
+    const night = isSkydroid(i) ? serverSource(camera.ip, camera.port, streamName(i, true)) : null;
+    tile.setSources(i, day, night);
+    tile.startAll();
   });
 }
 
@@ -588,47 +600,35 @@ setTimeout(hideSplash, 2600);
 
 document.querySelector('.title-logo').addEventListener('click', () => flyDrone(document.getElementById('header')));
 
-const saved = loadUrls();
-const savedShown = loadShown(saved);
-buildAddressForm(saved, savedShown);
+const cameras = loadCameras();
+buildCameraWindow(cameras);
 updateShownCount();
+allIp.value = cameras[0].ip;
+allPort.value = cameras[0].port;
+for (let i = 0; i < BOXES; i++) {
+  tiles.push(new Tile(i, grid, false));
+}
 document.getElementById('tick-all').addEventListener('click', () => {
-  checks.forEach((check, i) => { check.checked = !!fields[i].value.trim(); });
+  rows.forEach((row) => { row.check.checked = true; });
   updateShownCount();
 });
 document.getElementById('tick-none').addEventListener('click', () => {
-  checks.forEach((check) => { check.checked = false; });
+  rows.forEach((row) => { row.check.checked = false; });
   updateShownCount();
 });
-for (let i = 0; i < STREAMS; i++) {
-  tiles.push(new Tile(i, grid));
-}
-// Opened from the video server in a browser (the web version): that server is the default, and the first
-// visit fills the boxes with drone1-drone25 and ticks drone1, so OK is the only step
-serverField.value = load(SERVER_KEY, PAGE_HOST);
-if (PAGE_HOST && !saved.some((url) => url)) {
-  fillFromServer();
-  checks[0].checked = true;
-  updateShownCount();
-}
+document.getElementById('apply-all').addEventListener('click', applyToAll);
 setGlobalMode(globalMode);
 modeSelect.addEventListener('change', () => setGlobalMode(modeSelect.value));
 modeToggle.addEventListener('click', () => {
   setGlobalMode(globalMode === 'hls' ? 'webrtc' : 'hls');
   tiles.forEach((tile) => {
     tile.modeOverride = null;
-    if (!tile.el.classList.contains('hidden') && tile.source && tile.source.kind === 'server') {
-      tile.start();
+    if (!tile.el.classList.contains('hidden') && tile.source) {
+      tile.startAll();
     }
   });
 });
-document.getElementById('fill').addEventListener('click', fillFromServer);
-serverField.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') {
-    fillFromServer();
-  }
-});
-document.getElementById('ok').addEventListener('click', applyAddresses);
+document.getElementById('ok').addEventListener('click', applyCameras);
 document.getElementById('back').addEventListener('click', () => showPage(false));
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape' || document.getElementById('grid-page').classList.contains('hidden')) {
@@ -641,6 +641,7 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-if (savedShown.some((on, i) => on && saved[i])) {
-  applyAddresses();
+// Straight to the drones when this computer has used the camera window before
+if (load(CAMERAS_KEY, null) !== null) {
+  applyCameras();
 }
