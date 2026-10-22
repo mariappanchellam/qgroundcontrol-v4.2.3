@@ -1,5 +1,6 @@
 # Builds this repository's QGroundControl 4.2.x as Android APKs:
 #   armeabi-v7a - 32-bit ARM, for the SIYI MK15 and phones
+#   arm64-v8a   - 64-bit ARM, for 64-bit tablets and phones
 #   x86_64      - for the Android emulator on PCs
 # Mirrors upstream's v4.2.x android_32_release.yml toolchain
 # (Qt 5.15.2, qmake, NDK r21, GStreamer 1.18.x) on a current Linux runner.
@@ -55,7 +56,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        abi: [armeabi-v7a, x86_64]
+        abi: [armeabi-v7a, arm64-v8a, x86_64]
     env:
       ANDROID_ABI: ${{ matrix.abi }}
       ARTIFACT: DhakshaGroundControl-${{ matrix.abi }}.apk
