@@ -1,5 +1,6 @@
 # Builds Dhaksha Live, the Android viewer app for the drone video that
 # DhakshaGroundControl streams to the server (tools/dhaksha/live-android).
+# The app shows the same page as the desktop and browser versions (tools/dhaksha/live-windows/src).
 name: Dhaksha Live
 
 on:
@@ -9,6 +10,7 @@ on:
       - 'build/**'
     paths:
       - 'tools/dhaksha/live-android/**'
+      - 'tools/dhaksha/live-windows/src/**'
       - '.github/workflows/dhaksha_live.yml'
   workflow_dispatch:
 
@@ -47,6 +49,7 @@ jobs:
       - name: Build APK
         working-directory: tools/dhaksha/live-android
         run: |
+          bash bundle_page.sh
           gradle --no-daemon assembleDebug
           mv app/build/outputs/apk/debug/app-debug.apk DhakshaLive.apk
 

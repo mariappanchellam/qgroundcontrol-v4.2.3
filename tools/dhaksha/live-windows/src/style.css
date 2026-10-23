@@ -55,7 +55,7 @@ code { color: var(--text); }
 .actions .primary { width: 100%; padding: 10px; }
 
 /* Grid page: up to 10 boxes */
-#grid-page { display: flex; flex-direction: column; height: 100vh; }
+#grid-page { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
 .toolbar { display: flex; align-items: center; gap: 12px; padding: 6px 8px; background: #0b0b0b; }
 .hint { color: var(--muted); font-size: 12px; }
 #grid { flex: 1; display: grid; grid-template-columns: repeat(var(--columns, 5), 1fr); grid-template-rows: repeat(var(--rows, 5), 1fr);
@@ -133,6 +133,19 @@ code { color: var(--text); }
   .camera-head { display: none; }
   .camera-row { grid-template-columns: 26px 30px 1fr 80px; }
   .camera-row .type, .camera-row .streams { grid-column: 3 / 5; }
+}
+/* Phone held upright: two boxes per row, scroll for the rest */
+@media (orientation: portrait) and (max-width: 700px) {
+  #grid:not(.focus) { grid-template-columns: repeat(2, 1fr); grid-template-rows: none; grid-auto-rows: auto;
+    align-content: start; overflow-y: auto; }
+  #grid:not(.focus) .tile { aspect-ratio: 16 / 9; }
+  .hint { display: none; }
+}
+/* Phone held sideways: keep the toolbar to one short line */
+@media (max-height: 500px) {
+  .hint { display: none; }
+  .toolbar { padding: 3px 6px; }
+  .toolbar button { white-space: nowrap; padding: 4px 10px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .splash-logo, .drone, .drone .rotor, .tile.waiting .logo img { animation: none; }

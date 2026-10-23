@@ -3,3 +3,5 @@ build/
 app/build/
 local.properties
 *.apk
+# Filled by bundle_page.sh from ../live-windows/src
+app/src/main/assets/
