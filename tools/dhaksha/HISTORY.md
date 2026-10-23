@@ -268,6 +268,10 @@ so details can be lost. To keep the context:
 - Dhaksha Live 4.1 (12e9fab): one click on a box enlarges it to the whole window, another click shrinks it back
   (was double-click / the enlarge button). Clicking the PiP still only swaps day and night; the hover buttons
   no longer change the size. Tested in Electron.
+- Dhaksha Live 4.1 on Android (de5aa49): the phone app is now a full-screen WebView of the same page
+  (bundle_page.sh copies live-windows/src + hls.js into the APK), so it has the 10 boxes, PiP and tap to enlarge.
+  Back = Esc. Shared page got a phone layout (2 per row upright, one-line toolbar sideways). Layout checked at
+  412x915 and 915x412 in Electron; the APK itself is not yet tried on a phone.
 
 ## Open items
 - Find what blocks WebRTC (Lightsail UDP 8189 rule, TCP fallback, office/laptop network).
@@ -370,6 +374,7 @@ The newest build in each table is the last row.
 | 2 | 2026-10-04 | main | fc07b76 | feat(tools): Dhaksha Live Android viewer app for the drone stream | [DhakshaLive (4MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/37166588202/artifacts/11288674986) |
 | 3 | 2026-10-07 | build/dhaksha-live-grid | 3efec1a | feat(tools): Dhaksha Live shows eight drone streams in one grid | [DhakshaLive (4MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/37698537777/artifacts/11516606988) |
 | 4 | 2026-10-07 | build/dhaksha-live-grid | 9946f69 | feat(tools): Dhaksha Live plays Livepush player links; Windows app with eight boxes | [DhakshaLive (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/37700577009/artifacts/11517087781) |
+| 5 | 2026-10-23 | build/dhaksha-live-grid | de5aa49 | feat(tools): Dhaksha Live 4.1 on Android phones, same page as desktop and browser | [DhakshaLive (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/39943779381/artifacts/12496997166) |
 
 ### Dhaksha Live (Windows desktop)
 
@@ -384,6 +389,7 @@ The newest build in each table is the last row.
 | 7 | 2026-10-13 | build/dhaksha-live-grid | ccd4508 | fix(tools): Dhaksha Live drops old video and jumps back to live (3.2.0) | [DhakshaLive-Windows (170MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38373769405/artifacts/11799633613) |
 | 8 | 2026-10-21 | build/dhaksha-live-grid | 4fcc4b5 | feat(tools): Dhaksha Live 4.0, 5 Skydroid boxes with day / night PiP and 5 ZR10 boxes | [DhakshaLive-Windows (162MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/39593064532/artifacts/12342339541) |
 | 9 | 2026-10-23 | build/dhaksha-live-grid | 12e9fab | feat(tools): Dhaksha Live 4.1, one click enlarges a box and another shrinks it | [DhakshaLive-Windows (162MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/39928583401/artifacts/12490496766) |
+| 10 | 2026-10-23 | build/dhaksha-live-grid | de5aa49 | feat(tools): Dhaksha Live 4.1 on Android phones, same page as desktop and browser | [DhakshaLive-Windows (162MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/39943779488/artifacts/12497013070) |
 
 ### Dhaksha Live (Linux desktop)
 
@@ -396,6 +402,7 @@ The newest build in each table is the last row.
 | 5 | 2026-10-13 | build/dhaksha-live-grid | ccd4508 | fix(tools): Dhaksha Live drops old video and jumps back to live (3.2.0) | [DhakshaLive-Linux-64bit-deb (77MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38373769395/artifacts/11799704700)<br>[DhakshaLive-Linux-32bit-deb (61MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38373769395/artifacts/11800730229) |
 | 6 | 2026-10-21 | build/dhaksha-live-grid | 4fcc4b5 | feat(tools): Dhaksha Live 4.0, 5 Skydroid boxes with day / night PiP and 5 ZR10 boxes | [DhakshaLive-Linux-64bit-deb (73MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/39593064512/artifacts/12343220066)<br>[DhakshaLive-Linux-64bit-other (208MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/39593064512/artifacts/12342801028)<br>[DhakshaLive-Linux-32bit-deb (58MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/39593064512/artifacts/12342234953)<br>[DhakshaLive-Linux-32bit-other (162MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/39593064512/artifacts/12342164584) |
 | 7 | 2026-10-23 | build/dhaksha-live-grid | 12e9fab | feat(tools): Dhaksha Live 4.1, one click enlarges a box and another shrinks it | [DhakshaLive-Linux-64bit-deb (73MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/39928583399/artifacts/12491290173)<br>[DhakshaLive-Linux-64bit-other (208MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/39928583399/artifacts/12490457513)<br>[DhakshaLive-Linux-32bit-deb (58MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/39928583399/artifacts/12490896662)<br>[DhakshaLive-Linux-32bit-other (162MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/39928583399/artifacts/12491066136) |
+| 8 | 2026-10-23 | build/dhaksha-live-grid | de5aa49 | feat(tools): Dhaksha Live 4.1 on Android phones, same page as desktop and browser | [DhakshaLive-Linux-64bit-deb (73MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/39943779423/artifacts/12497297051)<br>[DhakshaLive-Linux-64bit-other (208MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/39943779423/artifacts/12497411767)<br>[DhakshaLive-Linux-32bit-deb (58MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/39943779423/artifacts/12497746022)<br>[DhakshaLive-Linux-32bit-other (162MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/39943779423/artifacts/12497356891) |
 
 ### DhakshaKey (Android helper for Termux)
 
