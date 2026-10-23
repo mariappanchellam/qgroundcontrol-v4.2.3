@@ -3,6 +3,7 @@
 // Dhaksha Live: 10 boxes, one per drone, playing from the Dhaksha video server (MediaMTX) as HLS or WebRTC.
 //   Boxes 1-5: Skydroid, day stream droneN in the box and the night stream droneN-night in a small
 //              picture-in-picture at its corner; clicking the small picture swaps day and night.
+// One click on a box enlarges it to the whole window; another click shrinks it back to the grid.
 //   Boxes 6-10: SIYI ZR10, one stream droneN.
 // The camera window sets each box's server IP and port. Until a box's video is actually playing it shows
 // the Dhaksha logo. The settings are kept between runs.
@@ -207,9 +208,11 @@ class Tile {
     enlarge.title = 'Enlarge';
     enlarge.addEventListener('click', () => toggleFocus(this));
     overlay.append(this.urlText, reload, this.modeButton, enlarge);
+    // The overlay buttons act on their own, without also enlarging or shrinking the box
+    overlay.addEventListener('click', (e) => e.stopPropagation());
 
     this.el.append(logo, this.label, overlay);
-    this.el.addEventListener('dblclick', () => toggleFocus(this));
+    this.el.addEventListener('click', () => toggleFocus(this));
     parent.appendChild(this.el);
 
     if (isSkydroid(index)) {
@@ -220,7 +223,6 @@ class Tile {
         e.stopPropagation();
         this.swap();
       });
-      this.pip.el.addEventListener('dblclick', (e) => e.stopPropagation());
     }
   }
 
