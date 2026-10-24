@@ -272,6 +272,14 @@ so details can be lost. To keep the context:
   (bundle_page.sh copies live-windows/src + hls.js into the APK), so it has the 10 boxes, PiP and tap to enlarge.
   Back = Esc. Shared page got a phone layout (2 per row upright, one-line toolbar sideways). Layout checked at
   412x915 and 915x412 in Electron; the APK itself is not yet tried on a phone.
+- DhakshaKey 4.2 (aa8d97e, run 40070616489, artifact 12551590489): "Upload with" RTMP (1935) / RTSP (8554) /
+  SRT (8890 UDP) / WebRTC WHIP (8889), each with an editable saved port; "Watch with" HLS (8888) / WebRTC (8889)
+  for the links; editable stream names per camera and drone (day, and night for Day + Night). WHIP logs in to
+  MediaMTX with `-authorization drone:<password>` (Basic auth in the URL and ?user=&pass= were refused). SRT and
+  WHIP scripts stop with a message when Termux's ffmpeg lacks them. Tested on a local MediaMTX with the server's
+  login setup: Day + Night over all four uploads, both streams on the server and playing as HLS (WHIP with
+  ffmpeg 8). Server firewall: SRT needs 8890/udp opened; WHIP uses 8889/tcp + 8189/udp, already open.
+  Termux scripts regenerated: `stream_aws_<camera>.sh` (RTMP) plus `_rtsp` / `_srt` / `_whip` for each camera.
 
 ## Open items
 - Find what blocks WebRTC (Lightsail UDP 8189 rule, TCP fallback, office/laptop network).
@@ -298,6 +306,7 @@ real values, because this repository is public. Put the real values in your copy
 | `stream_aws_skydroid.sh` / `_night.sh` | Skydroid C13 day (554/stream=1) or thermal (555/stream=2) with position, as DhakshaKey writes them | set `SERVER_IP` and `PASSWORD` inside |
 | `stream_aws_skydroid_both.sh` | Skydroid day -> `droneN` and thermal -> `droneN-night` at the same time | same |
 | `stream_aws_zr10.sh` | Dhaksha ZR10 with position | same |
+| `stream_aws_<camera>_rtsp.sh` / `_srt.sh` / `_whip.sh` | The same for each camera, uploading with RTSP (8554), SRT (8890, UDP) or WebRTC WHIP (8889, needs ffmpeg 8 with whip) instead of RTMP (1935); the port is `UPLOAD_PORT` | same |
 | `stream_aws_viewpro.sh` | ViewPro camera (192.168.144.119) with position | same |
 | `stream_aws_home.sh` | Home test: loops `test.mp4` with a made-up position (`dhaksha_telemetry.py --fake`) | same |
 | `position_check.sh` | Checks forwarding -> UDP 14445 -> `dhaksha_telemetry.py` -> drawtext | `bash ~/position_check.sh` |
@@ -420,4 +429,5 @@ The newest build in each table is the last row.
 | 10 | 2026-10-12 | build/dhaksha-key | df03141 | fix(dhaksha-key): recover from unclean stops, a dead position reader and a stuck upload (2.7) | [DhakshaKey (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38194808974/artifacts/11722188647) |
 | 11 | 2026-10-12 | build/dhaksha-key | 1eff12e | feat(dhaksha-key): Skydroid first, with its real day and night addresses (2.9) | [DhakshaKey (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38208473806/artifacts/11728780347) |
 | 12 | 2026-10-14 | build/dhaksha-key | 3dbc529 | feat(dhaksha-key): Skydroid day + night as two streams at once (3.0) | [DhakshaKey (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38556096097/artifacts/11889732072) |
+| 13 | 2026-10-24 | build/dhaksha-key | aa8d97e | feat(dhaksha-key): choose upload (RTMP / RTSP / SRT / WebRTC), port, watch mode and stream names (4.2) | [DhakshaKey (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/40070616489/artifacts/12551590489) |
 

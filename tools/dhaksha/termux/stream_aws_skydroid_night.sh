@@ -1,10 +1,12 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # Made by DhakshaKey: Dhaksha - Night camera -> Dhaksha video server, 360p, about 150 kbit/s, low delay.
+# Upload: RTMP (port 1935)
 # Watch: http://YOUR_SERVER_IP:8888/live/drone1
 # Stop with Ctrl+C, or the Stop button in DhakshaKey.
 
 SERVER_IP='YOUR_SERVER_IP'      # DhakshaKey fills in the real values
 PASSWORD='YOUR_SERVER_PASSWORD'
+UPLOAD_PORT=1935
 DRONE='drone1'
 CAMERA='rtsp://192.168.144.108:555/stream=2'
 WIDTH=640
@@ -93,8 +95,8 @@ why_stopped() {
       echo "$(date '+%F %T') camera not reachable at ${hp%%:*}:$port"; report "CAMERA $DRONE"; return
     fi
   fi
-  if ! timeout 3 bash -c "exec 3<>/dev/tcp/$SERVER_IP/1935" 2>/dev/null; then
-    echo "$(date '+%F %T') server not reachable at $SERVER_IP:1935 (internet or server IP)"
+  if ! timeout 3 bash -c "exec 3<>/dev/tcp/$SERVER_IP/$UPLOAD_PORT" 2>/dev/null; then
+    echo "$(date '+%F %T') server not reachable at $SERVER_IP:$UPLOAD_PORT (internet, server IP or port)"
     report "NET $DRONE"; return
   fi
   report "DROP $DRONE"
@@ -103,7 +105,7 @@ why_stopped() {
 # KB of video waiting in this phone's upload queue to the server; empty when it cannot be read
 queued_kb() {
   local hex
-  hex=$(awk -v port="$(printf '%04X' 1935)" 'FNR > 1 { split($3, r, ":"); if (r[2] == port && $4 == "01") { split($5, q, ":"); print q[1]; exit } }' /proc/net/tcp /proc/net/tcp6 2>/dev/null)
+  hex=$(awk -v port="$(printf '%04X' "$UPLOAD_PORT")" 'FNR > 1 { split($3, r, ":"); if (r[2] == port && $4 == "01") { split($5, q, ":"); print q[1]; exit } }' /proc/net/tcp /proc/net/tcp6 2>/dev/null)
   [ -n "$hex" ] && echo $(( 16#$hex / 1024 ))
 }
 
@@ -123,7 +125,7 @@ while true; do
     -c:v libx264 -preset ultrafast -tune zerolatency -profile:v baseline -pix_fmt yuv420p \
     -b:v "$BITRATE" -maxrate "$BITRATE" -bufsize "$BUFSIZE" \
     -g "$FPS" -keyint_min "$FPS" -sc_threshold 0 \
-    -f flv "rtmp://$SERVER_IP:1935/live/$DRONE?user=drone&pass=$PASSWORD" &
+    -f flv "rtmp://$SERVER_IP:$UPLOAD_PORT/live/$DRONE?user=drone&pass=$PASSWORD" &
   FFMPEG_PID=$!
   # Watchdog: when the video stops moving or runs below 0.8x for STALL_SECONDS, or piles up
   # waiting to upload for QUEUE_SECONDS, restart at once.
