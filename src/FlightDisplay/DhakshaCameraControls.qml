@@ -372,7 +372,7 @@ Item {
         }
     }
 
-    // ------------------------------------------------------------------ Settings: gimbal speed
+    // ------------------------------------------------------------------ Settings: gimbal speed and night palette
 
     Rectangle {
         id:             speedSettings
@@ -435,6 +435,28 @@ Item {
                         onMoved:    speedSettings._speed = Math.round(value)
                     }
                     QGCLabel { anchors.verticalCenter: parent.verticalCenter; text: "60"; color: "white" }
+                }
+                // Night (thermal) camera colours; sent at once so the effect shows on the video, also kept in
+                // Application Settings > General > Gimbal Camera
+                Row {
+                    anchors.horizontalCenter:   parent.horizontalCenter
+                    spacing:                    _margin
+                    visible:                    _camera && _camera.thermalPaletteSupported
+                    QGCLabel {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text:                   qsTr("Night palette")
+                        color:                  "white"
+                        font.bold:              true
+                    }
+                    QGCComboBox {
+                        width:          ScreenTools.defaultFontPixelWidth * 18
+                        model:          DhakshaCameraManager.thermalPaletteNames
+                        currentIndex:   DhakshaCameraManager.thermalPalette
+                        onActivated: {
+                            DhakshaCameraManager.thermalPalette = index
+                            notify(qsTr("Night palette: %1").arg(DhakshaCameraManager.thermalPaletteNames[index]))
+                        }
+                    }
                 }
                 Row {
                     anchors.horizontalCenter:   parent.horizontalCenter
