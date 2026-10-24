@@ -12,9 +12,10 @@
   <section id="setup" class="page">
     <header id="header" class="flight-area">
       <h1 id="title"><img class="title-logo" src="logo.svg" alt="Dhaksha Drones"><span class="live-word">Live</span></h1>
-      <p>Ten drones: boxes 1&ndash;5 are Skydroid (day in the box, night in the small corner picture; click it to
-         swap), boxes 6&ndash;10 are ZR10. Each box plays from the Dhaksha video server at the IP and port below
-         (8888 = HLS port, 80 = through the server's web port). Boxes show the Dhaksha logo until their video arrives.</p>
+      <p>Up to 25 drones. Choose each drone's camera: Skydroid shows Day, Night, or Day + Night (night in the small
+         corner picture; click it to swap), ZR10 shows Day. Each box plays from the Dhaksha video server at the IP and
+         port below (8888 = HLS port, 80 = through the server's web port). Boxes show the Dhaksha logo until their
+         video arrives.</p>
     </header>
     <div class="server">
       <label for="all-ip">Server IP</label>
@@ -34,7 +35,7 @@
       <button id="tick-none" type="button">Untick all</button>
       <span id="shown-count"></span>
     </div>
-    <div class="camera-head"><span></span><span>Box</span><span>Camera</span><span>Server IP</span><span>Port</span><span>Streams</span></div>
+    <div class="camera-head"><span></span><span>Box</span><span>Camera</span><span>View</span><span>Server IP</span><span>Port</span><span>Stream URLs</span></div>
     <form id="cameras" autocomplete="off"></form>
     <div class="actions">
       <button id="ok" class="primary" type="button">OK: show the ticked drones</button>
@@ -49,6 +50,7 @@
       <span class="hint">Click a box to enlarge, click again to shrink &middot; Click the small picture to swap day / night &middot; Esc to return &middot; F11 full screen</span>
     </div>
     <div id="grid"></div>
+    <div id="slow-toast" role="alert"><div class="title">Internet speed very slow for receiving Data</div><div class="detail"></div></div>
   </section>
 
   <script src="../node_modules/hls.js/dist/hls.min.js"></script>

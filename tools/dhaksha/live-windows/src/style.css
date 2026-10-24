@@ -35,7 +35,8 @@ code { color: var(--text); }
 .server input { width: 200px; }
 .server input.port, .camera-row input.port { width: 80px; }
 /* Camera window: one row per box */
-.camera-head, .camera-row { display: grid; grid-template-columns: 26px 40px 190px minmax(140px, 260px) 90px 1fr;
+.camera-head, .camera-row { display: grid;
+  grid-template-columns: 26px 34px 110px 250px minmax(130px, 200px) 80px minmax(0, 1fr);
   align-items: center; gap: 10px; padding: 4px 8px; }
 .camera-head { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
 .camera-row { margin-bottom: 4px; border-radius: 6px; transition: background .15s; }
@@ -45,8 +46,20 @@ code { color: var(--text); }
 .camera-row.skydroid .type { color: #9fd3ff; }
 .camera-row.zr10 .type { color: #ffcc80; }
 .camera-row input { padding: 6px 8px; }
-.camera-row .streams { color: var(--muted); font-size: 13px; }
-.camera-row.skydroid + .camera-row.zr10 { margin-top: 10px; }
+.camera-row .streams { color: var(--muted); font-size: 12px; font-family: monospace; overflow-wrap: anywhere; }
+.camera-row select.type { padding: 5px 6px; }
+.camera-row .views { display: flex; gap: 12px; flex-wrap: wrap; }
+.camera-row .views label { display: flex; align-items: center; gap: 4px; cursor: pointer; white-space: nowrap; }
+.camera-row .views input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+
+/* Slow internet message over the grid */
+/* Shown at once, without a fade: a busy page with many videos may hold back animations */
+#slow-toast { position: fixed; left: 50%; top: 52px; z-index: 50; max-width: min(92vw, 560px); padding: 10px 16px;
+  transform: translateX(-50%); display: none;
+  background: #b3261e; color: #fff; border: 2px solid var(--accent); border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,.5); }
+#slow-toast.shown { display: block; }
+#slow-toast .title { font-weight: 700; font-size: 16px; }
+#slow-toast .detail { font-size: 13px; margin-top: 2px; opacity: .9; }
 .select { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 10px; color: var(--muted); }
 .select button { padding: 4px 12px; }
 #shown-count { color: var(--accent); }
@@ -132,7 +145,11 @@ code { color: var(--text); }
 @media (max-width: 900px) {
   .camera-head { display: none; }
   .camera-row { grid-template-columns: 26px 30px 1fr 80px; }
-  .camera-row .type, .camera-row .streams { grid-column: 3 / 5; }
+  .camera-row .type { grid-column: 3 / 5; justify-self: start; }
+  .camera-row .views { grid-column: 3 / 5; }
+  .camera-row input.ip { grid-column: 1 / 4; width: 100%; }
+  .camera-row .streams { grid-column: 1 / 5; }
+  .camera-row { padding-bottom: 10px; border-bottom: 1px solid #262a33; }
 }
 /* Phone held upright: two boxes per row, scroll for the rest */
 @media (orientation: portrait) and (max-width: 700px) {

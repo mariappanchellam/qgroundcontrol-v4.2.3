@@ -1,15 +1,20 @@
 'use strict';
 
-// Dhaksha Live: 10 boxes, one per drone, playing from the Dhaksha video server (MediaMTX) as HLS or WebRTC.
-//   Boxes 1-5: Skydroid, day stream droneN in the box and the night stream droneN-night in a small
-//              picture-in-picture at its corner; clicking the small picture swaps day and night.
+// Dhaksha Live: up to 25 boxes, one per drone, playing from the Dhaksha video server (MediaMTX) as HLS or WebRTC.
+// The camera window sets each drone's camera and what its box shows:
+//   Skydroid: Day (droneN), Night (droneN-night), or Day + Night: day in the box and night in a small
+//             picture-in-picture at its corner; clicking the small picture swaps day and night.
+//   SIYI ZR10: Day only (droneN).
 // One click on a box enlarges it to the whole window; another click shrinks it back to the grid.
-//   Boxes 6-10: SIYI ZR10, one stream droneN.
-// The camera window sets each box's server IP and port. Until a box's video is actually playing it shows
-// the Dhaksha logo. The settings are kept between runs.
+// The camera window also sets each box's server IP and port and lists its stream addresses. Until a box's
+// video is actually playing it shows the Dhaksha logo. When video arrives slower than it plays, a message
+// says the internet is too slow. The settings are kept between runs.
 
-const BOXES = 10;
-const SKYDROID_BOXES = 5;
+const BOXES = 25;
+const FIRST_SHOWN = 10;        // a new computer shows drones 1-10: 1-5 Skydroid day + night, 6-10 ZR10
+const FIRST_SKYDROID = 5;
+const CAMERA_TYPES = { skydroid: 'Skydroid', zr10: 'ZR10' };
+const VIEWS = { day: 'Day', night: 'Night', both: 'Day + Night' };
 const CAMERAS_KEY = 'dhakshaLive.cameras';
 const MODE_KEY = 'dhakshaLive.mode';
 const DEFAULT_SERVER = '15.252.170.151';
@@ -18,14 +23,14 @@ const WEBRTC_PORT = '8889';
 const RETRY_MS = 3000;
 const MAX_DELAY_S = 3;      // seconds behind the newest video before a box jumps back to live
 const CONNECT_TIMEOUT_MS = 10000;
+// Slow internet: a video piece that takes longer to download than to play, or WebRTC losing this share of packets
+const SLOW_PIECES = 2;          // pieces in a row before the message
+const SLOW_LOSS = 0.05;
+const SLOW_SHOWN_MS = 8000;     // the message stays this long after the last sign of a slow internet
 // The web version: the page's own server, and whether it was opened on the plain web port (80), where the
 // server also passes the video through /hls/ and /webrtc/ so networks that allow only web ports still play it
 const PAGE_HOST = /^https?:$/.test(location.protocol) ? location.hostname : '';
 const VIDEO_THROUGH_PAGE = PAGE_HOST !== '' && (location.port === '' || location.port === '80');
-
-function isSkydroid(box) {
-  return box < SKYDROID_BOXES;
-}
 
 function streamName(box, night) {
   return 'drone' + (box + 1) + (night ? '-night' : '');
@@ -68,11 +73,23 @@ function store(key, value) {
   }
 }
 
-function defaultCamera() {
-  return { ip: PAGE_HOST || DEFAULT_SERVER, port: VIDEO_THROUGH_PAGE ? '80' : HLS_PORT, show: true };
+function defaultCamera(box) {
+  const skydroid = box < FIRST_SKYDROID || box >= FIRST_SHOWN;
+  return {
+    ip: PAGE_HOST || DEFAULT_SERVER,
+    port: VIDEO_THROUGH_PAGE ? '80' : HLS_PORT,
+    show: box < FIRST_SHOWN,
+    type: skydroid ? 'skydroid' : 'zr10',
+    view: skydroid ? 'both' : 'day',
+  };
 }
 
-/** The camera window's settings: server IP, port and whether the box is shown, for each of the 10 boxes. */
+/** What a box shows: ZR10 has only the day camera. */
+function cleanView(type, view) {
+  return type === 'zr10' || !VIEWS[view] ? 'day' : view;
+}
+
+/** The camera window's settings for each of the 25 boxes: server IP, port, shown, camera type and view. */
 function loadCameras() {
   let saved = [];
   try {
@@ -82,11 +99,15 @@ function loadCameras() {
   }
   return Array.from({ length: BOXES }, (_, i) => {
     const camera = Array.isArray(saved) && saved[i] ? saved[i] : {};
-    const fallback = defaultCamera();
+    const fallback = defaultCamera(i);
+    // Settings saved before 4.2 have no camera type: boxes 1-5 were Skydroid day + night, 6-10 ZR10
+    const type = CAMERA_TYPES[camera.type] ? camera.type : fallback.type;
     return {
       ip: typeof camera.ip === 'string' ? camera.ip : fallback.ip,
       port: typeof camera.port === 'string' ? camera.port : fallback.port,
       show: typeof camera.show === 'boolean' ? camera.show : fallback.show,
+      type: type,
+      view: cleanView(type, typeof camera.view === 'string' ? camera.view : fallback.view),
     };
   });
 }
@@ -155,6 +176,8 @@ class Tile {
     this.retryTimer = 0;
     this.session = 0;
     this.pip = null;
+    this.hasPip = false;        // Day + Night: the small picture is in use
+    this.slowPieces = 0;
     this.isPip = !!pip;
 
     this.el = document.createElement('div');
@@ -181,10 +204,10 @@ class Tile {
       e.stopPropagation();
       flyDrone(logo);
     });
-    const sub = document.createElement('div');
-    sub.className = 'sub';
-    sub.textContent = 'Drone ' + (index + 1) + (isSkydroid(index) ? ' · Skydroid' : ' · ZR10');
-    logo.append(img, sub, this.note);
+    this.sub = document.createElement('div');
+    this.sub.className = 'sub';
+    this.sub.textContent = 'Drone ' + (index + 1);
+    logo.append(img, this.sub, this.note);
 
     const overlay = document.createElement('div');
     overlay.className = 'overlay';
@@ -215,36 +238,40 @@ class Tile {
     this.el.addEventListener('click', () => toggleFocus(this));
     parent.appendChild(this.el);
 
-    if (isSkydroid(index)) {
-      // The night (or day) stream in the corner; a click swaps it with the big picture
-      this.pip = new Tile(index, this.el, true);
-      this.pip.el.title = 'Click to swap day and night';
-      this.pip.el.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.swap();
-      });
-    }
+    // The night (or day) stream in the corner, used for Day + Night; a click swaps it with the big picture
+    this.pip = new Tile(index, this.el, true);
+    this.pip.owner = this;
+    this.pip.el.classList.add('hidden');
+    this.pip.el.title = 'Click to swap day and night';
+    this.pip.el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.swap();
+    });
   }
 
   mode() {
     return this.isPip && this.owner ? this.owner.mode() : (this.modeOverride || globalMode);
   }
 
-  /** Day stream `source`, and for a Skydroid box its night stream `nightSource`; day starts in the big picture. */
-  setSources(box, source, nightSource) {
+  /**
+   * The drone's streams: `day` (droneN) and `night` (droneN-night), its camera `type` and `view`:
+   * Day or Night alone fill the box; Day + Night puts night in the small picture (day starts in the big one).
+   */
+  setSources(box, day, night, type, view) {
     this.box = box;
-    this.source = source;
+    this.type = type;
     this.modeOverride = null;
-    this.nightOnMain = false;
-    if (this.pip) {
-      this.pip.owner = this;
-      this.pip.source = nightSource;
-    }
+    this.nightOnMain = view === 'night';
+    this.source = this.nightOnMain ? night : day;
+    this.hasPip = view === 'both';
+    this.pip.source = this.hasPip ? night : null;
+    this.pip.el.classList.toggle('hidden', !this.hasPip);
+    this.sub.textContent = 'Drone ' + (box + 1) + ' · ' + CAMERA_TYPES[type];
     this.updateLabels();
   }
 
   updateLabels() {
-    if (!this.pip) {
+    if (this.type === 'zr10') {
       this.label.textContent = (this.box + 1) + ' · ZR10';
       return;
     }
@@ -254,7 +281,7 @@ class Tile {
 
   /** Day and night change places between the big and the small picture. */
   swap() {
-    if (!this.pip) {
+    if (!this.hasPip) {
       return;
     }
     [this.source, this.pip.source] = [this.pip.source, this.source];
@@ -265,7 +292,7 @@ class Tile {
 
   startAll() {
     this.start();
-    if (this.pip) {
+    if (this.hasPip) {
       this.pip.start();
     }
   }
@@ -274,6 +301,25 @@ class Tile {
     this.stop();
     if (this.pip) {
       this.pip.stop();
+    }
+  }
+
+  /** Video for this box arrives slower than it plays: tell the operator the internet is too slow. */
+  reportSlow() {
+    const owner = this.isPip ? this.owner : this;
+    if (owner && owner.box !== undefined) {
+      notifySlow(owner.box);
+    }
+  }
+
+  /** A video piece took `loadMs` to download and plays for `durationS`; two slower than real time in a row are slow. */
+  countPiece(loadMs, durationS) {
+    if (!durationS) {
+      return;
+    }
+    this.slowPieces = loadMs > durationS * 1000 ? this.slowPieces + 1 : 0;
+    if (this.slowPieces >= SLOW_PIECES) {
+      this.reportSlow();
     }
   }
 
@@ -381,9 +427,28 @@ class Tile {
       }
     }, 1000);
     this.player = { close: () => { clearInterval(catchUp); hls.destroy(); video.remove(); } };
+    this.slowPieces = 0;
+    hls.on(Hls.Events.FRAG_LOADED, (_, data) => {
+      const stats = data.frag.stats || data.stats;
+      if (session === this.session && stats && stats.loading) {
+        this.countPiece(stats.loading.end - stats.loading.start, data.frag.duration);
+      }
+    });
     hls.on(Hls.Events.ERROR, (_, data) => {
+      if (session !== this.session) {
+        return;
+      }
+      // Downloads that time out, or fail without any answer while the video was playing, mean the internet is not
+      // keeping up (no answer before it ever played is more likely a wrong address)
+      const timedOut = /TimeOut$/.test(data.details || '')
+                       || (data.type === Hls.ErrorTypes.NETWORK_ERROR && data.response && data.response.code === 0
+                           && this.el.classList.contains('live'));
+      if (timedOut) {
+        this.reportSlow();
+      }
       if (data.fatal) {
-        this.retryLater(session, data.response && data.response.code === 404 ? 'No feed yet' : 'Feed lost');
+        this.retryLater(session, data.response && data.response.code === 404 ? 'No feed yet'
+                                 : timedOut ? 'Internet too slow' : 'Feed lost');
       }
     });
     hls.loadSource(url);
@@ -398,7 +463,31 @@ class Tile {
         this.retryLater(session, 'WebRTC blocked on this network? Try HLS');
       }
     }, CONNECT_TIMEOUT_MS);
-    this.player = { close: () => { clearTimeout(timer); pc.close(); video.srcObject = null; video.remove(); } };
+    // Every 2 s: many packets lost on the way means the internet is too slow for this video
+    let last = null;
+    const watch = setInterval(async () => {
+      if (session !== this.session || pc.connectionState !== 'connected') {
+        return;
+      }
+      try {
+        (await pc.getStats()).forEach((report) => {
+          if (report.type !== 'inbound-rtp' || report.kind !== 'video') {
+            return;
+          }
+          if (last) {
+            const lost = (report.packetsLost || 0) - last.packetsLost;
+            const received = (report.packetsReceived || 0) - last.packetsReceived;
+            if (lost > 0 && lost / (lost + received) > SLOW_LOSS) {
+              this.reportSlow();
+            }
+          }
+          last = { packetsLost: report.packetsLost || 0, packetsReceived: report.packetsReceived || 0 };
+        });
+      } catch (e) {
+        // Statistics are only for the message; playback goes on without them
+      }
+    }, 2000);
+    this.player = { close: () => { clearTimeout(timer); clearInterval(watch); pc.close(); video.srcObject = null; video.remove(); } };
     pc.addTransceiver('video', { direction: 'recvonly' });
     pc.addTransceiver('audio', { direction: 'recvonly' });
     pc.ontrack = (e) => {
@@ -408,6 +497,9 @@ class Tile {
     };
     pc.onconnectionstatechange = () => {
       if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+        if (this.el.classList.contains('live')) {
+          this.reportSlow();
+        }
         this.retryLater(session, 'WebRTC connection lost');
       }
     };
@@ -452,11 +544,44 @@ function updateShownCount() {
   shownCount.textContent = n === 1 ? '1 drone ticked' : n + ' drones ticked';
 }
 
-/** One row per box: show, box number, camera type, server IP, port and the stream names it plays. */
+/** The stream addresses a camera window row plays now, as the boxes will use them (HLS or WebRTC). */
+function rowAddresses(row, i) {
+  const ip = cleanIp(row.ip.value) || DEFAULT_SERVER;
+  const port = cleanPort(row.port.value);
+  const view = cleanView(row.type.value, rowView(row));
+  const names = view === 'both' ? [streamName(i, false), streamName(i, true)] : [streamName(i, view === 'night')];
+  return names.map((name) => resolve(serverSource(ip, port, name), globalMode).url);
+}
+
+function rowView(row) {
+  const checked = row.views.find((input) => input.checked);
+  return checked ? checked.value : 'day';
+}
+
+/** Shows the choices the row's camera has (ZR10: Day only) and its stream addresses. */
+function updateRow(row, i) {
+  const zr10 = row.type.value === 'zr10';
+  row.el.classList.toggle('zr10', zr10);
+  row.el.classList.toggle('skydroid', !zr10);
+  row.views.forEach((input) => {
+    input.parentElement.classList.toggle('hidden', zr10 && input.value !== 'day');
+  });
+  if (zr10) {
+    row.views[0].checked = true;
+  }
+  row.urls.textContent = '';
+  rowAddresses(row, i).forEach((url) => {
+    const line = document.createElement('div');
+    line.textContent = url;
+    row.urls.appendChild(line);
+  });
+}
+
+/** One row per drone: show, box number, camera (Skydroid / ZR10), view, server IP, port and its stream addresses. */
 function buildCameraWindow(cameras) {
   for (let i = 0; i < BOXES; i++) {
-    const row = document.createElement('div');
-    row.className = 'camera-row' + (isSkydroid(i) ? ' skydroid' : ' zr10');
+    const el = document.createElement('div');
+    el.className = 'camera-row';
     const check = document.createElement('input');
     check.type = 'checkbox';
     check.checked = cameras[i].show;
@@ -465,9 +590,27 @@ function buildCameraWindow(cameras) {
     const box = document.createElement('span');
     box.className = 'box';
     box.textContent = String(i + 1);
-    const type = document.createElement('span');
+    const type = document.createElement('select');
     type.className = 'type';
-    type.textContent = isSkydroid(i) ? 'Skydroid · day + night' : 'ZR10';
+    type.title = 'Camera on this drone';
+    for (const [value, label] of Object.entries(CAMERA_TYPES)) {
+      type.add(new Option(label, value));
+    }
+    type.value = cameras[i].type;
+    // Skydroid can show Day, Night or both; ZR10 only Day
+    const viewGroup = document.createElement('span');
+    viewGroup.className = 'views';
+    const views = Object.entries(VIEWS).map(([value, label]) => {
+      const choice = document.createElement('label');
+      const input = document.createElement('input');
+      input.type = 'radio';
+      input.name = 'view' + i;
+      input.value = value;
+      input.checked = cameras[i].view === value;
+      choice.append(input, label);
+      viewGroup.appendChild(choice);
+      return input;
+    });
     const ip = document.createElement('input');
     ip.type = 'text';
     ip.spellcheck = false;
@@ -480,9 +623,8 @@ function buildCameraWindow(cameras) {
     port.className = 'port';
     port.placeholder = HLS_PORT;
     port.value = cameras[i].port;
-    const streams = document.createElement('span');
-    streams.className = 'streams';
-    streams.textContent = isSkydroid(i) ? streamName(i, false) + ' + ' + streamName(i, true) : streamName(i, false);
+    const urls = document.createElement('span');
+    urls.className = 'streams';
     for (const field of [ip, port]) {
       field.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
@@ -490,10 +632,19 @@ function buildCameraWindow(cameras) {
         }
       });
     }
-    row.append(check, box, type, ip, port, streams);
-    cameraRows.appendChild(row);
-    rows.push({ check, ip, port });
+    el.append(check, box, type, viewGroup, ip, port, urls);
+    cameraRows.appendChild(el);
+    const row = { el, check, type, views, ip, port, urls };
+    rows.push(row);
+    for (const field of [type, ip, port, ...views]) {
+      field.addEventListener(field === ip || field === port ? 'input' : 'change', () => updateRow(row, i));
+    }
+    updateRow(row, i);
   }
+}
+
+function updateAllRows() {
+  rows.forEach((row, i) => updateRow(row, i));
 }
 
 function cleanIp(text) {
@@ -519,6 +670,7 @@ function applyToAll() {
     row.ip.value = ip;
     row.port.value = port;
   });
+  updateAllRows();
 }
 
 function setGlobalMode(mode) {
@@ -527,6 +679,7 @@ function setGlobalMode(mode) {
   modeSelect.value = mode;
   modeToggle.textContent = 'Streams: ' + (mode === 'hls' ? 'HLS' : 'WebRTC');
   modeToggle.title = 'Switch every box to ' + (mode === 'hls' ? 'WebRTC (lower delay)' : 'HLS (more reliable)');
+  updateAllRows();
 }
 
 function showPage(gridPage) {
@@ -536,16 +689,24 @@ function showPage(gridPage) {
   document.getElementById('grid-page').classList.toggle('hidden', !gridPage);
   if (!gridPage) {
     setFocus(null);
+    hideSlow();
     tiles.forEach((tile) => tile.stopAll());
   }
 }
 
 /** Saves the camera window and shows only the ticked drones; unticked boxes run no player at all. */
 function applyCameras() {
-  const cameras = rows.map((row) => ({ ip: cleanIp(row.ip.value), port: cleanPort(row.port.value), show: row.check.checked }));
+  const cameras = rows.map((row) => ({
+    ip: cleanIp(row.ip.value),
+    port: cleanPort(row.port.value),
+    show: row.check.checked,
+    type: row.type.value,
+    view: cleanView(row.type.value, rowView(row)),
+  }));
   cameras.forEach((camera, i) => {
     rows[i].ip.value = camera.ip;
     rows[i].port.value = camera.port;
+    updateRow(rows[i], i);
   });
   store(CAMERAS_KEY, JSON.stringify(cameras));
   const okNote = document.getElementById('ok-note');
@@ -560,7 +721,7 @@ function applyCameras() {
   if (!count) {
     return;
   }
-  // As square as possible: 1 drone fills the window, 4 make 2 x 2, 10 make 4 x 3
+  // As square as possible: 1 drone fills the window, 4 make 2 x 2, 10 make 4 x 3, 25 make 5 x 5
   const columns = Math.ceil(Math.sqrt(count));
   grid.style.setProperty('--columns', columns);
   grid.style.setProperty('--rows', Math.ceil(count / columns));
@@ -573,10 +734,40 @@ function applyCameras() {
       return;
     }
     const day = serverSource(camera.ip, camera.port, streamName(i, false));
-    const night = isSkydroid(i) ? serverSource(camera.ip, camera.port, streamName(i, true)) : null;
-    tile.setSources(i, day, night);
+    const night = serverSource(camera.ip, camera.port, streamName(i, true));
+    tile.setSources(i, day, night, camera.type, camera.view);
     tile.startAll();
   });
+}
+
+// The slow internet message: one for all boxes, naming the drones whose video is late
+const slowToast = document.getElementById('slow-toast');
+const slowDrones = new Map();   // box -> time of its last slow report
+let slowTimer = 0;
+
+function notifySlow(box) {
+  if (document.getElementById('grid-page').classList.contains('hidden')) {
+    return;
+  }
+  const now = Date.now();
+  slowDrones.set(box, now);
+  for (const [b, at] of slowDrones) {
+    if (now - at > SLOW_SHOWN_MS) {
+      slowDrones.delete(b);
+    }
+  }
+  const drones = [...slowDrones.keys()].sort((a, b) => a - b).map((b) => b + 1);
+  slowToast.querySelector('.detail').textContent =
+    (drones.length === 1 ? 'Drone ' : 'Drones ') + drones.join(', ') + ': video may pause or lag behind.';
+  slowToast.classList.add('shown');
+  clearTimeout(slowTimer);
+  slowTimer = setTimeout(hideSlow, SLOW_SHOWN_MS);
+}
+
+function hideSlow() {
+  clearTimeout(slowTimer);
+  slowDrones.clear();
+  slowToast.classList.remove('shown');
 }
 
 function setFocus(tile) {

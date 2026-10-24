@@ -1,8 +1,8 @@
 {
   "name": "dhaksha-live",
   "productName": "Dhaksha Live",
-  "version": "4.1.0",
-  "description": "Watch 10 Dhaksha drones at once: 5 Skydroid (day + night picture-in-picture) and 5 ZR10, from the Dhaksha video server",
+  "version": "4.2.0",
+  "description": "Watch up to 25 Dhaksha drones at once, Skydroid (day, night or day + night picture-in-picture) or ZR10, from the Dhaksha video server",
   "main": "src/main.js",
   "private": true,
   "scripts": {
