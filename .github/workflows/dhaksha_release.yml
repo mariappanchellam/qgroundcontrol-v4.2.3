@@ -102,7 +102,18 @@ jobs:
             gh release create "$TAG" -R "$REPO" --target "$SHA" --title "$TITLE" --latest=false \
               --notes "Created by the Publish Dhaksha release workflow." || gh release view "$TAG" -R "$REPO" > /dev/null
           fi
-          gh release upload "$TAG" -R "$REPO" --clobber out/*
+          # Each file goes up under a temporary name and then replaces the old one, so a download started
+          # during the upload still gets the previous build instead of "Page not found"
+          rid=$(gh api "repos/$REPO/releases/tags/$TAG" --jq .id)
+          asset_id() { NAME="$1" gh api "repos/$REPO/releases/$rid/assets" --paginate --jq '.[] | select(.name == env.NAME) | .id'; }
+          for f in out/*; do
+            name=$(basename "$f")
+            cp "$f" "$name.uploading"
+            old=$(asset_id "$name.uploading"); [ -z "$old" ] || gh api -X DELETE "repos/$REPO/releases/assets/$old"
+            gh release upload "$TAG" -R "$REPO" "$name.uploading"
+            old=$(asset_id "$name"); [ -z "$old" ] || gh api -X DELETE "repos/$REPO/releases/assets/$old"
+            gh api -X PATCH "repos/$REPO/releases/assets/$(asset_id "$name.uploading")" -f name="$name" > /dev/null
+          done
           # The tag follows the newest published build
           gh api -X PATCH "repos/$REPO/git/refs/tags/$TAG" -f sha="$SHA" -F force=true > /dev/null || true
           {
