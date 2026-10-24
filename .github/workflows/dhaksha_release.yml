@@ -106,7 +106,7 @@ jobs:
           # The tag follows the newest published build
           gh api -X PATCH "repos/$REPO/git/refs/tags/$TAG" -f sha="$SHA" -F force=true > /dev/null || true
           {
-            echo "Latest $TITLE builds. Download the file you need below; no GitHub account is needed."
+            echo "Newest ${TITLE% (latest)} build. Download the file you need below; no GitHub account is needed."
             echo
             echo "| File | Download |"
             echo "| --- | --- |"
