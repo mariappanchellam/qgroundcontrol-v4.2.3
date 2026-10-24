@@ -289,6 +289,8 @@ so details can be lost. To keep the context:
 - DhakshaGroundControl (7c3b32d): Settings > Dhaksha camera > "Night Palette" for Skydroid: White hot, Black hot,
   Ironbow, Rainbow, Glowbow, Autumn, Winter, Hot metal -> Topotek IMG 00..07 to addresses D and E (from Topotek's
   SHD / SMT protocol documents; not yet tried on the C13). Saved; re-sent when the camera connects.
+  3630872: the operator did not find it in Application Settings, so it is also in the Fly View gear panel
+  (under the gimbal speed slider).
 
 ## Open items
 - Find what blocks WebRTC (Lightsail UDP 8189 rule, TCP fallback, office/laptop network).
@@ -378,6 +380,7 @@ The newest build in each table is the last row.
 | 36 | 2026-10-14 | fix/stream-forwarder-codec | ae00fc8 | fix(Camera): Skydroid C13 tilt down, zoom up to 4x, laser on all addresses; simpler panel | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38508570498/artifacts/11869795819)<br>[x86_64 (55MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38508570498/artifacts/11869710985) |
 | 37 | 2026-10-14 | fix/stream-forwarder-codec | 0d88cdb | feat(Camera): zoom up to 30x, smaller controls, HUD below the camera time stamp | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38516889598/artifacts/11872143471)<br>[x86_64 (55MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38516889598/artifacts/11872666351) |
 | 38 | 2026-10-24 | fix/stream-forwarder-codec | 7c3b32d | feat(Camera): night camera palette setting for the Skydroid camera | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/40077863201/artifacts/12554490590)<br>[arm64-v8a (52MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/40077863201/artifacts/12553894106)<br>[x86_64 (54MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/40077863201/artifacts/12553838097) |
+| 39 | 2026-10-24 | fix/stream-forwarder-codec | 3630872 | feat(Camera): night palette in the Fly View camera settings panel | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/40080614172/artifacts/12555102556)<br>[arm64-v8a (52MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/40080614172/artifacts/12555232682)<br>[x86_64 (54MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/40080614172/artifacts/12555322411) |
 
 ### DhakshaGroundControl (Linux desktop)
 
