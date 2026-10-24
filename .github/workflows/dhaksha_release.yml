@@ -1,0 +1,118 @@
+# Publishes each finished Dhaksha build as a GitHub Release, so anyone can download it without a GitHub
+# account (workflow artifacts need a login and expire). One release per app, always holding the latest build,
+# with fixed file names, so the download links never change:
+#   https://github.com/<repo>/releases/download/<tag>/<file>
+#
+#   dhaksha-groundcontrol-latest  DhakshaGroundControl APKs   (Android, branch fix/stream-forwarder-codec)
+#   dhaksha-key-latest            DhakshaKey.apk              (DhakshaKey, branch build/dhaksha-key)
+#   dhaksha-live-latest           Dhaksha Live for Windows, Linux and Android (branch build/dhaksha-live-grid)
+#
+# Runs after those workflows succeed. GitHub only starts workflow_run workflows from the default branch, so this
+# file lives on main. To publish an older build again: Actions > Publish Dhaksha release > Run workflow, with the
+# build's run id (the number in its run URL).
+name: Publish Dhaksha release
+
+on:
+  workflow_run:
+    workflows: [Android, DhakshaKey, Dhaksha Live, Dhaksha Live Windows, Dhaksha Live Linux]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Run id of the build to publish
+        required: true
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    name: Publish release
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event != 'pull_request')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      RUN_ID: ${{ inputs.run_id || github.event.workflow_run.id }}
+    steps:
+      - name: Download the build
+        id: build
+        run: |
+          set -euo pipefail
+          read -r WORKFLOW BRANCH SHA DATE < <(gh api "repos/$REPO/actions/runs/$RUN_ID" \
+            --jq '[(.name | gsub(" "; "_")), .head_branch, .head_sha, .created_at[0:10]] | @tsv')
+          WORKFLOW="${WORKFLOW//_/ }"
+          case "$WORKFLOW" in
+            Android)        TAG=dhaksha-groundcontrol-latest; WANT=fix/stream-forwarder-codec
+                            TITLE="DhakshaGroundControl (latest)" ;;
+            DhakshaKey)     TAG=dhaksha-key-latest; WANT=build/dhaksha-key
+                            TITLE="DhakshaKey (latest)" ;;
+            "Dhaksha Live"*) TAG=dhaksha-live-latest; WANT=build/dhaksha-live-grid
+                            TITLE="Dhaksha Live (latest)" ;;
+            *) echo "::error::No release for workflow '$WORKFLOW'"; exit 1 ;;
+          esac
+          # Builds of other branches (old main, experiments) never replace the released apps
+          if [ "${{ github.event_name }}" != workflow_dispatch ] && [ "$BRANCH" != "$WANT" ]; then
+            echo "Build of $BRANCH, not $WANT: nothing to publish"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          gh run download "$RUN_ID" -R "$REPO" -D dl
+          # Fixed names, without the version, so the links stay the same from build to build
+          mkdir out
+          find dl -type f | while read -r f; do
+            base=$(basename "$f")
+            case "$base" in
+              DhakshaGroundControl-*.apk|DhakshaKey.apk) name="$base" ;;
+              DhakshaLive.apk)                    name=DhakshaLive-Android.apk ;;
+              *Setup*.exe)                        name=DhakshaLive-Windows-Setup.exe ;;
+              DhakshaLive-Portable-*.exe)         name=DhakshaLive-Windows-Portable.exe ;;
+              *_amd64.deb)                        name=DhakshaLive-Linux-64bit.deb ;;
+              *_i386.deb)                         name=DhakshaLive-Linux-32bit.deb ;;
+              *-x86_64.AppImage)                  name=DhakshaLive-Linux-64bit.AppImage ;;
+              *-i386.AppImage)                    name=DhakshaLive-Linux-32bit.AppImage ;;
+              *-x64.tar.gz)                       name=DhakshaLive-Linux-64bit.tar.gz ;;
+              *-ia32.tar.gz)                      name=DhakshaLive-Linux-32bit.tar.gz ;;
+              *) echo "Not published: $base"; continue ;;
+            esac
+            cp "$f" "out/$name"
+          done
+          ls -la out
+          [ -n "$(ls out)" ] || { echo "::error::The build has no files to publish"; exit 1; }
+          {
+            echo "skip=false"; echo "tag=$TAG"; echo "title=$TITLE"; echo "sha=$SHA"
+            echo "branch=$BRANCH"; echo "date=$DATE"; echo "workflow=$WORKFLOW"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Publish to the release
+        if: steps.build.outputs.skip == 'false'
+        env:
+          TAG: ${{ steps.build.outputs.tag }}
+          TITLE: ${{ steps.build.outputs.title }}
+          SHA: ${{ steps.build.outputs.sha }}
+          BRANCH: ${{ steps.build.outputs.branch }}
+          DATE: ${{ steps.build.outputs.date }}
+          WORKFLOW: ${{ steps.build.outputs.workflow }}
+        run: |
+          set -euo pipefail
+          # Several builds can finish together (Dhaksha Live Windows / Linux / Android): the first creates the release
+          if ! gh release view "$TAG" -R "$REPO" > /dev/null 2>&1; then
+            gh release create "$TAG" -R "$REPO" --target "$SHA" --title "$TITLE" --latest=false \
+              --notes "Created by the Publish Dhaksha release workflow." || gh release view "$TAG" -R "$REPO" > /dev/null
+          fi
+          gh release upload "$TAG" -R "$REPO" --clobber out/*
+          # The tag follows the newest published build
+          gh api -X PATCH "repos/$REPO/git/refs/tags/$TAG" -f sha="$SHA" -F force=true > /dev/null || true
+          {
+            echo "Latest $TITLE builds. Download the file you need below; no GitHub account is needed."
+            echo
+            echo "| File | Download |"
+            echo "| --- | --- |"
+            gh release view "$TAG" -R "$REPO" --json assets --jq '.assets[] | "| \(.name) | [\(.name)](\(.url)) |"'
+            echo
+            echo "Last updated $DATE from the $WORKFLOW build of \`$BRANCH\` (commit ${SHA:0:7}, [run $RUN_ID](https://github.com/$REPO/actions/runs/$RUN_ID))."
+          } > notes.md
+          gh release edit "$TAG" -R "$REPO" --notes-file notes.md
+          cat notes.md >> "$GITHUB_STEP_SUMMARY"
