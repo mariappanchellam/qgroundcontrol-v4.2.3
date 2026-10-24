@@ -69,8 +69,8 @@ jobs:
               DhakshaLive.apk)                    name=DhakshaLive-Android.apk ;;
               *Setup*.exe)                        name=DhakshaLive-Windows-Setup.exe ;;
               DhakshaLive-Portable-*.exe)         name=DhakshaLive-Windows-Portable.exe ;;
-              *_amd64.deb)                        name=DhakshaLive-Linux-64bit.deb ;;
-              *_i386.deb)                         name=DhakshaLive-Linux-32bit.deb ;;
+              *amd64.deb)                         name=DhakshaLive-Linux-64bit.deb ;;
+              *i386.deb)                          name=DhakshaLive-Linux-32bit.deb ;;
               *-x86_64.AppImage)                  name=DhakshaLive-Linux-64bit.AppImage ;;
               *-i386.AppImage)                    name=DhakshaLive-Linux-32bit.AppImage ;;
               *-x64.tar.gz)                       name=DhakshaLive-Linux-64bit.tar.gz ;;
