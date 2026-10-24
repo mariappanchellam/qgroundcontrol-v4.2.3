@@ -280,6 +280,15 @@ so details can be lost. To keep the context:
   login setup: Day + Night over all four uploads, both streams on the server and playing as HLS (WHIP with
   ffmpeg 8). Server firewall: SRT needs 8890/udp opened; WHIP uses 8889/tcp + 8189/udp, already open.
   Termux scripts regenerated: `stream_aws_<camera>.sh` (RTMP) plus `_rtsp` / `_srt` / `_whip` for each camera.
+- Dhaksha Live 4.2 (b67dd8c): 25 drones; per drone Camera (Skydroid / ZR10) and View (Skydroid: Day, Night,
+  Day + Night with PiP; ZR10: Day), stream URLs listed per row. "Internet speed very slow for receiving Data" pops
+  up (with the drone numbers) when HLS pieces download slower than real time twice in a row, downloads time out
+  or fail while playing, or WebRTC loses > 5 % packets / drops while playing; clears 8 s after the last sign.
+  Tested in Electron + local MediaMTX over HLS and WebRTC; 40 KB/s throttle showed it. The pop-up has no fade:
+  with video playing the fade never ran in the test window.
+- DhakshaGroundControl (7c3b32d): Settings > Dhaksha camera > "Night Palette" for Skydroid: White hot, Black hot,
+  Ironbow, Rainbow, Glowbow, Autumn, Winter, Hot metal -> Topotek IMG 00..07 to addresses D and E (from Topotek's
+  SHD / SMT protocol documents; not yet tried on the C13). Saved; re-sent when the camera connects.
 
 ## Open items
 - Find what blocks WebRTC (Lightsail UDP 8189 rule, TCP fallback, office/laptop network).
@@ -368,6 +377,7 @@ The newest build in each table is the last row.
 | 35 | 2026-10-13 | fix/stream-forwarder-codec | b2e1e35 | fix(Camera): Skydroid digital zoom steps a level and keeps it | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38390368436/artifacts/11809250220)<br>[x86_64 (55MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38390368436/artifacts/11809073881) |
 | 36 | 2026-10-14 | fix/stream-forwarder-codec | ae00fc8 | fix(Camera): Skydroid C13 tilt down, zoom up to 4x, laser on all addresses; simpler panel | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38508570498/artifacts/11869795819)<br>[x86_64 (55MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38508570498/artifacts/11869710985) |
 | 37 | 2026-10-14 | fix/stream-forwarder-codec | 0d88cdb | feat(Camera): zoom up to 30x, smaller controls, HUD below the camera time stamp | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38516889598/artifacts/11872143471)<br>[x86_64 (55MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/38516889598/artifacts/11872666351) |
+| 38 | 2026-10-24 | fix/stream-forwarder-codec | 7c3b32d | feat(Camera): night camera palette setting for the Skydroid camera | [armeabi-v7a (46MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/40077863201/artifacts/12554490590)<br>[arm64-v8a (52MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/40077863201/artifacts/12553894106)<br>[x86_64 (54MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/40077863201/artifacts/12553838097) |
 
 ### DhakshaGroundControl (Linux desktop)
 
@@ -384,6 +394,7 @@ The newest build in each table is the last row.
 | 3 | 2026-10-07 | build/dhaksha-live-grid | 3efec1a | feat(tools): Dhaksha Live shows eight drone streams in one grid | [DhakshaLive (4MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/37698537777/artifacts/11516606988) |
 | 4 | 2026-10-07 | build/dhaksha-live-grid | 9946f69 | feat(tools): Dhaksha Live plays Livepush player links; Windows app with eight boxes | [DhakshaLive (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/37700577009/artifacts/11517087781) |
 | 5 | 2026-10-23 | build/dhaksha-live-grid | de5aa49 | feat(tools): Dhaksha Live 4.1 on Android phones, same page as desktop and browser | [DhakshaLive (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/39943779381/artifacts/12496997166) |
+| 6 | 2026-10-24 | build/dhaksha-live-grid | b67dd8c | feat(tools): Dhaksha Live 4.2, camera per drone for 25 drones and a slow internet message | [DhakshaLive (<1MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/40077841667/artifacts/12554395394) |
 
 ### Dhaksha Live (Windows desktop)
 
@@ -399,6 +410,7 @@ The newest build in each table is the last row.
 | 8 | 2026-10-21 | build/dhaksha-live-grid | 4fcc4b5 | feat(tools): Dhaksha Live 4.0, 5 Skydroid boxes with day / night PiP and 5 ZR10 boxes | [DhakshaLive-Windows (162MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/39593064532/artifacts/12342339541) |
 | 9 | 2026-10-23 | build/dhaksha-live-grid | 12e9fab | feat(tools): Dhaksha Live 4.1, one click enlarges a box and another shrinks it | [DhakshaLive-Windows (162MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/39928583401/artifacts/12490496766) |
 | 10 | 2026-10-23 | build/dhaksha-live-grid | de5aa49 | feat(tools): Dhaksha Live 4.1 on Android phones, same page as desktop and browser | [DhakshaLive-Windows (162MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/39943779488/artifacts/12497013070) |
+| 11 | 2026-10-24 | build/dhaksha-live-grid | b67dd8c | feat(tools): Dhaksha Live 4.2, camera per drone for 25 drones and a slow internet message | [DhakshaLive-Windows (162MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/40077841623/artifacts/12553856951) |
 
 ### Dhaksha Live (Linux desktop)
 
@@ -412,6 +424,7 @@ The newest build in each table is the last row.
 | 6 | 2026-10-21 | build/dhaksha-live-grid | 4fcc4b5 | feat(tools): Dhaksha Live 4.0, 5 Skydroid boxes with day / night PiP and 5 ZR10 boxes | [DhakshaLive-Linux-64bit-deb (73MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/39593064512/artifacts/12343220066)<br>[DhakshaLive-Linux-64bit-other (208MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/39593064512/artifacts/12342801028)<br>[DhakshaLive-Linux-32bit-deb (58MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/39593064512/artifacts/12342234953)<br>[DhakshaLive-Linux-32bit-other (162MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/39593064512/artifacts/12342164584) |
 | 7 | 2026-10-23 | build/dhaksha-live-grid | 12e9fab | feat(tools): Dhaksha Live 4.1, one click enlarges a box and another shrinks it | [DhakshaLive-Linux-64bit-deb (73MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/39928583399/artifacts/12491290173)<br>[DhakshaLive-Linux-64bit-other (208MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/39928583399/artifacts/12490457513)<br>[DhakshaLive-Linux-32bit-deb (58MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/39928583399/artifacts/12490896662)<br>[DhakshaLive-Linux-32bit-other (162MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/39928583399/artifacts/12491066136) |
 | 8 | 2026-10-23 | build/dhaksha-live-grid | de5aa49 | feat(tools): Dhaksha Live 4.1 on Android phones, same page as desktop and browser | [DhakshaLive-Linux-64bit-deb (73MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/39943779423/artifacts/12497297051)<br>[DhakshaLive-Linux-64bit-other (208MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/39943779423/artifacts/12497411767)<br>[DhakshaLive-Linux-32bit-deb (58MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/39943779423/artifacts/12497746022)<br>[DhakshaLive-Linux-32bit-other (162MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/39943779423/artifacts/12497356891) |
+| 9 | 2026-10-24 | build/dhaksha-live-grid | b67dd8c | feat(tools): Dhaksha Live 4.2, camera per drone for 25 drones and a slow internet message | [DhakshaLive-Linux-64bit-deb (73MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/40077841673/artifacts/12553837272)<br>[DhakshaLive-Linux-64bit-other (208MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/40077841673/artifacts/12554121976)<br>[DhakshaLive-Linux-32bit-deb (58MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/40077841673/artifacts/12553119313)<br>[DhakshaLive-Linux-32bit-other (162MB)](https://github.com/mariappanchellam/qgroundcontrol-v4.2.3/actions/runs/40077841673/artifacts/12554320423) |
 
 ### DhakshaKey (Android helper for Termux)
 
