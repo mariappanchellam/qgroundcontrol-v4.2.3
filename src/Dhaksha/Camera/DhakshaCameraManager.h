@@ -54,6 +54,8 @@ public:
     Q_PROPERTY(int  skydroidGimbalStyle READ skydroidGimbalStyle WRITE setSkydroidGimbalStyle NOTIFY skydroidGimbalStyleChanged) ///< 0 YPR (C13), 1 GSY/GSP (C10); used from the next apply()
     Q_PROPERTY(DhakshaGimbalCamera* camera      READ camera                         NOTIFY cameraChanged)
     Q_PROPERTY(int  gimbalMaxSpeed  READ gimbalMaxSpeed WRITE setGimbalMaxSpeed NOTIFY gimbalMaxSpeedChanged)  ///< Degrees per second at full joystick, 10..60
+    Q_PROPERTY(QStringList thermalPaletteNames READ thermalPaletteNames CONSTANT)
+    Q_PROPERTY(int  thermalPalette  READ thermalPalette WRITE setThermalPalette NOTIFY thermalPaletteChanged)  ///< Night camera palette, saved; sent when chosen and when the camera connects
     Q_PROPERTY(int  videoMode       READ videoMode      WRITE setVideoMode      NOTIFY videoModeChanged)       ///< VideoMode, saved per camera; used from the next apply()
     Q_PROPERTY(bool     streamForwardEnabled    READ streamForwardEnabled   WRITE setStreamForwardEnabled   NOTIFY streamForwardEnabledChanged)
     Q_PROPERTY(QString  streamForwardUrl        READ streamForwardUrl       WRITE setStreamForwardUrl       NOTIFY streamForwardUrlChanged)
@@ -77,6 +79,9 @@ public:
     static int              defaultVideoMode(int vendor);
     int                     gimbalMaxSpeed() const;
     void                    setGimbalMaxSpeed(int degreesPerSecond);
+    static QStringList      thermalPaletteNames();
+    int                     thermalPalette() const;
+    void                    setThermalPalette(int palette);
     static constexpr int    kMinGimbalSpeed = 10;
     static constexpr int    kMaxGimbalSpeed = 60;
     DhakshaGimbalCamera*    camera      () const { return _camera; }
@@ -117,6 +122,7 @@ signals:
     void pipCameraChanged();
     void skydroidGimbalStyleChanged();
     void gimbalMaxSpeedChanged();
+    void thermalPaletteChanged();
     void videoModeChanged();
     void cameraChanged  ();
     void streamForwardEnabledChanged();

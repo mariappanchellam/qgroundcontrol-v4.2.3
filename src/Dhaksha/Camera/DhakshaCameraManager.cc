@@ -35,6 +35,7 @@ namespace {
     const char* kForwardKey     = "streamForwardEnabled";
     const char* kForwardUrlKey  = "streamForwardUrl";
     const char* kGimbalSpeedKey = "DhakshaCamera/gimbalMaxSpeed";
+    const char* kThermalPaletteKey = "DhakshaCamera/thermalPalette";
     const char* kPipCameraKey   = "pipCamera";
 
     QString vendorKey(int vendor)
@@ -239,6 +240,32 @@ void DhakshaCameraManager::setGimbalMaxSpeed(int degreesPerSecond)
     }
 }
 
+QStringList DhakshaCameraManager::thermalPaletteNames()
+{
+    // In the order of the camera's palette numbers (Topotek IMG command 00..07)
+    return { tr("White hot"), tr("Black hot"), tr("Ironbow"), tr("Rainbow"),
+             tr("Glowbow"), tr("Autumn"), tr("Winter"), tr("Hot metal") };
+}
+
+int DhakshaCameraManager::thermalPalette() const
+{
+    const int palette = QSettings().value(kThermalPaletteKey, 0).toInt();
+    return (palette >= 0 && palette < thermalPaletteNames().size()) ? palette : 0;
+}
+
+void DhakshaCameraManager::setThermalPalette(int palette)
+{
+    if (palette < 0 || palette >= thermalPaletteNames().size()) {
+        return;
+    }
+    QSettings().setValue(kThermalPaletteKey, palette);
+    emit thermalPaletteChanged();
+    // Sent even when unchanged, so choosing it again fixes a camera that was changed elsewhere
+    if (_camera) {
+        _camera->setThermalPalette(palette);
+    }
+}
+
 void DhakshaCameraManager::restoreVendorDefaults()
 {
     setCameraIp(defaultCameraIp(_vendor));
@@ -314,6 +341,12 @@ void DhakshaCameraManager::_createCamera()
     switch (_vendor) {
     case VendorSkydroid:
         _camera = new SkydroidGimbalCamera(_cameraIp, _rtspUrl, this);
+        // The saved night palette, each time the camera (re)connects, e.g. after it was powered off
+        connect(_camera, &DhakshaGimbalCamera::connectedChanged, this, [this, camera = _camera]() {
+            if (camera == _camera && camera->connected()) {
+                camera->setThermalPalette(thermalPalette());
+            }
+        });
         break;
     case VendorZr10:
         _camera = new SiyiGimbalCamera(_cameraIp, _rtspUrl, this);

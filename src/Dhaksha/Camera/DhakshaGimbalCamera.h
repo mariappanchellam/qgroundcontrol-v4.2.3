@@ -30,6 +30,7 @@ public:
     Q_PROPERTY(bool     recording           READ recording          NOTIFY recordingChanged)
     Q_PROPERTY(QStringList commandLog       READ commandLog         NOTIFY commandLogChanged)  ///< Newest first; lets the operator verify commands without the camera
     Q_PROPERTY(bool     rangefinderSupported READ rangefinderSupported CONSTANT)   ///< Laser rangefinder (e.g. Skydroid C13)
+    Q_PROPERTY(bool     thermalPaletteSupported READ thermalPaletteSupported CONSTANT) ///< Night (thermal) camera colour palettes
     Q_PROPERTY(QString  distanceText        READ distanceText       NOTIFY distanceTextChanged) ///< Last laser range, e.g. "123.4 m"; empty before the first
     Q_PROPERTY(bool     rangingActive       READ rangingActive      NOTIFY rangingActiveChanged)    ///< Continuous laser ranging on
     Q_PROPERTY(QString  sdCardStatus        READ sdCardStatus       NOTIFY sdCardStatusChanged)     ///< "" unknown, "ok", "none" (missing or error), "full"
@@ -49,6 +50,7 @@ public:
 
     virtual bool controlSupported() const { return false; }
     virtual bool rangefinderSupported() const { return false; }
+    virtual bool thermalPaletteSupported() const { return false; }
 
     Q_INVOKABLE void clearCommandLog();
 
@@ -64,6 +66,8 @@ public:
     Q_INVOKABLE virtual void measureDistance    () {}
     /// Continuous laser ranging on / off; the distance keeps updating in distanceText
     Q_INVOKABLE virtual void toggleRanging      () {}
+    /// Night (thermal) camera colour palette, an index into DhakshaCameraManager::thermalPaletteNames
+    Q_INVOKABLE virtual void setThermalPalette  (int /*palette*/) {}
 
     // Lens
     Q_INVOKABLE virtual void zoomIn             () {}

@@ -23,6 +23,9 @@ namespace {
     const char* kIdFocus        = "FCC";    // 00 stop, 01 near, 02 far, 10 auto
     const char* kIdDayNight     = "IRC";    // 0A toggle
     const char* kIdPip          = "PIP";    // 00..03
+    // Thermal pseudo colour (Topotek protocol): 00 white hot, 01 black hot, 02 ironbow, 03 rainbow, 04 glowbow,
+    // 05 autumn, 06 winter, 07 hot metal; 0A next, 0B previous
+    const char* kIdPalette      = "IMG";
     const char* kIdRates        = "YPR";    // yaw, pitch, roll speeds -99..99 as 2 hex each, positive pitch = down
     const char* kIdRange        = "LRF";    // 00 stop, 01 start, 02 single, 03 continuous; reply "12345.6" metres or "ERR"
 
@@ -153,6 +156,13 @@ void SkydroidGimbalCamera::stopRecording()
     _recordRequested = false;
     _send(kAddressImage, true, kIdRecord, 0x00, tr("Stop recording"));
     _setRecording(false);
+}
+
+void SkydroidGimbalCamera::setThermalPalette(int palette)
+{
+    // Topotek documents the thermal camera at 'D' (SHD series) or 'E' (SMT series); the other one ignores it
+    _send(kAddressImage,   true, kIdPalette, static_cast<quint8>(palette), tr("Night palette %1").arg(palette));
+    _send(kAddressThermal, true, kIdPalette, static_cast<quint8>(palette));
 }
 
 void SkydroidGimbalCamera::toggleDayNight()

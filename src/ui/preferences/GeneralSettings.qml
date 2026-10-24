@@ -411,6 +411,18 @@ Rectangle {
                                 onActivated:            DhakshaCameraManager.skydroidGimbalStyle = index
                             }
 
+                            QGCLabel {
+                                text:       qsTr("Night Palette")
+                                visible:    DhakshaCameraManager.vendor === 1
+                            }
+                            QGCComboBox {
+                                Layout.preferredWidth:  _comboFieldWidth
+                                visible:                DhakshaCameraManager.vendor === 1
+                                model:                  DhakshaCameraManager.thermalPaletteNames
+                                currentIndex:           DhakshaCameraManager.thermalPalette
+                                onActivated:            DhakshaCameraManager.thermalPalette = index
+                            }
+
                             QGCLabel { text: qsTr("Video") }
                             QGCComboBox {
                                 Layout.preferredWidth:  _comboFieldWidth * 1.6

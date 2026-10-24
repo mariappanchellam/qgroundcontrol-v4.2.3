@@ -37,6 +37,7 @@ public:
 
     bool controlSupported() const override { return true; }
     bool rangefinderSupported() const override { return true; }
+    bool thermalPaletteSupported() const override { return true; }
 
     void takePhoto          () override;
     void startRecording     () override;
@@ -45,6 +46,7 @@ public:
     void setPipMode         (int mode) override;
     void measureDistance    () override;
     void toggleRanging      () override;
+    void setThermalPalette  (int palette) override;
 
     void zoomIn             () override;
     void zoomOut            () override;
@@ -115,6 +117,7 @@ private:
     static constexpr char kAddressGimbal    = 'G';
     static constexpr char kAddressImage     = 'D';
     static constexpr char kAddressLens      = 'M';
+    static constexpr char kAddressThermal   = 'E';  ///< Auxiliary equipment (thermal camera) on Topotek SMT gimbals
 
     static constexpr int kPollIntervalMs        = 2000;
     static constexpr int kGimbalResendMs        = 100;    ///< as ArduPilot; the camera stops between slower resends
