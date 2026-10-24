@@ -45,7 +45,9 @@ import java.nio.charset.StandardCharsets;
  * DhakshaKey: sends the drone camera to the Dhaksha video server with a few taps.
  *
  * One screen: the camera and the video quality, the camera IP and the server IP (filled in, editable, kept
- * with their Save buttons), the drone number, and Start / Stop streaming. Start checks that the camera
+ * with their Save buttons), the drone number, the stream name(s), how the video is uploaded (RTMP, RTSP, SRT
+ * or WebRTC / WHIP, with its port) and how viewers watch it (HLS or WebRTC), and Start / Stop streaming.
+ * Start checks that the camera
  * answers, writes the tested streaming script with these values to ~/stream_aws_<camera>.sh in Termux and
  * runs it in a Termux window. The script retries by itself when the camera or the internet drops, and reports
  * how it is doing on a local UDP port, shown in the message bar at the top ("Data rate too low ...").
@@ -89,6 +91,17 @@ public class MainActivity extends Activity {
     private EditText serverIp;
     private Button saveServerIp;
     private Spinner droneSpinner;
+    private EditText dayName;
+    private Button saveDayName;
+    private TextView nightLabel;
+    private LinearLayout nightRow;
+    private EditText nightName;
+    private Button saveNightName;
+    private TextView uploadAddress;
+    private Spinner uploadSpinner;
+    private EditText uploadPort;
+    private Button saveUploadPort;
+    private Spinner watchSpinner;
     private TextView watchLink;
     private Button startButton;
     private Button startAnyway;
@@ -104,6 +117,7 @@ public class MainActivity extends Activity {
     private long cameraAt;
     private long netAt;
     private long dropAt;
+    private long uploadAt;
     private String problemStream = "";
 
     @Override
@@ -167,6 +181,20 @@ public class MainActivity extends Activity {
         }
         droneSpinner = addSpinner(left, drones, prefs.getInt("drone", 0));
 
+        // The names the video gets on the server (live/<name>); Dhaksha Live boxes look for droneN and droneN-night
+        addLabel(left, "Stream name");
+        LinearLayout dayRow = row(left);
+        dayName = addField(dayRow, "drone1");
+        saveDayName = addSaveButton(dayRow, v -> saveStreamNames(true));
+        nightLabel = addLabel(left, "Night stream name");
+        nightRow = row(left);
+        nightName = addField(nightRow, "drone1-night");
+        saveNightName = addSaveButton(nightRow, v -> saveStreamNames(true));
+        uploadAddress = new TextView(this);
+        uploadAddress.setTextColor(Color.GRAY);
+        uploadAddress.setTextSize(12);
+        left.addView(uploadAddress);
+
         // Right: quality, server IP, watch link
         addLabel(right, "Video quality");
         String[] qualities = new String[StreamScripts.QUALITIES.length];
@@ -180,6 +208,26 @@ public class MainActivity extends Activity {
         serverIp = addField(serverRow, StreamScripts.DEFAULT_SERVER_IP);
         serverIp.setText(savedServerIp());
         saveServerIp = addSaveButton(serverRow, v -> saveServerIp(true));
+
+        addLabel(right, "Upload with");
+        String[] uploads = new String[StreamScripts.UPLOADS.length];
+        for (int i = 0; i < uploads.length; i++) {
+            uploads[i] = StreamScripts.UPLOADS[i].name;
+        }
+        uploadSpinner = addSpinner(right, uploads,
+                StreamScripts.uploadIndex(prefs.getString("upload", StreamScripts.UPLOADS[0].tag)));
+        addLabel(right, "Upload port");
+        LinearLayout portRow = row(right);
+        uploadPort = addField(portRow, "1935");
+        uploadPort.setInputType(InputType.TYPE_CLASS_NUMBER);
+        saveUploadPort = addSaveButton(portRow, v -> saveUploadPort(true));
+
+        addLabel(right, "Watch with");
+        String[] watches = new String[StreamScripts.WATCHES.length];
+        for (int i = 0; i < watches.length; i++) {
+            watches[i] = StreamScripts.WATCHES[i].name;
+        }
+        watchSpinner = addSpinner(right, watches, prefs.getInt("watch", 0));
 
         addLabel(right, "Watch at (tap to copy)");
         watchLink = new TextView(this);
@@ -220,10 +268,16 @@ public class MainActivity extends Activity {
         setContentView(scroll);
 
         cameraSpinner.setOnItemSelectedListener(new SimpleSelection(this::showCamera));
-        droneSpinner.setOnItemSelectedListener(new SimpleSelection(this::refresh));
+        droneSpinner.setOnItemSelectedListener(new SimpleSelection(this::showStreamNames));
         qualitySpinner.setOnItemSelectedListener(new SimpleSelection(this::refresh));
+        uploadSpinner.setOnItemSelectedListener(new SimpleSelection(this::showUploadPort));
+        watchSpinner.setOnItemSelectedListener(new SimpleSelection(this::refresh));
         cameraIp.addTextChangedListener(new SimpleWatcher(this::refresh));
         serverIp.addTextChangedListener(new SimpleWatcher(this::refresh));
+        dayName.addTextChangedListener(new SimpleWatcher(this::refresh));
+        nightName.addTextChangedListener(new SimpleWatcher(this::refresh));
+        uploadPort.addTextChangedListener(new SimpleWatcher(this::refresh));
+        showUploadPort();
         showCamera();
 
         showBanner("Choose the camera and the video quality, then press Start streaming.", GREY);
@@ -267,6 +321,8 @@ public class MainActivity extends Activity {
                 .putString("cameraTag", camera().fileTag)
                 .putInt("drone", droneSpinner.getSelectedItemPosition())
                 .putInt("quality", qualitySpinner.getSelectedItemPosition())
+                .putString("upload", upload().tag)
+                .putInt("watch", watchSpinner.getSelectedItemPosition())
                 .apply();
     }
 
@@ -297,20 +353,77 @@ public class MainActivity extends Activity {
         }
     }
 
+    // ---- Stream names (per camera and drone) and upload port (per upload type), with their Save buttons ----
+
+    private String savedDayName() {
+        return prefs.getString("name_" + camera().fileTag + "_" + droneNumber(), StreamScripts.droneName(droneNumber()));
+    }
+
+    private String savedNightName() {
+        return prefs.getString("night_" + camera().fileTag + "_" + droneNumber(), StreamScripts.nightName(droneNumber()));
+    }
+
+    private String savedUploadPort() {
+        return prefs.getString("port_" + upload().tag, String.valueOf(upload().defaultPort));
+    }
+
+    private void saveStreamNames(boolean announce) {
+        SharedPreferences.Editor edit = prefs.edit()
+                .putString("name_" + camera().fileTag + "_" + droneNumber(), text(dayName));
+        if (camera().dual()) {
+            edit.putString("night_" + camera().fileTag + "_" + droneNumber(), text(nightName));
+        }
+        edit.apply();
+        refresh();
+        if (announce) {
+            showBanner("Stream name saved for " + camera().name + ", drone " + droneNumber() + ".", GREEN);
+        }
+    }
+
+    private void saveUploadPort(boolean announce) {
+        prefs.edit().putString("port_" + upload().tag, text(uploadPort)).apply();
+        refresh();
+        if (announce) {
+            showBanner("Upload port saved for " + upload().name + ".", GREEN);
+        }
+    }
+
     /** Shows the chosen camera with its saved IP; an unsaved edit of the previous camera's IP is dropped. */
     private void showCamera() {
         cameraIp.setText(savedCameraIp());
+        showStreamNames();
+    }
+
+    /** The saved stream names of this camera and drone; the night name only for Day + Night. */
+    private void showStreamNames() {
+        dayName.setText(savedDayName());
+        nightName.setText(savedNightName());
+        int night = camera().dual() ? View.VISIBLE : View.GONE;
+        nightLabel.setVisibility(night);
+        nightRow.setVisibility(night);
+        refresh();
+    }
+
+    private void showUploadPort() {
+        uploadPort.setText(savedUploadPort());
         refresh();
     }
 
     private void refresh() {
         setSaveEnabled(saveCameraIp, !text(cameraIp).equals(savedCameraIp()));
         setSaveEnabled(saveServerIp, !text(serverIp).equals(savedServerIp()));
+        setSaveEnabled(saveDayName, !text(dayName).equals(savedDayName()));
+        setSaveEnabled(saveNightName, !text(nightName).equals(savedNightName()));
+        setSaveEnabled(saveUploadPort, !text(uploadPort).equals(savedUploadPort()));
         StreamScripts.Camera camera = camera();
         String night = camera.nightRtsp(text(cameraIp));
         cameraAddress.setText(camera.rtsp(text(cameraIp)) + (night == null ? "" : "\n" + night));
-        watchLink.setText(StreamScripts.watchUrl(text(serverIp), droneNumber())
-                + (night == null ? "" : "\n" + StreamScripts.nightWatchUrl(text(serverIp), droneNumber())));
+        String server = text(serverIp);
+        int port = port();
+        uploadAddress.setText("Uploads to " + StreamScripts.uploadUrl(upload(), server, port, text(dayName))
+                + (night == null ? "" : "\nand " + StreamScripts.uploadUrl(upload(), server, port, text(nightName))));
+        watchLink.setText(StreamScripts.watchUrl(server, watch(), text(dayName))
+                + (night == null ? "" : "\n" + StreamScripts.watchUrl(server, watch(), text(nightName))));
         startAnyway.setVisibility(View.GONE);
     }
 
@@ -331,6 +444,28 @@ public class MainActivity extends Activity {
         return droneSpinner.getSelectedItemPosition() + 1;
     }
 
+    private StreamScripts.Upload upload() {
+        return StreamScripts.UPLOADS[uploadSpinner.getSelectedItemPosition()];
+    }
+
+    private StreamScripts.Watch watch() {
+        return StreamScripts.WATCHES[watchSpinner.getSelectedItemPosition()];
+    }
+
+    /** The typed upload port, or 0 when it is not a number. */
+    private int port() {
+        try {
+            return Integer.parseInt(text(uploadPort));
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    /** The night stream name, or null when the camera sends one stream. */
+    private String nightStream() {
+        return camera().dual() ? text(nightName) : null;
+    }
+
     /** The built-in server password, or the one an earlier version let the operator save */
     private String password() {
         return prefs.getString("password", StreamScripts.DEFAULT_PASSWORD);
@@ -344,14 +479,17 @@ public class MainActivity extends Activity {
             return;
         }
         final String rtsp = camera().rtsp(text(cameraIp));
-        String problem = StreamScripts.validate(rtsp, text(serverIp), droneNumber(), password());
+        String problem = StreamScripts.validate(rtsp, text(serverIp), droneNumber(), password(), port(),
+                                                text(dayName), nightStream());
         if (problem != null) {
             showBanner(problem, RED);
             return;
         }
-        // Starting uses what is typed, so it is kept as the saved IPs too
+        // Starting uses what is typed, so it is kept as the saved values too
         saveCameraIp(false);
         saveServerIp(false);
+        saveStreamNames(false);
+        saveUploadPort(false);
         if (skipCameraCheck) {
             saveAndRun(rtsp);
             return;
@@ -379,8 +517,8 @@ public class MainActivity extends Activity {
         StreamScripts.Camera camera = camera();
         String scriptPath = camera.scriptPath();
         String nightRtsp = camera.nightRtsp(text(cameraIp));
-        String stream = StreamScripts.streamScript(camera, rtsp, nightRtsp, text(serverIp), droneNumber(),
-                password(), quality(), true);
+        String stream = StreamScripts.streamScript(camera, rtsp, nightRtsp, text(serverIp), text(dayName),
+                nightStream(), password(), quality(), true, upload(), port(), watch());
         String reader = readAsset("dhaksha_telemetry.py");
         if (reader == null) {
             showBanner("The position reader is missing from this app.", RED);
@@ -389,8 +527,8 @@ public class MainActivity extends Activity {
         if (runInTermux(StreamScripts.saveAndStartCommand(scriptPath, stream, reader), false)) {
             startAnyway.setVisibility(View.GONE);
             streaming = true;
-            liveAt = slowAt = cameraAt = netAt = dropAt = 0;
-            showBanner("Starting " + StreamScripts.droneName(droneNumber()) + " at " + quality().label
+            liveAt = slowAt = cameraAt = netAt = dropAt = uploadAt = 0;
+            showBanner("Starting " + text(dayName) + " at " + quality().label + " with " + upload().name
                     + ". The Termux window shows its progress.", GREY);
         }
     }
@@ -461,6 +599,9 @@ public class MainActivity extends Activity {
             dropAt = now;
             problemStream = parts.length > 1 ? parts[1] : "";
             break;
+        case "UPLOAD":
+            uploadAt = now;
+            break;
         default:
             return;
         }
@@ -474,8 +615,11 @@ public class MainActivity extends Activity {
             return;
         }
         long now = SystemClock.elapsedRealtime();
-        String which = problemStream.endsWith("-night") ? "Night camera: " : "";
-        if (slowAt > 0 && now - slowAt < PROBLEM_SHOWN_MS) {
+        String which = camera().dual() && problemStream.equals(text(nightName)) ? "Night camera: " : "";
+        if (uploadAt > 0 && now - uploadAt < PROBLEM_SHOWN_MS) {
+            showBanner("This phone's ffmpeg cannot upload with " + upload().name + ". Run  pkg upgrade ffmpeg  "
+                    + "in Termux, or choose RTMP (viewers can still watch over WebRTC).", RED);
+        } else if (slowAt > 0 && now - slowAt < PROBLEM_SHOWN_MS) {
             int index = qualitySpinner.getSelectedItemPosition();
             String lower = index > 0 ? " (" + StreamScripts.QUALITIES[index - 1].label + ")" : "";
             showBanner(which + "Data rate too low to stream video. Reduce resolution" + lower
@@ -483,12 +627,13 @@ public class MainActivity extends Activity {
         } else if (cameraAt > 0 && now - cameraAt < PROBLEM_SHOWN_MS) {
             showBanner(which + "No video from the camera. Check the camera is on and its IP is right.", RED);
         } else if (netAt > 0 && now - netAt < PROBLEM_SHOWN_MS) {
-            showBanner(which + "Cannot reach the server. Check the internet (SIM / Wi-Fi) and the server IP.", RED);
+            showBanner(which + "Cannot reach the server. Check the internet (SIM / Wi-Fi), the server IP and the "
+                    + "upload port.", RED);
         } else if (dropAt > 0 && now - dropAt < LIVE_SHOWN_MS) {
             showBanner(which + "The stream dropped. Reconnecting...", ORANGE);
         } else if (liveAt > 0 && now - liveAt < LIVE_SHOWN_MS) {
-            showBanner("Live: " + StreamScripts.droneName(droneNumber()) + " is on the server ("
-                    + quality().label + ").", GREEN);
+            showBanner("Live: " + text(dayName) + " is on the server (" + quality().label + ", "
+                    + upload().name + ").", GREEN);
         } else if (liveAt > 0) {
             showBanner("No news from the stream for a few seconds. Check the Termux window.", ORANGE);
         }
@@ -651,12 +796,13 @@ public class MainActivity extends Activity {
         return button;
     }
 
-    private void addLabel(LinearLayout parent, String label) {
+    private TextView addLabel(LinearLayout parent, String label) {
         TextView view = new TextView(this);
         view.setText(label);
         view.setTextColor(Color.GRAY);
         view.setPadding(0, dp(10), 0, dp(2));
         parent.addView(view);
+        return view;
     }
 
     private void addButton(LinearLayout parent, String label, View.OnClickListener listener) {

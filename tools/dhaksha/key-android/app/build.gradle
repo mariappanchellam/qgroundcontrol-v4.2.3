@@ -10,8 +10,8 @@ android {
         applicationId 'com.dhaksha.key'
         minSdk 21
         targetSdk 28
-        versionCode 14
-        versionName '4.1'
+        versionCode 15
+        versionName '4.2'
     }
 
     compileOptions {

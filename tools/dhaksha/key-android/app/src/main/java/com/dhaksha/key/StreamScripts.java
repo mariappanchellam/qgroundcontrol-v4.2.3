@@ -7,7 +7,9 @@ import java.util.regex.Pattern;
  * Builds the Termux script that sends the drone camera to the Dhaksha video server (MediaMTX on AWS).
  *
  * The script is the tested stream_aws.sh with the operator's choices filled in: camera stream, server,
- * drone name, password and video size. It is saved as ~/stream_aws_<camera>.sh, e.g. ~/stream_aws_zr10.sh.
+ * stream names, password, video size and how it uploads (RTMP, RTSP, SRT or WebRTC / WHIP, on an editable
+ * port). It is saved as ~/stream_aws_<camera>.sh, e.g. ~/stream_aws_zr10.sh. Whatever it uploads with, the
+ * server lets viewers watch over HLS (port 8888) or WebRTC (port 8889).
  * For testing at home without a camera, it loops test.mp4 from the Download folder instead and is saved as
  * ~/stream_aws_home.sh.
  */
@@ -15,8 +17,6 @@ final class StreamScripts {
 
     static final String DEFAULT_SERVER_IP = "15.252.170.151";
     static final String DEFAULT_PASSWORD = "Dhaksha2026";
-    static final int RTMP_PORT = 1935;
-    static final int WATCH_PORT = 8888;
     static final int MAX_DRONES = 25;
 
     static final String PID_FILE = "$HOME/.dhakshakey.pid";
@@ -33,6 +33,70 @@ final class StreamScripts {
     private static final Pattern HOST = Pattern.compile("[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?");
     private static final Pattern IPV4 = Pattern.compile("\\d{1,3}(\\.\\d{1,3}){3}");
     private static final Pattern PASSWORD = Pattern.compile("[A-Za-z0-9._-]+");
+    private static final Pattern STREAM_NAME = Pattern.compile("[A-Za-z0-9._-]+");
+
+    /** How the script sends the video to the server (MediaMTX). */
+    static final class Upload {
+        final String name;
+        final String tag;
+        final int defaultPort;
+        /** The video itself goes over TCP to the port, so the phone's upload queue to it can be read. */
+        final boolean tcpVideo;
+        /** The port is TCP (the video, or the WebRTC offer), so the script can check the server answers on it. */
+        final boolean tcpPort;
+        /** What ffmpeg must have for this upload: a muxer (-muxers) or a protocol (-protocols); null for none. */
+        final String needs;
+
+        Upload(String name, String tag, int defaultPort, boolean tcpVideo, boolean tcpPort, String needs) {
+            this.name = name;
+            this.tag = tag;
+            this.defaultPort = defaultPort;
+            this.tcpVideo = tcpVideo;
+            this.tcpPort = tcpPort;
+            this.needs = needs;
+        }
+
+        /** The ffmpeg output for one stream, using the script's SERVER_IP, UPLOAD_PORT and PASSWORD. */
+        String ffmpegOutput(String nameVar) {
+            switch (tag) {
+            case "rtsp":
+                return "-f rtsp -rtsp_transport tcp \"rtsp://drone:$PASSWORD@$SERVER_IP:$UPLOAD_PORT/live/" + nameVar + "\"";
+            case "srt":
+                return "-f mpegts \"srt://$SERVER_IP:$UPLOAD_PORT?streamid=publish:live/" + nameVar
+                        + ":drone:$PASSWORD&pkt_size=1316\"";
+            case "whip":
+                // MediaMTX takes the WHIP login as a Bearer token "user:password"
+                return "-f whip -authorization \"drone:$PASSWORD\" \"http://$SERVER_IP:$UPLOAD_PORT/live/"
+                        + nameVar + "/whip\"";
+            default:
+                return "-f flv \"rtmp://$SERVER_IP:$UPLOAD_PORT/live/" + nameVar + "?user=drone&pass=$PASSWORD\"";
+            }
+        }
+    }
+
+    static final Upload[] UPLOADS = {
+        new Upload("RTMP (port 1935)", "rtmp", 1935, true, true, null),
+        new Upload("RTSP (port 8554)", "rtsp", 8554, true, true, null),
+        new Upload("SRT (port 8890, UDP)", "srt", 8890, false, false, "-protocols srt"),
+        // ffmpeg 8 and newer, built with WebRTC (DTLS) support
+        new Upload("WebRTC / WHIP (port 8889)", "whip", 8889, false, true, "-muxers whip"),
+    };
+
+    /** How viewers watch the stream on the server: the page at http://SERVER:PORT/live/NAME. */
+    static final class Watch {
+        final String name;
+        final int port;
+
+        Watch(String name, int port) {
+            this.name = name;
+            this.port = port;
+        }
+    }
+
+    static final Watch[] WATCHES = {
+        new Watch("HLS (port 8888)", 8888),
+        new Watch("WebRTC (port 8889)", 8889),
+    };
 
     /** A camera model: its default IP and how its RTSP address is built from the IP. */
     static final class Camera {
@@ -69,6 +133,10 @@ final class StreamScripts {
 
         String scriptPath() {
             return "~/stream_aws_" + fileTag + ".sh";
+        }
+
+        boolean dual() {
+            return nightTemplate != null;
         }
     }
 
@@ -111,6 +179,16 @@ final class StreamScripts {
 
     private StreamScripts() {}
 
+    /** Index of the upload with this tag, or 0 (RTMP) when there is none. */
+    static int uploadIndex(String tag) {
+        for (int i = 0; i < UPLOADS.length; i++) {
+            if (UPLOADS[i].tag.equals(tag)) {
+                return i;
+            }
+        }
+        return 0;
+    }
+
     /** Index of the camera with this file tag, or 0 (Dhaksha - Day) when there is none. */
     static int cameraIndex(String fileTag) {
         for (int i = 0; i < CAMERAS.length; i++) {
@@ -129,12 +207,17 @@ final class StreamScripts {
         return droneName(number) + "-night";
     }
 
-    static String nightWatchUrl(String serverIp, int droneNumber) {
-        return "http://" + serverIp + ":" + WATCH_PORT + "/live/" + nightName(droneNumber);
+    static String watchUrl(String serverIp, Watch watch, String streamName) {
+        return "http://" + serverIp + ":" + watch.port + "/live/" + streamName;
     }
 
-    static String watchUrl(String serverIp, int droneNumber) {
-        return "http://" + serverIp + ":" + WATCH_PORT + "/live/" + droneName(droneNumber);
+    /** The upload address shown to the operator, with the password hidden. */
+    static String uploadUrl(Upload upload, String serverIp, int port, String streamName) {
+        String output = upload.ffmpegOutput(streamName)
+                .replace("$SERVER_IP", serverIp).replace("$UPLOAD_PORT", String.valueOf(port))
+                .replace("$PASSWORD", "****");
+        int end = output.lastIndexOf('"');
+        return output.substring(output.lastIndexOf('"', end - 1) + 1, end);
     }
 
     /** Host part of an rtsp:// address, or null when the address is not usable. */
@@ -175,6 +258,24 @@ final class StreamScripts {
      * cameraRtsp is null for the home test video.
      */
     static String validate(String cameraRtsp, String serverIp, int droneNumber, String password) {
+        return validate(cameraRtsp, serverIp, droneNumber, password, UPLOADS[0].defaultPort,
+                        droneName(droneNumber), null);
+    }
+
+    /** As above, also checking the upload port and the stream names (nightName null for one stream). */
+    static String validate(String cameraRtsp, String serverIp, int droneNumber, String password, int uploadPort,
+                           String dayName, String nightName) {
+        if (uploadPort < 1 || uploadPort > 65535) {
+            return "The upload port must be a number from 1 to 65535.";
+        }
+        for (String name : new String[] { dayName, nightName }) {
+            if (name != null && !STREAM_NAME.matcher(name).matches()) {
+                return "A stream name may only use letters, numbers, '.', '_' and '-', like drone1 or drone1-night.";
+            }
+        }
+        if (nightName != null && nightName.equals(dayName)) {
+            return "The day and the night stream need different names.";
+        }
         if (cameraRtsp != null && cameraRtsp.matches(".*[\\s'\"\\\\].*")) {
             return "The camera address must not contain spaces or quotes.";
         }
@@ -198,32 +299,37 @@ final class StreamScripts {
      * drone's lat, lon and altitude (forwarded by DhakshaGroundControl, read by dhaksha_telemetry.py)
      * are written at the bottom of every frame. With camera null (home, no camera) it loops test.mp4
      * from the Download folder instead of the camera, at its real speed, and the position is a made-up
-     * TEST one, so no drone or DhakshaGroundControl is needed.
+     * TEST one, so no drone or DhakshaGroundControl is needed. Uploads with RTMP and shows the HLS link.
      */
     static String streamScript(Camera camera, String cameraRtsp, String serverIp, int droneNumber,
                                String password, Quality quality, boolean showPosition) {
-        return streamScript(camera, cameraRtsp, null, serverIp, droneNumber, password, quality, showPosition);
+        return streamScript(camera, cameraRtsp, null, serverIp, droneName(droneNumber), null, password, quality,
+                            showPosition, UPLOADS[0], UPLOADS[0].defaultPort, WATCHES[0]);
     }
 
     /**
-     * With nightRtsp, the night (thermal) camera is sent at the same time as droneN-night: two ffmpeg
+     * With nightRtsp, the night (thermal) camera is sent at the same time as nightName: two ffmpeg
      * loops, each with its own watchdog, and one position reader feeding the text on both.
      */
-    static String streamScript(Camera camera, String cameraRtsp, String nightRtsp, String serverIp, int droneNumber,
-                               String password, Quality quality, boolean showPosition) {
+    static String streamScript(Camera camera, String cameraRtsp, String nightRtsp, String serverIp, String dayName,
+                               String nightName, String password, Quality quality, boolean showPosition,
+                               Upload upload, int uploadPort, Watch watch) {
         boolean home = camera == null;
         boolean dual = !home && nightRtsp != null;
         return SHEBANG + "\n"
                 + "# Made by DhakshaKey: " + (home ? "home test video " + TEST_VIDEO : camera.name + " camera")
                 + " -> Dhaksha video server, "
                 + quality.height + "p, about " + quality.kbps + " kbit/s, low delay.\n"
-                + "# Watch: " + watchUrl(serverIp, droneNumber) + "\n"
-                + (dual ? "# Night: " + nightWatchUrl(serverIp, droneNumber) + "\n" : "")
+                + "# Upload: " + upload.name + "\n"
+                + "# Watch: " + watchUrl(serverIp, watch, dayName) + "\n"
+                + (dual ? "# Night: " + watchUrl(serverIp, watch, nightName) + "\n" : "")
                 + "# Stop with Ctrl+C, or the Stop button in DhakshaKey.\n"
                 + "\n"
                 + "SERVER_IP=" + shellQuote(serverIp) + "\n"
                 + "PASSWORD=" + shellQuote(password) + "\n"
-                + "DRONE=" + shellQuote(droneName(droneNumber)) + "\n"
+                + "UPLOAD_PORT=" + uploadPort + "\n"
+                + "DRONE=" + shellQuote(dayName) + "\n"
+                + (dual ? "NIGHT_DRONE=" + shellQuote(nightName) + "\n" : "")
                 + (home ? "" : "CAMERA=" + shellQuote(cameraRtsp) + "\n")
                 + (dual ? "NIGHT_CAMERA=" + shellQuote(nightRtsp) + "\n" : "")
                 + "WIDTH=" + quality.width() + "\n"
@@ -235,9 +341,10 @@ final class StreamScripts {
                 + stopPrevious()
                 + "echo $$ > " + PID_FILE + "\n"
                 + "termux-wake-lock 2>/dev/null\n"
-                + "echo \"Watch this drone at http://$SERVER_IP:" + WATCH_PORT + "/live/$DRONE\"\n"
-                + (dual ? "echo \"Night camera at    http://$SERVER_IP:" + WATCH_PORT + "/live/$DRONE-night\"\n" : "")
+                + "echo \"Watch this drone at http://$SERVER_IP:" + watch.port + "/live/$DRONE\"\n"
+                + (dual ? "echo \"Night camera at    http://$SERVER_IP:" + watch.port + "/live/$NIGHT_DRONE\"\n" : "")
                 + "\n"
+                + (upload.needs == null ? "" : uploadCheck(upload))
                 + (home ? findTestVideo() : "")
                 + "# The width is written out: ffmpeg 8 turned scale=-2:360 into a 2-pixel-wide picture\n"
                 + "FILTER=\"scale=$WIDTH:$HEIGHT,fps=$FPS\"\n"
@@ -280,19 +387,24 @@ final class StreamScripts {
                 + "      echo \"$(date '+%F %T') camera not reachable at ${hp%%:*}:$port\"; report \"CAMERA $DRONE\"; return\n"
                 + "    fi\n"
                 + "  fi\n"
-                + "  if ! timeout 3 bash -c \"exec 3<>/dev/tcp/$SERVER_IP/" + RTMP_PORT + "\" 2>/dev/null; then\n"
-                + "    echo \"$(date '+%F %T') server not reachable at $SERVER_IP:" + RTMP_PORT + " (internet or server IP)\"\n"
-                + "    report \"NET $DRONE\"; return\n"
-                + "  fi\n"
+                + (upload.tcpPort
+                    ? "  if ! timeout 3 bash -c \"exec 3<>/dev/tcp/$SERVER_IP/$UPLOAD_PORT\" 2>/dev/null; then\n"
+                      + "    echo \"$(date '+%F %T') server not reachable at $SERVER_IP:$UPLOAD_PORT (internet, server IP or port)\"\n"
+                      + "    report \"NET $DRONE\"; return\n"
+                      + "  fi\n"
+                    : "")
                 + "  report \"DROP $DRONE\"\n"
                 + "}\n"
                 + "\n"
                 + "# KB of video waiting in this phone's upload queue to the server; empty when it cannot be read\n"
-                + "queued_kb() {\n"
-                + "  local hex\n"
-                + "  hex=$(awk -v port=\"$(printf '%04X' " + RTMP_PORT + ")\" 'FNR > 1 { split($3, r, \":\"); if (r[2] == port && $4 == \"01\") { split($5, q, \":\"); print q[1]; exit } }' /proc/net/tcp /proc/net/tcp6 2>/dev/null)\n"
-                + "  [ -n \"$hex\" ] && echo $(( 16#$hex / 1024 ))\n"
-                + "}\n"
+                + (upload.tcpVideo
+                    ? "queued_kb() {\n"
+                      + "  local hex\n"
+                      + "  hex=$(awk -v port=\"$(printf '%04X' \"$UPLOAD_PORT\")\" 'FNR > 1 { split($3, r, \":\"); if (r[2] == port && $4 == \"01\") { split($5, q, \":\"); print q[1]; exit } }' /proc/net/tcp /proc/net/tcp6 2>/dev/null)\n"
+                      + "  [ -n \"$hex\" ] && echo $(( 16#$hex / 1024 ))\n"
+                      + "}\n"
+                    : "# (" + upload.name + " sends the video over UDP, which has no upload queue to read)\n"
+                      + "queued_kb() { :; }\n")
                 + "\n"
                 + "# One camera to one stream name, restarted by its own watchdog:\n"
                 + "# stream_loop CAMERA NAME PROGRESS_FILE FILTER LABEL   (LABEL empty for the only stream)\n"
@@ -314,7 +426,7 @@ final class StreamScripts {
                 + "    -c:v libx264 -preset ultrafast -tune zerolatency -profile:v baseline -pix_fmt yuv420p \\\n"
                 + "    -b:v \"$BITRATE\" -maxrate \"$BITRATE\" -bufsize \"$BUFSIZE\" \\\n"
                 + "    -g \"$FPS\" -keyint_min \"$FPS\" -sc_threshold 0 \\\n"
-                + "    -f flv \"rtmp://$SERVER_IP:" + RTMP_PORT + "/live/$DRONE?user=drone&pass=$PASSWORD\" &\n"
+                + "    " + upload.ffmpegOutput("$DRONE") + " &\n"
                 + "  FFMPEG_PID=$!\n"
                 + "  # Watchdog: when the video stops moving or runs below 0.8x for STALL_SECONDS, or piles up\n"
                 + "  # waiting to upload for QUEUE_SECONDS, restart at once.\n"
@@ -367,7 +479,7 @@ final class StreamScripts {
                 + (dual
                     ? "stream_loop \"$CAMERA\" \"$DRONE\" \"$HOME/.dhakshakey_progress\" \"$FILTER\" day &\n"
                       + "LOOP_PIDS=\"$!\"\n"
-                      + "stream_loop \"$NIGHT_CAMERA\" \"$DRONE-night\" \"$HOME/.dhakshakey_progress_night\" \"$NIGHT_FILTER\" night &\n"
+                      + "stream_loop \"$NIGHT_CAMERA\" \"$NIGHT_DRONE\" \"$HOME/.dhakshakey_progress_night\" \"$NIGHT_FILTER\" night &\n"
                       + "LOOP_PIDS=\"$LOOP_PIDS $!\"\n"
                       + "while true; do wait; sleep 1; done\n"
                     : "stream_loop \"" + (home ? "$VIDEO" : "$CAMERA") + "\" \"$DRONE\" \"$HOME/.dhakshakey_progress\" \"$FILTER\" \"\"\n");
@@ -392,6 +504,20 @@ final class StreamScripts {
                 + "pkill -x ffmpeg 2>/dev/null\n"
                 + "sleep 1\n"
                 + "pkill -9 -x ffmpeg 2>/dev/null\n";
+    }
+
+    /** Stops with a clear message when this phone's ffmpeg cannot upload this way, instead of retrying forever. */
+    private static String uploadCheck(Upload upload) {
+        String[] needs = upload.needs.split(" ");
+        return "# " + upload.name + " needs ffmpeg with " + needs[1] + "\n"
+                + "if ! ffmpeg -hide_banner " + needs[0] + " 2>/dev/null | grep -qw " + needs[1] + "; then\n"
+                + "  echo \"This ffmpeg cannot upload with " + upload.name + ". Run  pkg upgrade ffmpeg  in Termux,\"\n"
+                + "  echo \"or choose RTMP in DhakshaKey (viewers can still watch over WebRTC).\"\n"
+                + "  { echo \"UPLOAD $DRONE\" > /dev/udp/127.0.0.1/" + STATUS_PORT + "; } 2>/dev/null\n"
+                + "  rm -f " + PID_FILE + "\n"
+                + "  exit 1\n"
+                + "fi\n"
+                + "\n";
     }
 
     /** Sets VIDEO to test.mp4 in the Termux home or the phone's Download folder; stops with help when missing. */
