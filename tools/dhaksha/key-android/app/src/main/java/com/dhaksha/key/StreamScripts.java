@@ -174,6 +174,8 @@ final class StreamScripts {
         new Quality("Good - 360p", 360, 15, 150),
         new Quality("Very Good - 480p", 480, 15, 300),
         new Quality("Exceptional - 720p", 720, 20, 800),
+        // About 70% of a 2 Mbps upload, leaving room for 4G dips and network overhead
+        new Quality("Best - 720p 30fps 1.4 Mbps", 720, 30, 1400),
     };
     static final int DEFAULT_QUALITY = 1;
 
