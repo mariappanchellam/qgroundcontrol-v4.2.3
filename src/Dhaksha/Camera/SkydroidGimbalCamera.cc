@@ -162,7 +162,7 @@ void SkydroidGimbalCamera::setThermalPalette(int palette)
 {
     // Topotek documents the thermal camera at 'D' (SHD series) or 'E' (SMT series); the other one ignores it
     _send(kAddressImage,   true, kIdPalette, static_cast<quint8>(palette), tr("Night palette %1").arg(palette));
-    _send(kAddressThermal, true, kIdPalette, static_cast<quint8>(palette));
+    _send(kAddressAuxiliary, true, kIdPalette, static_cast<quint8>(palette));
 }
 
 void SkydroidGimbalCamera::toggleDayNight()
@@ -178,16 +178,18 @@ void SkydroidGimbalCamera::setPipMode(int mode)
 
 void SkydroidGimbalCamera::measureDistance()
 {
-    _send(kAddressLens, true, kIdRange, 0x02, tr("Laser range (single)"));
+    _sendRange(true, 0x02, tr("Laser range (single)"));
 }
 
-// The C13's laser address is not published (ArduPilot uses the lens address), so the laser commands go
-// to the lens, image and gimbal addresses; a reply from any of them is shown.
+// Skydroid's gimbal series protocol (V1.0.8) puts the laser ranging module at the auxiliary device address
+// 'E'; the C14 ignored the command at the other addresses (field test 2026-11-12). Topotek cameras take it at
+// the lens address (ArduPilot), so the command still goes to those as well; a reply from any is shown.
 void SkydroidGimbalCamera::_sendRange(bool write, quint8 value, const QString& description)
 {
-    _send(kAddressLens,   write, kIdRange, value, description);
-    _send(kAddressImage,  write, kIdRange, value);
-    _send(kAddressGimbal, write, kIdRange, value);
+    _send(kAddressAuxiliary, write, kIdRange, value, description);
+    _send(kAddressLens,      write, kIdRange, value);
+    _send(kAddressImage,     write, kIdRange, value);
+    _send(kAddressGimbal,    write, kIdRange, value);
 }
 
 void SkydroidGimbalCamera::toggleRanging()

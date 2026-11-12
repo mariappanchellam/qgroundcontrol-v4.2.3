@@ -121,7 +121,7 @@ private:
     static constexpr char kAddressGimbal    = 'G';
     static constexpr char kAddressImage     = 'D';
     static constexpr char kAddressLens      = 'M';
-    static constexpr char kAddressThermal   = 'E';  ///< Auxiliary equipment (thermal camera) on Topotek SMT gimbals
+    static constexpr char kAddressAuxiliary = 'E';  ///< Auxiliary devices: thermal lens, laser ranging module
 
     static constexpr int kPollIntervalMs        = 2000;
     static constexpr int kGimbalResendMs        = 100;    ///< as ArduPilot; the camera stops between slower resends
