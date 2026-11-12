@@ -36,7 +36,8 @@ public:
     static constexpr quint16 kControlPort = 5000;
 
     bool controlSupported() const override { return true; }
-    bool rangefinderSupported() const override { return true; }
+    /// The laser button shows with the "C10 / C14" gimbal command selected; the C14 carries the rangefinder
+    bool rangefinderSupported() const override { return _gimbalStyle == GimbalStyleGsy; }
     bool thermalPaletteSupported() const override { return true; }
 
     void takePhoto          () override;

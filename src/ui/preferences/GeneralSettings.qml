@@ -408,7 +408,7 @@ Rectangle {
                             QGCComboBox {
                                 Layout.preferredWidth:  _comboFieldWidth
                                 visible:                DhakshaCameraManager.vendor === 1
-                                model:                  [ qsTr("YPR (other Topotek cameras)"), qsTr("GSY / GSP (Skydroid C10 / C13)") ]
+                                model:                  [ qsTr("YPR (other Topotek cameras)"), qsTr("GSY / GSP (Skydroid C10 / C14)") ]
                                 currentIndex:           DhakshaCameraManager.skydroidGimbalStyle
                                 onActivated:            DhakshaCameraManager.skydroidGimbalStyle = index
                             }

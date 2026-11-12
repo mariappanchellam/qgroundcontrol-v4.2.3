@@ -9,7 +9,8 @@
  *                gimbal turns, up to the speed set under settings)
  *   right:       centre, tilt down 90, zoom in / out and settings, just under
  *                the HUD
- *   top centre:  connection, day / night camera (when there is a night camera)
+ *   top centre:  connection, day / night camera (when there is a night camera),
+ *                laser rangefinder (Skydroid C14)
  * A small label under the top row shows recording time and other
  * confirmations. Works with any DhakshaGimbalCamera; the vendor protocol
  * lives in the C++ camera classes.
@@ -163,6 +164,18 @@ Item {
                     notify(DhakshaCameraManager.nightView ? qsTr("Night camera") : qsTr("Day camera"))
                 }
             }
+            // Laser rangefinder (Skydroid C14): on = continuous ranging, the distance shows below
+            IconButton {
+                width:          _smallButton
+                visible:        _camera && _camera.rangefinderSupported
+                icon:           "laser"
+                active:         _camera && _camera.rangingActive
+                activeColor:    _red
+                clickAction:    function() {
+                    _camera.toggleRanging()
+                    notify(_camera.rangingActive ? qsTr("Laser on") : qsTr("Laser off"))
+                }
+            }
         }
 
         // Recording time stays; other confirmations fade after 2 s
@@ -183,6 +196,22 @@ Item {
                     color:              "white"
                     font.bold:          true
                     text:               "● REC " + Math.floor(_recordSeconds / 60) + ":" + ("0" + (_recordSeconds % 60)).slice(-2)
+                }
+            }
+            Rectangle {
+                visible:        _camera && _camera.rangingActive && _camera.distanceText !== ""
+                width:          rangeText.width + height
+                height:         rangeText.height + _margin
+                radius:         height / 2
+                color:          "#C0202020"
+                border.color:   _red
+
+                QGCLabel {
+                    id:                 rangeText
+                    anchors.centerIn:   parent
+                    color:              "white"
+                    font.bold:          true
+                    text:               _camera ? qsTr("Laser %1").arg(_camera.distanceText) : ""
                 }
             }
             Rectangle {
@@ -248,6 +277,7 @@ Item {
         anchors.leftMargin:     _margin
         anchors.verticalCenter: parent.verticalCenter
         z:                      1
+        visible:                DhakshaCameraManager.gimbalControlsShown
 
         property real   _range:     (width - knob.width) / 2
         property real   _dx:        0
@@ -349,6 +379,7 @@ Item {
 
         IconButton {
             icon:           "center"
+            visible:        DhakshaCameraManager.gimbalControlsShown
             clickAction:    function() { _camera.gimbalCenter(); notify(qsTr("Gimbal centre")) }
         }
         IconButton {
@@ -358,6 +389,7 @@ Item {
         }
         IconButton {
             icon:           "down"
+            visible:        DhakshaCameraManager.gimbalControlsShown
             clickAction:    function() { _camera.gimbalDown(); notify(qsTr("Tilt down 90°")) }
         }
         IconButton {
@@ -372,7 +404,7 @@ Item {
         }
     }
 
-    // ------------------------------------------------------------------ Settings: gimbal speed and night palette
+    // ------------------------------------------------------------------ Settings: gimbal speed, night palette, gimbal controls on / off
 
     Rectangle {
         id:             speedSettings
@@ -456,6 +488,17 @@ Item {
                             DhakshaCameraManager.thermalPalette = index
                             notify(qsTr("Night palette: %1").arg(DhakshaCameraManager.thermalPaletteNames[index]))
                         }
+                    }
+                }
+                // Joystick, centre and tilt-down buttons on the screen; applied at once and saved
+                QGCCheckBox {
+                    anchors.horizontalCenter:   parent.horizontalCenter
+                    text:                       qsTr("Show gimbal controls on screen")
+                    textColor:                  "white"
+                    checked:                    DhakshaCameraManager.gimbalControlsShown
+                    onClicked: {
+                        DhakshaCameraManager.gimbalControlsShown = checked
+                        notify(checked ? qsTr("Gimbal controls shown") : qsTr("Gimbal controls hidden"))
                     }
                 }
                 Row {
