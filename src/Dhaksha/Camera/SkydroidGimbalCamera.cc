@@ -203,6 +203,8 @@ void SkydroidGimbalCamera::toggleRanging()
         _setRangingActive(true);
         _setDistanceText(tr("measuring..."));
         _rangeReads = 0;
+        _rangeReplied = false;
+        _rangeOtherReplies.clear();
         _rangeTimer.start();
     }
 }
@@ -212,9 +214,11 @@ void SkydroidGimbalCamera::_readRange()
     // A single measurement each time as well, for cameras that do not measure continuously
     _sendRange(true, 0x02, QString());
     _sendRange(false, 0x00, QString());
-    if (++_rangeReads == 3 && distanceText() == tr("measuring...")) {
-        _setDistanceText(tr("no reply from laser"));
-        _logCommand(tr("Laser: no reply in 3 s"));
+    if (++_rangeReads == 3 && !_rangeReplied) {
+        // What the camera did send tells whether the command reached it and how it names the laser
+        const QString others = _rangeOtherReplies.isEmpty() ? tr("camera sent nothing") : tr("camera sent %1").arg(_rangeOtherReplies.join(QStringLiteral(", ")));
+        _setDistanceText(tr("no reply from laser (%1)").arg(others));
+        _logCommand(tr("Laser: no reply in 3 s (%1)").arg(others));
     }
 }
 
@@ -469,14 +473,42 @@ void SkydroidGimbalCamera::_handleFrame(const QByteArray& id, const QByteArray& 
     _logCommand(QStringLiteral("RX %1 %2").arg(QString::fromLatin1(id), QString::fromLatin1(data)));
 
     if (id == kIdRange) {
+        if (!rangingActive()) {
+            return;
+        }
         if (data.toUpper().startsWith("ERR")) {
+            _rangeReplied = true;
             _setDistanceText(tr("no echo"));
             return;
         }
+        // "12345.6" metres; cameras differ in padding and units text, so only the number is taken
+        QByteArray number;
+        for (const char c : data) {
+            if ((c >= '0' && c <= '9') || c == '.') {
+                number.append(c);
+            }
+        }
         bool ok = false;
-        const double metres = data.trimmed().toDouble(&ok);
-        if (ok && data.size() > 2) {
+        const double metres = number.toDouble(&ok);
+        if (ok && number.contains('.')) {
+            _rangeReplied = true;
             _setDistanceText(tr("%1 m").arg(metres, 0, 'f', 1));
+        } else if (data.size() > 2) {
+            // An answer that is not a distance (the two-character echo of the command is not one): shown as
+            // sent, so the camera's format can be read off the screen
+            _rangeReplied = true;
+            _setDistanceText(tr("reply \"%1\"").arg(QString::fromLatin1(data)));
+        } else if (!_rangeReplied && !_rangeOtherReplies.contains(QStringLiteral("LRF ") + QString::fromLatin1(data))) {
+            // The camera repeats the command back: it was received, but no distance has come yet
+            _rangeOtherReplies.append(QStringLiteral("LRF ") + QString::fromLatin1(data));
+        }
+        return;
+    }
+
+    if (rangingActive() && !_rangeReplied && _rangeOtherReplies.size() < 4) {
+        const QString reply = QString::fromLatin1(id + ' ' + data);
+        if (!_rangeOtherReplies.contains(reply)) {
+            _rangeOtherReplies.append(reply);
         }
     }
 }

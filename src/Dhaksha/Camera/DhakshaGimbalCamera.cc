@@ -5,6 +5,7 @@
  ****************************************************************************/
 
 #include "DhakshaGimbalCamera.h"
+#include "DhakshaFlightLog.h"
 
 #include <QTime>
 
@@ -40,6 +41,8 @@ void DhakshaGimbalCamera::_logCommand(const QString& entry)
         _commandLog.removeLast();
     }
     emit commandLogChanged();
+    // Kept for analysing camera problems after a field test
+    DhakshaFlightLog::write(QStringLiteral("Camera: ") + entry);
 }
 
 void DhakshaGimbalCamera::_setDistanceText(const QString& text)

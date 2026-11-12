@@ -248,6 +248,35 @@ Item {
         }
     }
 
+    // ------------------------------------------------------------------ Centre: laser aiming crosshair
+
+    // Marks the point the laser measures (the middle of the picture) while the laser is on
+    Item {
+        id:                 crosshair
+        anchors.centerIn:   parent
+        width:              ScreenTools.defaultFontPixelHeight * 5
+        height:             width
+        visible:            _camera && _camera.rangefinderSupported && _camera.rangingActive
+
+        readonly property real _gap:    width * 0.14
+        readonly property real _line:   2
+
+        Rectangle {
+            anchors.centerIn:   parent
+            width:              parent.width * 0.5
+            height:             width
+            radius:             width / 2
+            color:              "transparent"
+            border.color:       _red
+            border.width:       crosshair._line
+        }
+        Rectangle { color: "white"; height: crosshair._line; width: parent.width / 2 - crosshair._gap; anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter }
+        Rectangle { color: "white"; height: crosshair._line; width: parent.width / 2 - crosshair._gap; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter }
+        Rectangle { color: "white"; width: crosshair._line; height: parent.height / 2 - crosshair._gap; anchors.top: parent.top; anchors.horizontalCenter: parent.horizontalCenter }
+        Rectangle { color: "white"; width: crosshair._line; height: parent.height / 2 - crosshair._gap; anchors.bottom: parent.bottom; anchors.horizontalCenter: parent.horizontalCenter }
+        Rectangle { color: _red; width: crosshair._line * 2; height: width; radius: width / 2; anchors.centerIn: parent }
+    }
+
     // ------------------------------------------------------------------ Left: record and photo, joystick to their right
 
     Column {

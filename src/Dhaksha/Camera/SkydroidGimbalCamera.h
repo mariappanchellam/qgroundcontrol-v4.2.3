@@ -22,6 +22,7 @@
 
 #include <QElapsedTimer>
 #include <QHostAddress>
+#include <QStringList>
 #include <QTimer>
 
 class QUdpSocket;
@@ -106,6 +107,8 @@ private:
     bool            _maxZoomShown   = false;
     QTimer          _downTimer;
     int             _rangeReads     = 0;
+    bool            _rangeReplied   = false;    ///< the camera answered a laser command since ranging was switched on
+    QStringList     _rangeOtherReplies;         ///< other replies since then, shown when the laser stays silent
     int             _gimbalStyle    = kDefaultGimbalStyle;
     int             _pollCount      = 0;
     bool            _recordRequested = false;  ///< start sent, camera has not confirmed yet
