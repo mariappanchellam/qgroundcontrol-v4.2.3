@@ -28,6 +28,11 @@ namespace {
     const char* kIdPalette      = "IMG";
     const char* kIdRates        = "YPR";    // yaw, pitch, roll speeds -99..99 as 2 hex each, positive pitch = down
     const char* kIdRange        = "LRF";    // 00 stop, 01 start, 02 single, 03 continuous; reply "12345.6" metres or "ERR"
+    // Read queries Skydroid's own Android app sends to the image address (published analysis of that app,
+    // meaning not documented). Asked while the laser is on: the answers show how the C14 reports its laser.
+    const char* kIdAppQueries[] = {"SLR", "TDI", "EXT"};
+    const char* kIdAppDistance  = "TDI";
+    const quint16 kAppControlPort = 9002;   // the port that app sends its commands to
 
     char hexChar(quint8 nibble)
     {
@@ -190,6 +195,9 @@ void SkydroidGimbalCamera::_sendRange(bool write, quint8 value, const QString& d
     _send(kAddressLens,      write, kIdRange, value);
     _send(kAddressImage,     write, kIdRange, value);
     _send(kAddressGimbal,    write, kIdRange, value);
+    if (!_cameraAddress.isNull()) {
+        _socket->writeDatagram(buildFrame(kAddressAuxiliary, write, kIdRange, value), _cameraAddress, kAppControlPort);
+    }
 }
 
 void SkydroidGimbalCamera::toggleRanging()
@@ -216,6 +224,13 @@ void SkydroidGimbalCamera::_readRange()
     // A single measurement each time as well, for cameras that do not measure continuously
     _sendRange(true, 0x02, QString());
     _sendRange(false, 0x00, QString());
+    for (const char* id : kIdAppQueries) {
+        const QByteArray query = buildFrame(kAddressImage, false, id, 0x00);
+        _sendFrame(query, _rangeReads == 0 ? tr("Laser query") : QString());
+        if (!_cameraAddress.isNull()) {
+            _socket->writeDatagram(query, _cameraAddress, kAppControlPort);
+        }
+    }
     if (++_rangeReads == 3 && !_rangeReplied) {
         // What the camera did send tells whether the command reached it and how it names the laser
         const QString others = _rangeOtherReplies.isEmpty() ? tr("camera sent nothing") : tr("camera sent %1").arg(_rangeOtherReplies.join(QStringLiteral(", ")));
@@ -474,7 +489,7 @@ void SkydroidGimbalCamera::_handleFrame(const QByteArray& id, const QByteArray& 
 
     _logCommand(QStringLiteral("RX %1 %2").arg(QString::fromLatin1(id), QString::fromLatin1(data)));
 
-    if (id == kIdRange) {
+    if (id == kIdRange || (id == kIdAppDistance && data.contains('.'))) {
         if (!rangingActive()) {
             return;
         }
