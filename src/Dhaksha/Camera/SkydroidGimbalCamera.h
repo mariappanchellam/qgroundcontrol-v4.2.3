@@ -81,6 +81,7 @@ private slots:
     void _pollStatus        ();
     void _resendGimbalSpeed ();
     void _readRange         ();
+    void _scanStep          ();
     void _checkRecordingStarted();
 
 private:
@@ -100,6 +101,9 @@ private:
     QTimer          _pollTimer;
     QTimer          _gimbalTimer;
     QTimer          _rangeTimer;
+    QTimer          _scanTimer;
+    int             _scanIndex      = 0;    ///< next of the three-letter ids asked in the laser command search
+    QStringList     _scanFound;             ///< "ID data" of each different answer during the search
     QTimer          _zoomTimer;
     int             _zoomDirection  = 0;    ///< 1 zooming in, -1 out, 0 not zooming
     int             _digitalZoomLevel = 1;     ///< total zoom shown to the operator
@@ -126,6 +130,7 @@ private:
     static constexpr int kPollIntervalMs        = 2000;
     static constexpr int kGimbalResendMs        = 100;    ///< as ArduPilot; the camera stops between slower resends
     static constexpr int kRangeReadMs           = 1000;
+    static constexpr int kScanStepMs            = 4;      ///< the whole search takes about 5 minutes
     static constexpr int kZoomResendMs          = 400;    ///< also one digital zoom step
     static constexpr int kMaxCameraZoom         = 4;      ///< the C13 accepted DZM 01..04 in the field; 05 did nothing
     static constexpr int kMaxZoom               = 30;     ///< camera 4x, then the video is magnified on screen up to 7.5x

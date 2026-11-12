@@ -212,6 +212,8 @@ Item {
                     color:              "white"
                     font.bold:          true
                     text:               _camera ? qsTr("Laser %1").arg(_camera.distanceText) : ""
+                    width:              Math.min(implicitWidth, ScreenTools.defaultFontPixelWidth * 60)
+                    wrapMode:           Text.WordWrap
                 }
             }
             Rectangle {

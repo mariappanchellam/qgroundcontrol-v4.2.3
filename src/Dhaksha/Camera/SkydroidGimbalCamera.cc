@@ -33,6 +33,11 @@ namespace {
     const char* kIdAppQueries[] = {"SLR", "TDI", "EXT"};
     const char* kIdAppDistance  = "TDI";
     const quint16 kAppControlPort = 9002;   // the port that app sends its commands to
+    // Command search: every three-letter id is asked as a read at each address. The camera answers the ids
+    // it knows and ignores the rest (field test 2026-11-12: EXT answered, LRF / SLR / TDI did not).
+    const char kScanAddresses[] = {'D', 'E', 'M', 'G'};
+    const int kScanIdsPerAddress = 26 * 26 * 26;
+    const int kScanTotal = kScanIdsPerAddress * static_cast<int>(sizeof(kScanAddresses));
 
     char hexChar(quint8 nibble)
     {
@@ -75,6 +80,8 @@ SkydroidGimbalCamera::SkydroidGimbalCamera(const QString& cameraIp, const QStrin
     _downTimer.setInterval(kTiltDownMs);
     connect(&_downTimer, &QTimer::timeout, this, &SkydroidGimbalCamera::gimbalStop);
     connect(&_rangeTimer, &QTimer::timeout, this, &SkydroidGimbalCamera::_readRange);
+    _scanTimer.setInterval(kScanStepMs);
+    connect(&_scanTimer, &QTimer::timeout, this, &SkydroidGimbalCamera::_scanStep);
 
     _gimbalStyle = QSettings().value(kGimbalStyleKey, kDefaultGimbalStyle).toInt() == GimbalStyleYpr ? GimbalStyleYpr : GimbalStyleGsy;
 
@@ -204,6 +211,7 @@ void SkydroidGimbalCamera::toggleRanging()
 {
     if (rangingActive()) {
         _rangeTimer.stop();
+        _scanTimer.stop();
         _sendRange(true, 0x00, tr("Laser range off"));
         _setRangingActive(false);
         _setDistanceText(QString());
@@ -236,6 +244,30 @@ void SkydroidGimbalCamera::_readRange()
         const QString others = _rangeOtherReplies.isEmpty() ? tr("camera sent nothing") : tr("camera sent %1").arg(_rangeOtherReplies.join(QStringLiteral(", ")));
         _setDistanceText(tr("no reply from laser (%1)").arg(others));
         _logCommand(tr("Laser: no reply in 3 s (%1)").arg(others));
+        _rangeTimer.stop();
+        _scanIndex = 0;
+        _scanFound = _rangeOtherReplies;
+        _scanTimer.start();
+    }
+}
+
+void SkydroidGimbalCamera::_scanStep()
+{
+    if (_scanIndex >= kScanTotal) {
+        _scanTimer.stop();
+        _setDistanceText(tr("search done, camera answers: %1").arg(_scanFound.join(QStringLiteral(", "))));
+        _logCommand(tr("Laser command search done, camera answers: %1").arg(_scanFound.join(QStringLiteral(", "))));
+        return;
+    }
+    const int idIndex = _scanIndex % kScanIdsPerAddress;
+    const char id[4] = {static_cast<char>('A' + idIndex / 676), static_cast<char>('A' + (idIndex / 26) % 26), static_cast<char>('A' + idIndex % 26), 0};
+    const QByteArray query = buildFrame(kScanAddresses[_scanIndex / kScanIdsPerAddress], false, id, 0x00);
+    if (!_cameraAddress.isNull()) {
+        _socket->writeDatagram(query, _cameraAddress, kControlPort);
+        _socket->writeDatagram(query, _cameraAddress, kAppControlPort);
+    }
+    if (++_scanIndex % 250 == 0) {
+        _setDistanceText(tr("finding laser command %1% (camera answers: %2)").arg(_scanIndex * 100 / kScanTotal).arg(_scanFound.join(QStringLiteral(", "))));
     }
 }
 
@@ -518,6 +550,14 @@ void SkydroidGimbalCamera::_handleFrame(const QByteArray& id, const QByteArray& 
         } else if (!_rangeReplied && !_rangeOtherReplies.contains(QStringLiteral("LRF ") + QString::fromLatin1(data))) {
             // The camera repeats the command back: it was received, but no distance has come yet
             _rangeOtherReplies.append(QStringLiteral("LRF ") + QString::fromLatin1(data));
+        }
+        return;
+    }
+
+    if (_scanTimer.isActive()) {
+        const QString reply = QString::fromLatin1(id + ' ' + data);
+        if (!_scanFound.contains(reply) && _scanFound.size() < 60) {
+            _scanFound.append(reply);
         }
         return;
     }
