@@ -89,6 +89,8 @@ private:
     void _sendFrame         (const QByteArray& frame, const QString& description);
     void _sendZoom          (quint8 value, bool log);
     void _stepDigitalZoom   ();
+    void _startZoom         (int direction);
+    bool _cameraStepZoom    () const;
     void _sendRangeQuery    (const QString& description);
     void _handleRangeDatagram(const QByteArray& datagram);
     void _sendGimbalSpeed   (bool log);
@@ -102,6 +104,7 @@ private:
     QTimer          _gimbalTimer;
     QTimer          _rangeTimer;
     QTimer          _zoomTimer;
+    QByteArray      _model;                 ///< the camera's answer to the model query, e.g. "C14PRO"
     int             _zoomDirection  = 0;    ///< 1 zooming in, -1 out, 0 not zooming
     int             _digitalZoomLevel = 1;     ///< total zoom shown to the operator
     int             _cameraZoomSent = 1;       ///< the part the camera does itself
@@ -128,6 +131,7 @@ private:
     static constexpr int kGimbalResendMs        = 100;    ///< as ArduPilot; the camera stops between slower resends
     static constexpr int kRangeReadMs           = 500;    ///< as Skydroid's app
     static constexpr int kRangeNoReplyReads     = 6;
+    static constexpr int kZoomStepMs            = 25;     ///< C14 zoom step repeat while the button is held
     static constexpr int kZoomResendMs          = 400;    ///< also one digital zoom step
     static constexpr int kMaxCameraZoom         = 4;      ///< the C13 accepted DZM 01..04 in the field; 05 did nothing
     static constexpr int kMaxZoom               = 30;     ///< camera 4x, then the video is magnified on screen up to 7.5x

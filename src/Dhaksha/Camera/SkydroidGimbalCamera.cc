@@ -30,6 +30,10 @@ namespace {
     // Laser distance, as Skydroid's own app reads it from the C13 / C14: a read every 500 ms, answered
     // with four hex digits in tenths of a metre
     const char* kIdRange        = "SLR";
+    const char* kIdModel        = "MOD";    // read 00: model name, e.g. "C14PRO"
+    // Zoom steps as Skydroid's app sends them for the C13 / C14, every 25 ms while its button is held
+    const quint8 kZoomStepIn    = 0x0A;
+    const quint8 kZoomStepOut   = 0x0B;
 
     char hexChar(quint8 nibble)
     {
@@ -62,6 +66,10 @@ SkydroidGimbalCamera::SkydroidGimbalCamera(const QString& cameraIp, const QStrin
     // Zoom is repeated while the button is held, like the gimbal speed
     _zoomTimer.setInterval(kZoomResendMs);
     connect(&_zoomTimer, &QTimer::timeout, this, [this]() {
+        if (_cameraStepZoom()) {
+            _send(kAddressImage, true, kIdDigitalZoom, _zoomDirection > 0 ? kZoomStepIn : kZoomStepOut);
+            return;
+        }
         _sendZoom(_zoomDirection > 0 ? 0x02 : 0x01, false);
         _stepDigitalZoom();
     });
@@ -284,26 +292,38 @@ void SkydroidGimbalCamera::_stepDigitalZoom()
     emit notice(tr("Zoom %1x").arg(level));
 }
 
-void SkydroidGimbalCamera::zoomIn()
+// The C14 does its whole zoom itself, so the zoomed picture is also what is recorded and streamed from the
+// camera; magnifying on screen would show only on this device.
+bool SkydroidGimbalCamera::_cameraStepZoom() const
 {
-    _zoomDirection = 1;
-    _sendZoom(0x02, true);
-    _stepDigitalZoom();
-    _zoomTimer.start();
+    return _model.startsWith("C14");
 }
 
-void SkydroidGimbalCamera::zoomOut()
+void SkydroidGimbalCamera::_startZoom(int direction)
 {
-    _zoomDirection = -1;
-    _sendZoom(0x01, true);
+    _zoomDirection = direction;
+    if (_cameraStepZoom()) {
+        _setScreenZoom(1.0);
+        _send(kAddressImage, true, kIdDigitalZoom, direction > 0 ? kZoomStepIn : kZoomStepOut, direction > 0 ? tr("Zoom in") : tr("Zoom out"));
+        _zoomTimer.start(kZoomStepMs);
+        return;
+    }
+    _sendZoom(direction > 0 ? 0x02 : 0x01, true);
     _stepDigitalZoom();
-    _zoomTimer.start();
+    _zoomTimer.start(kZoomResendMs);
 }
+
+void SkydroidGimbalCamera::zoomIn()     { _startZoom(1); }
+void SkydroidGimbalCamera::zoomOut()    { _startZoom(-1); }
 
 void SkydroidGimbalCamera::zoomStop()
 {
     _zoomTimer.stop();
     _zoomDirection = 0;
+    if (_cameraStepZoom()) {
+        _logCommand(tr("Zoom stop"));
+        return;
+    }
     _sendZoom(0x00, true);
 }
 void SkydroidGimbalCamera::focusIn()    { _send(kAddressLens, true, kIdFocus, 0x01, tr("Focus near")); }
@@ -406,6 +426,9 @@ void SkydroidGimbalCamera::_pollStatus()
     _send(kAddressImage, false, kIdRecord, 0x00);
     if (_pollCount++ % 5 == 0) {
         _send(kAddressImage, false, kIdSdCard, 0x00);
+        if (_model.isEmpty()) {
+            _send(kAddressImage, false, kIdModel, 0x00);
+        }
     }
 
     if (connected() && (!_lastReceive.isValid() || _lastReceive.elapsed() > kConnectionTimeoutMs)) {
@@ -500,6 +523,9 @@ void SkydroidGimbalCamera::_handleFrame(const QByteArray& id, const QByteArray& 
     if (id == kIdRange) {
         // Shown by _handleRangeDatagram
         return;
+    }
+    if (id == kIdModel && _model.isEmpty()) {
+        _model = data.trimmed().toUpper();
     }
 
     _logCommand(QStringLiteral("RX %1 %2").arg(QString::fromLatin1(id), QString::fromLatin1(data)));
