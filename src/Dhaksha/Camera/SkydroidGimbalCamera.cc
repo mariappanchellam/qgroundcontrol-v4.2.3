@@ -27,17 +27,9 @@ namespace {
     // 05 autumn, 06 winter, 07 hot metal; 0A next, 0B previous
     const char* kIdPalette      = "IMG";
     const char* kIdRates        = "YPR";    // yaw, pitch, roll speeds -99..99 as 2 hex each, positive pitch = down
-    const char* kIdRange        = "LRF";    // 00 stop, 01 start, 02 single, 03 continuous; reply "12345.6" metres or "ERR"
-    // Read queries Skydroid's own Android app sends to the image address (published analysis of that app,
-    // meaning not documented). Asked while the laser is on: the answers show how the C14 reports its laser.
-    const char* kIdAppQueries[] = {"SLR", "TDI", "EXT"};
-    const char* kIdAppDistance  = "TDI";
-    const quint16 kAppControlPort = 9002;   // the port that app sends its commands to
-    // Command search: every three-letter id is asked as a read at each address. The camera answers the ids
-    // it knows and ignores the rest (field test 2026-11-12: EXT answered, LRF / SLR / TDI did not).
-    const char kScanAddresses[] = {'D', 'E', 'M', 'G'};
-    const int kScanIdsPerAddress = 26 * 26 * 26;
-    const int kScanTotal = kScanIdsPerAddress * static_cast<int>(sizeof(kScanAddresses));
+    // Laser distance, as Skydroid's own app reads it from the C13 / C14: a read every 500 ms, answered
+    // with four hex digits in tenths of a metre
+    const char* kIdRange        = "SLR";
 
     char hexChar(quint8 nibble)
     {
@@ -80,8 +72,6 @@ SkydroidGimbalCamera::SkydroidGimbalCamera(const QString& cameraIp, const QStrin
     _downTimer.setInterval(kTiltDownMs);
     connect(&_downTimer, &QTimer::timeout, this, &SkydroidGimbalCamera::gimbalStop);
     connect(&_rangeTimer, &QTimer::timeout, this, &SkydroidGimbalCamera::_readRange);
-    _scanTimer.setInterval(kScanStepMs);
-    connect(&_scanTimer, &QTimer::timeout, this, &SkydroidGimbalCamera::_scanStep);
 
     _gimbalStyle = QSettings().value(kGimbalStyleKey, kDefaultGimbalStyle).toInt() == GimbalStyleYpr ? GimbalStyleYpr : GimbalStyleGsy;
 
@@ -190,85 +180,70 @@ void SkydroidGimbalCamera::setPipMode(int mode)
 
 void SkydroidGimbalCamera::measureDistance()
 {
-    _sendRange(true, 0x02, tr("Laser range (single)"));
+    _sendRangeQuery(tr("Laser range (single)"));
 }
 
-// Skydroid's gimbal series protocol (V1.0.8) puts the laser ranging module at the auxiliary device address
-// 'E'; the C14 ignored the command at the other addresses (field test 2026-11-12). Topotek cameras take it at
-// the lens address (ArduPilot), so the command still goes to those as well; a reply from any is shown.
-void SkydroidGimbalCamera::_sendRange(bool write, quint8 value, const QString& description)
+void SkydroidGimbalCamera::_sendRangeQuery(const QString& description)
 {
-    _send(kAddressAuxiliary, write, kIdRange, value, description);
-    _send(kAddressLens,      write, kIdRange, value);
-    _send(kAddressImage,     write, kIdRange, value);
-    _send(kAddressGimbal,    write, kIdRange, value);
-    if (!_cameraAddress.isNull()) {
-        _socket->writeDatagram(buildFrame(kAddressAuxiliary, write, kIdRange, value), _cameraAddress, kAppControlPort);
-    }
+    // Ended with CR LF, as Skydroid's app sends its queries
+    _sendFrame(buildFrame(kAddressImage, false, kIdRange, 0x00) + "\r\n", description);
 }
 
 void SkydroidGimbalCamera::toggleRanging()
 {
     if (rangingActive()) {
         _rangeTimer.stop();
-        _scanTimer.stop();
-        _sendRange(true, 0x00, tr("Laser range off"));
+        _logCommand(tr("Laser range off"));
         _setRangingActive(false);
         _setDistanceText(QString());
     } else {
-        // Continuous measurement, as ArduPilot enables it; the distance is also asked for every second
-        _sendRange(true, 0x03, tr("Laser range on (continuous)"));
         _setRangingActive(true);
         _setDistanceText(tr("measuring..."));
         _rangeReads = 0;
         _rangeReplied = false;
-        _rangeOtherReplies.clear();
+        _rangeLastRaw.clear();
+        _sendRangeQuery(tr("Laser range on"));
         _rangeTimer.start();
     }
 }
 
 void SkydroidGimbalCamera::_readRange()
 {
-    // A single measurement each time as well, for cameras that do not measure continuously
-    _sendRange(true, 0x02, QString());
-    _sendRange(false, 0x00, QString());
-    for (const char* id : kIdAppQueries) {
-        const QByteArray query = buildFrame(kAddressImage, false, id, 0x00);
-        _sendFrame(query, _rangeReads == 0 ? tr("Laser query") : QString());
-        if (!_cameraAddress.isNull()) {
-            _socket->writeDatagram(query, _cameraAddress, kAppControlPort);
-        }
-    }
-    if (++_rangeReads == 3 && !_rangeReplied) {
-        // What the camera did send tells whether the command reached it and how it names the laser
-        const QString others = _rangeOtherReplies.isEmpty() ? tr("camera sent nothing") : tr("camera sent %1").arg(_rangeOtherReplies.join(QStringLiteral(", ")));
-        _setDistanceText(tr("no reply from laser (%1)").arg(others));
-        _logCommand(tr("Laser: no reply in 3 s (%1)").arg(others));
-        _rangeTimer.stop();
-        _scanIndex = 0;
-        _scanFound = _rangeOtherReplies;
-        _scanTimer.start();
+    _sendRangeQuery(QString());
+    if (++_rangeReads == kRangeNoReplyReads && !_rangeReplied) {
+        const QString last = _rangeLastRaw.isEmpty() ? tr("camera sent nothing") : tr("camera sent %1").arg(QString::fromLatin1(_rangeLastRaw));
+        _setDistanceText(tr("no reply from laser (%1)").arg(last));
+        _logCommand(tr("Laser: no reply in 3 s (%1)").arg(last));
     }
 }
 
-void SkydroidGimbalCamera::_scanStep()
+// The camera's laser answer does not always carry a valid length digit and checksum, and Skydroid's app
+// checks neither: it takes the four hex digits after "SLR" in any "#TP" datagram. Done the same way here,
+// before the strict frame parser, which would drop such an answer.
+void SkydroidGimbalCamera::_handleRangeDatagram(const QByteArray& datagram)
 {
-    if (_scanIndex >= kScanTotal) {
-        _scanTimer.stop();
-        _setDistanceText(tr("search done, camera answers: %1").arg(_scanFound.join(QStringLiteral(", "))));
-        _logCommand(tr("Laser command search done, camera answers: %1").arg(_scanFound.join(QStringLiteral(", "))));
+    const QByteArray upper = datagram.trimmed().toUpper();
+    if (!upper.contains("#TP")) {
         return;
     }
-    const int idIndex = _scanIndex % kScanIdsPerAddress;
-    const char id[4] = {static_cast<char>('A' + idIndex / 676), static_cast<char>('A' + (idIndex / 26) % 26), static_cast<char>('A' + idIndex % 26), 0};
-    const QByteArray query = buildFrame(kScanAddresses[_scanIndex / kScanIdsPerAddress], false, id, 0x00);
-    if (!_cameraAddress.isNull()) {
-        _socket->writeDatagram(query, _cameraAddress, kControlPort);
-        _socket->writeDatagram(query, _cameraAddress, kAppControlPort);
+    const int idAt = upper.indexOf(kIdRange);
+    if (idAt < 0) {
+        if (!_rangeReplied && upper.contains("ERE")) {
+            _rangeLastRaw = datagram.trimmed().left(40);
+        }
+        return;
     }
-    if (++_scanIndex % 250 == 0) {
-        _setDistanceText(tr("finding laser command %1% (camera answers: %2)").arg(_scanIndex * 100 / kScanTotal).arg(_scanFound.join(QStringLiteral(", "))));
+    _rangeLastRaw = datagram.trimmed().left(40);
+    bool ok = false;
+    const int tenths = upper.mid(idAt + 3, 4).toInt(&ok, 16);
+    if (!ok || upper.size() < idAt + 7) {
+        return;
     }
+    if (!_rangeReplied) {
+        _logCommand(QStringLiteral("RX %1").arg(QString::fromLatin1(_rangeLastRaw)));
+    }
+    _rangeReplied = true;
+    _setDistanceText(tenths > 0 ? tr("%1 m").arg(tenths / 10.0, 0, 'f', 1) : tr("no target"));
 }
 
 // ---------------------------------------------------------------------------- Lens
@@ -444,6 +419,9 @@ void SkydroidGimbalCamera::_readBytes()
         QByteArray datagram;
         datagram.resize(static_cast<int>(_socket->pendingDatagramSize()));
         _socket->readDatagram(datagram.data(), datagram.size());
+        if (rangingActive()) {
+            _handleRangeDatagram(datagram);
+        }
         _rxBuffer.append(datagram);
     }
 
@@ -519,53 +497,10 @@ void SkydroidGimbalCamera::_handleFrame(const QByteArray& id, const QByteArray& 
         return;
     }
 
+    if (id == kIdRange) {
+        // Shown by _handleRangeDatagram
+        return;
+    }
+
     _logCommand(QStringLiteral("RX %1 %2").arg(QString::fromLatin1(id), QString::fromLatin1(data)));
-
-    if (id == kIdRange || (id == kIdAppDistance && data.contains('.'))) {
-        if (!rangingActive()) {
-            return;
-        }
-        if (data.toUpper().startsWith("ERR")) {
-            _rangeReplied = true;
-            _setDistanceText(tr("no echo"));
-            return;
-        }
-        // "12345.6" metres; cameras differ in padding and units text, so only the number is taken
-        QByteArray number;
-        for (const char c : data) {
-            if ((c >= '0' && c <= '9') || c == '.') {
-                number.append(c);
-            }
-        }
-        bool ok = false;
-        const double metres = number.toDouble(&ok);
-        if (ok && number.contains('.')) {
-            _rangeReplied = true;
-            _setDistanceText(tr("%1 m").arg(metres, 0, 'f', 1));
-        } else if (data.size() > 2) {
-            // An answer that is not a distance (the two-character echo of the command is not one): shown as
-            // sent, so the camera's format can be read off the screen
-            _rangeReplied = true;
-            _setDistanceText(tr("reply \"%1\"").arg(QString::fromLatin1(data)));
-        } else if (!_rangeReplied && !_rangeOtherReplies.contains(QStringLiteral("LRF ") + QString::fromLatin1(data))) {
-            // The camera repeats the command back: it was received, but no distance has come yet
-            _rangeOtherReplies.append(QStringLiteral("LRF ") + QString::fromLatin1(data));
-        }
-        return;
-    }
-
-    if (_scanTimer.isActive()) {
-        const QString reply = QString::fromLatin1(id + ' ' + data);
-        if (!_scanFound.contains(reply) && _scanFound.size() < 60) {
-            _scanFound.append(reply);
-        }
-        return;
-    }
-
-    if (rangingActive() && !_rangeReplied && _rangeOtherReplies.size() < 4) {
-        const QString reply = QString::fromLatin1(id + ' ' + data);
-        if (!_rangeOtherReplies.contains(reply)) {
-            _rangeOtherReplies.append(reply);
-        }
-    }
 }

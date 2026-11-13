@@ -8,7 +8,7 @@
  *   "#TP" <source> <address> <data length> <'w'|'r'> <3-char id> <2 hex data> <2 hex checksum>
  *
  * Variable-length frames start with "#tp" and carry up to 15 data characters
- * (gimbal rates "YPR", laser range replies "LRF").
+ * (gimbal rates "YPR", laser range replies "SLR").
  *
  * source 'U', address 'G' gimbal / 'D' system and image / 'M' lens, and the
  * checksum is the sum of all preceding bytes modulo 256, e.g. "#TPUG2wPTZ056F"
@@ -81,7 +81,6 @@ private slots:
     void _pollStatus        ();
     void _resendGimbalSpeed ();
     void _readRange         ();
-    void _scanStep          ();
     void _checkRecordingStarted();
 
 private:
@@ -90,7 +89,8 @@ private:
     void _sendFrame         (const QByteArray& frame, const QString& description);
     void _sendZoom          (quint8 value, bool log);
     void _stepDigitalZoom   ();
-    void _sendRange         (bool write, quint8 value, const QString& description);
+    void _sendRangeQuery    (const QString& description);
+    void _handleRangeDatagram(const QByteArray& datagram);
     void _sendGimbalSpeed   (bool log);
     void _handleFrame       (const QByteArray& id, const QByteArray& data);
 
@@ -101,9 +101,6 @@ private:
     QTimer          _pollTimer;
     QTimer          _gimbalTimer;
     QTimer          _rangeTimer;
-    QTimer          _scanTimer;
-    int             _scanIndex      = 0;    ///< next of the three-letter ids asked in the laser command search
-    QStringList     _scanFound;             ///< "ID data" of each different answer during the search
     QTimer          _zoomTimer;
     int             _zoomDirection  = 0;    ///< 1 zooming in, -1 out, 0 not zooming
     int             _digitalZoomLevel = 1;     ///< total zoom shown to the operator
@@ -111,8 +108,8 @@ private:
     bool            _maxZoomShown   = false;
     QTimer          _downTimer;
     int             _rangeReads     = 0;
-    bool            _rangeReplied   = false;    ///< the camera answered a laser command since ranging was switched on
-    QStringList     _rangeOtherReplies;         ///< other replies since then, shown when the laser stays silent
+    bool            _rangeReplied   = false;    ///< the camera answered the laser query since ranging was switched on
+    QByteArray      _rangeLastRaw;              ///< its last laser or error answer as received, for diagnosis
     int             _gimbalStyle    = kDefaultGimbalStyle;
     int             _pollCount      = 0;
     bool            _recordRequested = false;  ///< start sent, camera has not confirmed yet
@@ -129,8 +126,8 @@ private:
 
     static constexpr int kPollIntervalMs        = 2000;
     static constexpr int kGimbalResendMs        = 100;    ///< as ArduPilot; the camera stops between slower resends
-    static constexpr int kRangeReadMs           = 1000;
-    static constexpr int kScanStepMs            = 4;      ///< the whole search takes about 5 minutes
+    static constexpr int kRangeReadMs           = 500;    ///< as Skydroid's app
+    static constexpr int kRangeNoReplyReads     = 6;
     static constexpr int kZoomResendMs          = 400;    ///< also one digital zoom step
     static constexpr int kMaxCameraZoom         = 4;      ///< the C13 accepted DZM 01..04 in the field; 05 did nothing
     static constexpr int kMaxZoom               = 30;     ///< camera 4x, then the video is magnified on screen up to 7.5x
