@@ -199,6 +199,28 @@ jobs:
           cp android-build/build/outputs/apk/release/android-build-release-signed.apk "package/${ARTIFACT}"
           ls -la package
 
+      # The app library before androiddeployqt strips it: tools/dhaksha/dhaksha_log.py uses it to name every
+      # function in a crash report of this build
+      - name: Keep crash symbols
+        working-directory: ${{ runner.temp }}/build
+        run: |
+          lib=$(find . -name "libQGroundControl_${ANDROID_ABI}.so" -not -path "./android-build/*" -printf '%s %p\n' \
+                | sort -n | tail -n 1 | cut -d' ' -f2-)
+          if [ -z "$lib" ]; then
+            echo "::warning::App library not found: no crash symbols for this build"
+            exit 0
+          fi
+          mkdir -p symbols
+          xz -T0 -6 -c "$lib" > "symbols/DhakshaGroundControl-${ANDROID_ABI}-symbols.so.xz"
+          ls -la "$lib" symbols
+
+      - name: Upload crash symbols
+        uses: actions/upload-artifact@v4
+        with:
+          name: DhakshaGroundControl-symbols-${{ env.ANDROID_ABI }}-${{ github.sha }}
+          path: ${{ runner.temp }}/build/symbols/
+          if-no-files-found: warn
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
