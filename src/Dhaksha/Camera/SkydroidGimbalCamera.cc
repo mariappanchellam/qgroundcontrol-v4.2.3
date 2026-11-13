@@ -292,11 +292,12 @@ void SkydroidGimbalCamera::_stepDigitalZoom()
     emit notice(tr("Zoom %1x").arg(level));
 }
 
-// The C14 does its whole zoom itself, so the zoomed picture is also what is recorded and streamed from the
-// camera; magnifying on screen would show only on this device.
+// The C11, C13 and C14 zoom themselves with step commands (Skydroid's app zooms only these models), so the
+// zoomed picture is also what is recorded and streamed from the camera; magnifying on screen would show
+// only on this device. The C10 and C12 have no zoom of their own and keep the on-screen zoom.
 bool SkydroidGimbalCamera::_cameraStepZoom() const
 {
-    return _model.startsWith("C14");
+    return _model.startsWith("C11") || _model.startsWith("C13") || _model.startsWith("C14");
 }
 
 void SkydroidGimbalCamera::_startZoom(int direction)
