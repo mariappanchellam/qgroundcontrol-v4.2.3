@@ -66,6 +66,8 @@ jobs:
             base=$(basename "$f")
             case "$base" in
               DhakshaGroundControl-*.apk|DhakshaKey.apk) name="$base" ;;
+              # Crash symbols of the same build, for tools/dhaksha/dhaksha_log.py
+              DhakshaGroundControl-*-symbols.so.xz) name="$base" ;;
               DhakshaLive.apk)                    name=DhakshaLive-Android.apk ;;
               *Setup*.exe)                        name=DhakshaLive-Windows-Setup.exe ;;
               DhakshaLive-Portable-*.exe)         name=DhakshaLive-Windows-Portable.exe ;;
