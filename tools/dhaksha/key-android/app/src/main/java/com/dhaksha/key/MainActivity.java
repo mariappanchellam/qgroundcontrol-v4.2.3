@@ -84,6 +84,7 @@ public class MainActivity extends Activity {
 
     private SharedPreferences prefs;
     private TextView banner;
+    private Spinner modeSpinner;
     private Spinner cameraSpinner;
     private Spinner qualitySpinner;
     private CheckBox autoQuality;
@@ -122,6 +123,7 @@ public class MainActivity extends Activity {
     private long netAt;
     private long dropAt;
     private long uploadAt;
+    private long noVideoAt;
     private String problemStream = "";
 
     @Override
@@ -159,7 +161,12 @@ public class MainActivity extends Activity {
         LinearLayout left = column(columns, 0);
         LinearLayout right = column(columns, dp(16));
 
-        // Left: camera, its IP, drone number
+        // Left: mode, camera, its IP, drone number
+        addLabel(left, "Mode");
+        modeSpinner = addSpinner(left, new String[] {
+                "Office - drone camera",
+                "Home - test video, no camera" }, prefs.getInt("mode", 0));
+
         addLabel(left, "Camera");
         String[] cameraNames = new String[StreamScripts.CAMERAS.length];
         for (int i = 0; i < cameraNames.length; i++) {
@@ -275,6 +282,7 @@ public class MainActivity extends Activity {
         scroll.addView(page);
         setContentView(scroll);
 
+        modeSpinner.setOnItemSelectedListener(new SimpleSelection(this::showCamera));
         cameraSpinner.setOnItemSelectedListener(new SimpleSelection(this::showCamera));
         droneSpinner.setOnItemSelectedListener(new SimpleSelection(this::showStreamNames));
         qualitySpinner.setOnItemSelectedListener(new SimpleSelection(this::refresh));
@@ -326,6 +334,7 @@ public class MainActivity extends Activity {
             statusSocket = null;
         }
         prefs.edit()
+                .putInt("mode", modeSpinner.getSelectedItemPosition())
                 .putString("cameraTag", camera().fileTag)
                 .putInt("drone", droneSpinner.getSelectedItemPosition())
                 .putInt("quality", qualitySpinner.getSelectedItemPosition())
@@ -379,7 +388,7 @@ public class MainActivity extends Activity {
     private void saveStreamNames(boolean announce) {
         SharedPreferences.Editor edit = prefs.edit()
                 .putString("name_" + camera().fileTag + "_" + droneNumber(), text(dayName));
-        if (camera().dual()) {
+        if (dual()) {
             edit.putString("night_" + camera().fileTag + "_" + droneNumber(), text(nightName));
         }
         edit.apply();
@@ -398,7 +407,19 @@ public class MainActivity extends Activity {
     }
 
     /** Shows the chosen camera with its saved IP; an unsaved edit of the previous camera's IP is dropped. */
+    /** Home mode: the test video from the phone's Download folder is sent instead of the camera. */
+    private boolean home() {
+        return modeSpinner.getSelectedItemPosition() == 1;
+    }
+
+    /** The camera sends a second (night) stream and it is in use. */
+    private boolean dual() {
+        return !home() && camera().dual();
+    }
+
     private void showCamera() {
+        cameraSpinner.setEnabled(!home());
+        cameraIp.setEnabled(!home());
         cameraIp.setText(savedCameraIp());
         showStreamNames();
     }
@@ -407,7 +428,7 @@ public class MainActivity extends Activity {
     private void showStreamNames() {
         dayName.setText(savedDayName());
         nightName.setText(savedNightName());
-        int night = camera().dual() ? View.VISIBLE : View.GONE;
+        int night = dual() ? View.VISIBLE : View.GONE;
         nightLabel.setVisibility(night);
         nightRow.setVisibility(night);
         refresh();
@@ -425,8 +446,11 @@ public class MainActivity extends Activity {
         setSaveEnabled(saveNightName, !text(nightName).equals(savedNightName()));
         setSaveEnabled(saveUploadPort, !text(uploadPort).equals(savedUploadPort()));
         StreamScripts.Camera camera = camera();
-        String night = camera.nightRtsp(text(cameraIp));
-        cameraAddress.setText(camera.rtsp(text(cameraIp)) + (night == null ? "" : "\n" + night));
+        String night = home() ? null : camera.nightRtsp(text(cameraIp));
+        cameraAddress.setText(home()
+                ? "Home: plays " + StreamScripts.TEST_VIDEO + " (or the newest .mp4) from the phone's Download "
+                  + "folder again and again, in place of the camera."
+                : camera.rtsp(text(cameraIp)) + (night == null ? "" : "\n" + night));
         String server = text(serverIp);
         int port = port();
         uploadAddress.setText("Uploads to " + StreamScripts.uploadUrl(upload(), server, port, text(dayName))
@@ -472,7 +496,7 @@ public class MainActivity extends Activity {
 
     /** The night stream name, or null when the camera sends one stream. */
     private String nightStream() {
-        return camera().dual() ? text(nightName) : null;
+        return dual() ? text(nightName) : null;
     }
 
     /** The built-in server password, or the one an earlier version let the operator save */
@@ -487,7 +511,7 @@ public class MainActivity extends Activity {
         if (checking) {
             return;
         }
-        final String rtsp = camera().rtsp(text(cameraIp));
+        final String rtsp = home() ? null : camera().rtsp(text(cameraIp));
         String problem = StreamScripts.validate(rtsp, text(serverIp), droneNumber(), password(), port(),
                                                 text(dayName), nightStream());
         if (problem != null) {
@@ -499,7 +523,7 @@ public class MainActivity extends Activity {
         saveServerIp(false);
         saveStreamNames(false);
         saveUploadPort(false);
-        if (skipCameraCheck) {
+        if (skipCameraCheck || home()) {
             saveAndRun(rtsp);
             return;
         }
@@ -523,9 +547,9 @@ public class MainActivity extends Activity {
     }
 
     private void saveAndRun(String rtsp) {
-        StreamScripts.Camera camera = camera();
-        String scriptPath = camera.scriptPath();
-        String nightRtsp = camera.nightRtsp(text(cameraIp));
+        StreamScripts.Camera camera = home() ? null : camera();
+        String scriptPath = home() ? StreamScripts.HOME_SCRIPT : camera.scriptPath();
+        String nightRtsp = home() ? null : camera.nightRtsp(text(cameraIp));
         String stream = StreamScripts.streamScript(camera, rtsp, nightRtsp, text(serverIp), text(dayName),
                 nightStream(), password(), quality(), autoQuality.isChecked(), true, upload(), port(), watch());
         String reader = readAsset("dhaksha_telemetry.py");
@@ -536,7 +560,7 @@ public class MainActivity extends Activity {
         if (runInTermux(StreamScripts.saveAndStartCommand(scriptPath, stream, reader), false)) {
             startAnyway.setVisibility(View.GONE);
             streaming = true;
-            liveAt = slowAt = cameraAt = netAt = dropAt = uploadAt = 0;
+            liveAt = slowAt = cameraAt = netAt = dropAt = uploadAt = noVideoAt = 0;
             liveHeight = 0;
             showBanner("Starting " + text(dayName) + " at " + quality().label + " with " + upload().name
                     + ". The Termux window shows its progress. A log of this run is saved in the phone's Download/"
@@ -620,6 +644,9 @@ public class MainActivity extends Activity {
         case "UPLOAD":
             uploadAt = now;
             break;
+        case "NOVIDEO":
+            noVideoAt = now;
+            break;
         default:
             return;
         }
@@ -633,8 +660,11 @@ public class MainActivity extends Activity {
             return;
         }
         long now = SystemClock.elapsedRealtime();
-        String which = camera().dual() && problemStream.equals(text(nightName)) ? "Night camera: " : "";
-        if (uploadAt > 0 && now - uploadAt < PROBLEM_SHOWN_MS) {
+        String which = dual() && problemStream.equals(text(nightName)) ? "Night camera: " : "";
+        if (noVideoAt > 0 && now - noVideoAt < PROBLEM_SHOWN_MS) {
+            showBanner("Home mode: no video file found. Copy " + StreamScripts.TEST_VIDEO + " (any .mp4) to the phone's "
+                    + "Download folder, run  termux-setup-storage  once in Termux, then press Start streaming again.", RED);
+        } else if (uploadAt > 0 && now - uploadAt < PROBLEM_SHOWN_MS) {
             showBanner("This phone's ffmpeg cannot upload with " + upload().name + ". Run  pkg upgrade ffmpeg  "
                     + "in Termux, or choose RTMP (viewers can still watch over WebRTC).", RED);
         } else if (slowAt > 0 && now - slowAt < PROBLEM_SHOWN_MS) {
@@ -643,7 +673,8 @@ public class MainActivity extends Activity {
             showBanner(which + "Data rate too low to stream video. Reduce resolution" + lower
                     + " and try again.", RED);
         } else if (cameraAt > 0 && now - cameraAt < PROBLEM_SHOWN_MS) {
-            showBanner(which + "No video from the camera. Check the camera is on and its IP is right.", RED);
+            showBanner(home() ? "The test video stopped moving. Restarting it..."
+                    : which + "No video from the camera. Check the camera is on and its IP is right.", RED);
         } else if (netAt > 0 && now - netAt < PROBLEM_SHOWN_MS) {
             showBanner(which + "Cannot reach the server. Check the internet (SIM / Wi-Fi), the server IP and the "
                     + "upload port.", RED);
