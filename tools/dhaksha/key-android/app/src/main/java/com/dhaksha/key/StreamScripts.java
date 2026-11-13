@@ -175,6 +175,13 @@ final class StreamScripts {
         }
     }
 
+    /**
+     * Home testing with a phone in place of the drone camera: a phone on the same Wi-Fi running an RTSP camera
+     * app. The operator types the app's whole rtsp:// address, so it works with any such app.
+     */
+    static final Camera PHONE_CAMERA =
+            new Camera("Phone camera", "phone", "phone", "rtsp://192.168.1.10:8554/live", "%s");
+
     static final Quality[] QUALITIES = {
         new Quality("Normal - 240p", 240, 10, 100),
         new Quality("Good - 360p", 360, 15, 150),
@@ -480,7 +487,7 @@ final class StreamScripts {
                 + "  tr '\\r' '\\n' \\\n"
                 + "    | grep --line-buffered -v -e 'Error constructing the frame RPS' -e 'Skipping invalid undecodable NALU' \\\n"
                 + "    | grep --line-buffered -i -E 'error|fail|refused|reset|timed out|timeout|broken|unreachable|no route|invalid|corrupt|missing|drop|non-monotonic|past duration|Exiting|Conversion' \\\n"
-                + "    | sed -u -e \"s/pass=[^&' ]*/pass=****/g\" -e \"s/drone:[^&@' ]*/drone:****/g\" -e \"s/^/$1 ffmpeg: /\" >> \"$LOG\"\n"
+                + "    | sed -u -e \"s/pass=[^&' ]*/pass=****/g\" -e \"s/drone:[^&@' ]*/drone:****/g\" -e \"s#://[^/@ ]*@#://****@#g\" -e \"s/^/$1 ffmpeg: /\" >> \"$LOG\"\n"
                 + "}\n"
                 + "\n"                + "# One camera to one stream name, restarted by its own watchdog:\n"
                 + "# stream_loop CAMERA NAME PROGRESS_FILE LABEL   (LABEL day or night, empty for the only stream)\n"

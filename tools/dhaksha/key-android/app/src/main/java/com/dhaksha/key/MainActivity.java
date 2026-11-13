@@ -90,6 +90,7 @@ public class MainActivity extends Activity {
     private CheckBox autoQuality;
     /** Picture height the script last reported it is sending; 0 before the first report. */
     private int liveHeight;
+    private TextView cameraIpLabel;
     private EditText cameraIp;
     private Button saveCameraIp;
     private TextView cameraAddress;
@@ -165,7 +166,8 @@ public class MainActivity extends Activity {
         addLabel(left, "Mode");
         modeSpinner = addSpinner(left, new String[] {
                 "Office - drone camera",
-                "Home - test video, no camera" }, prefs.getInt("mode", 0));
+                "Home - phone as the camera",
+                "Home - test video file" }, prefs.getInt("mode", 0));
 
         addLabel(left, "Camera");
         String[] cameraNames = new String[StreamScripts.CAMERAS.length];
@@ -176,7 +178,7 @@ public class MainActivity extends Activity {
         cameraSpinner = addSpinner(left, cameraNames,
                 StreamScripts.cameraIndex(prefs.getString("cameraTag", StreamScripts.CAMERAS[0].fileTag)));
 
-        addLabel(left, "Camera IP");
+        cameraIpLabel = addLabel(left, "Camera IP");
         LinearLayout cameraRow = row(left);
         cameraIp = addField(cameraRow, "192.168.144.108");
         saveCameraIp = addSaveButton(cameraRow, v -> saveCameraIp(true));
@@ -335,7 +337,7 @@ public class MainActivity extends Activity {
         }
         prefs.edit()
                 .putInt("mode", modeSpinner.getSelectedItemPosition())
-                .putString("cameraTag", camera().fileTag)
+                .putString("cameraTag", StreamScripts.CAMERAS[cameraSpinner.getSelectedItemPosition()].fileTag)
                 .putInt("drone", droneSpinner.getSelectedItemPosition())
                 .putInt("quality", qualitySpinner.getSelectedItemPosition())
                 .putBoolean("autoQuality", autoQuality.isChecked())
@@ -407,8 +409,13 @@ public class MainActivity extends Activity {
     }
 
     /** Shows the chosen camera with its saved IP; an unsaved edit of the previous camera's IP is dropped. */
-    /** Home mode: the test video from the phone's Download folder is sent instead of the camera. */
+    /** Home mode with a video file: the test video from the phone's Download folder is sent instead of a camera. */
     private boolean home() {
+        return modeSpinner.getSelectedItemPosition() == 2;
+    }
+
+    /** Home mode with a phone as the camera: a phone running an RTSP camera app, by its full address. */
+    private boolean phoneCamera() {
         return modeSpinner.getSelectedItemPosition() == 1;
     }
 
@@ -418,8 +425,9 @@ public class MainActivity extends Activity {
     }
 
     private void showCamera() {
-        cameraSpinner.setEnabled(!home());
+        cameraSpinner.setEnabled(!home() && !phoneCamera());
         cameraIp.setEnabled(!home());
+        cameraIpLabel.setText(phoneCamera() ? "Phone camera address (rtsp://...)" : "Camera IP");
         cameraIp.setText(savedCameraIp());
         showStreamNames();
     }
@@ -450,6 +458,8 @@ public class MainActivity extends Activity {
         cameraAddress.setText(home()
                 ? "Home: plays " + StreamScripts.TEST_VIDEO + " (or the newest .mp4) from the phone's Download "
                   + "folder again and again, in place of the camera."
+                : phoneCamera()
+                ? "Home: a phone on the same Wi-Fi running an RTSP camera app. Type the rtsp:// address the app shows."
                 : camera.rtsp(text(cameraIp)) + (night == null ? "" : "\n" + night));
         String server = text(serverIp);
         int port = port();
@@ -466,6 +476,9 @@ public class MainActivity extends Activity {
     }
 
     private StreamScripts.Camera camera() {
+        if (phoneCamera()) {
+            return StreamScripts.PHONE_CAMERA;
+        }
         return StreamScripts.CAMERAS[cameraSpinner.getSelectedItemPosition()];
     }
 
