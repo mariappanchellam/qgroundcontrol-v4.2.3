@@ -29,6 +29,8 @@ final class StreamScripts {
     static final String HOME_SCRIPT = "~/stream_aws_home.sh";
     /** Folder of the stream logs inside the phone's Download folder (Termux home when that cannot be written). */
     static final String LOG_FOLDER = "DhakshaKeyLogs";
+    /** Public address (Cloudflare DNS) the script opens a connection to, to tell a dead internet from a dead server. */
+    static final String INTERNET_CHECK_HOST = "1.1.1.1";
     static final String TEST_VIDEO = "test.mp4";
 
     private static final String HEREDOC_END = "DHAKSHAKEY_END_OF_SCRIPT";
@@ -71,8 +73,9 @@ final class StreamScripts {
                 return "-f whip -authorization \"drone:$PASSWORD\" \"http://$SERVER_IP:$UPLOAD_PORT/live/"
                         + nameVar + "/whip\"";
             default:
-                // -rw_timeout: a server that does not answer is given up on after 5 s, so the next try comes sooner
-                return "-rw_timeout 5000000 -f flv \"rtmp://$SERVER_IP:$UPLOAD_PORT/live/" + nameVar + "?user=drone&pass=$PASSWORD\"";
+                // -rw_timeout: a server that does not answer is given up on after 15 s. 5 s was too short on a
+                // slow link: connecting takes several round trips, each 1.5 to 3 s in the field log of 2026-11-13
+                return "-rw_timeout 15000000 -f flv \"rtmp://$SERVER_IP:$UPLOAD_PORT/live/" + nameVar + "?user=drone&pass=$PASSWORD\"";
             }
         }
     }
@@ -356,7 +359,7 @@ final class StreamScripts {
                 + "UP_AFTER=60\n"
                 + "UP_AFTER_MAX=600\n"
                 + "# set_level N: picture size, frame rate, bit rate and upload queue limit of size N (0 = smallest).\n"
-                + "# More than 6 s of video (at least 96 KB) waiting to upload, for QUEUE_SECONDS, means the internet is\n"
+                + "# More than 6 s of video (15 s at the smallest size; at least 96 KB) waiting to upload, for QUEUE_SECONDS, means the internet is\n"
                 + "# not keeping up. A smaller limit restarted healthy 240p streams again and again (field log 2026-11-13).\n"
                 + "set_level() {\n"
                 + "  local spec=${LEVELS[$1]}\n"
@@ -367,7 +370,12 @@ final class StreamScripts {
                 + "  BITRATE=${KBIT}k\n"
                 + "  BUFSIZE=$(( KBIT / 2 ))k\n"
                 + "  QUEUE_LIMIT_KB=$(( KBIT * 6 / 8 ))\n"
+                + "  # At the smallest size there is nothing smaller to change to, and reconnecting over a bad link often\n"
+                + "  # fails: wait for 15 s of video, so the same connection carries on after a short outage\n"
+                + "  [ \"$1\" -eq 0 ] && QUEUE_LIMIT_KB=$(( KBIT * 15 / 8 ))\n"
                 + "  [ \"$QUEUE_LIMIT_KB\" -lt 96 ] && QUEUE_LIMIT_KB=96\n"
+                + "  # Less than 1.5 s of video waiting counts as the internet keeping up\n"
+                + "  GOOD_KB=$(( KBIT * 3 / 16 + 1 ))\n"
                 + "}\n"
                 + "set_level \"$TOP_LEVEL\"\n"
                 + "\n"
@@ -449,17 +457,21 @@ final class StreamScripts {
                 + "\n"
                 + "# progress_value KEY: the newest value of KEY in this stream's ffmpeg progress file\n"
                 + "progress_value() { grep \"^$1=\" \"$PROGRESS\" 2>/dev/null | tail -n 1 | sed \"s/^$1=//; s/ //g\"; }\n"
-                + "# How long the server takes to answer on the upload port, e.g. 85ms, or FAIL\n"
+                + "# connect_ms HOST PORT: how long HOST takes to answer on PORT, e.g. 85ms, or FAIL\n"
+                + "connect_ms() {\n"
+                + "  local t=$(date +%s%N)\n"
+                + "  if timeout 3 bash -c \"exec 3<>/dev/tcp/$1/$2\" 2>/dev/null; then\n"
+                + "    echo \"$(( ($(date +%s%N) - t) / 1000000 ))ms\"\n"
+                + "  else\n"
+                + "    echo FAIL\n"
+                + "  fi\n"
+                + "}\n"
                 + (upload.tcpPort
-                    ? "server_ms() {\n"
-                      + "  local t=$(date +%s%N)\n"
-                      + "  if timeout 3 bash -c \"exec 3<>/dev/tcp/$SERVER_IP/$UPLOAD_PORT\" 2>/dev/null; then\n"
-                      + "    echo \"$(( ($(date +%s%N) - t) / 1000000 ))ms\"\n"
-                      + "  else\n"
-                      + "    echo FAIL\n"
-                      + "  fi\n"
-                      + "}\n"
+                    ? "server_ms() { connect_ms \"$SERVER_IP\" \"$UPLOAD_PORT\"; }\n"
                     : "server_ms() { echo n/a; }\n")
+                + "# The same check to a public address that is always up: when this answers and the server does not,\n"
+                + "# the phone's internet is fine and the way to the server is the problem\n"
+                + "internet_ms() { connect_ms " + INTERNET_CHECK_HOST + " 443; }\n"
                 + "\n"
                 + "# ffmpeg_to_log NAME: ffmpeg's errors and warnings go to the log file, with the server password hidden;\n"
                 + "# its progress line and the description of the video do not, nor the two H.265 messages it prints for\n"
@@ -533,10 +545,10 @@ final class StreamScripts {
                 + "    ticks=$((ticks + 1))\n"
                 + "    if [ $((ticks % 5)) -eq 0 ]; then\n"
                 + "      log_only \"$DRONE STAT size=${HEIGHT}p speed=${speed:-?} fps=$(progress_value fps) \"\\\n"
-                + "\"bitrate=$(progress_value bitrate) waiting=${kb:-?}KB server=$(server_ms)\"\n"
+                + "\"bitrate=$(progress_value bitrate) waiting=${kb:-?}KB server=$(server_ms) internet=$(internet_ms)\"\n"
                 + "    fi\n"
                 + "    # Video moving and almost nothing waiting to upload: the internet has room\n"
-                + "    if [ -n \"$kb\" ] && [ \"$kb\" -lt $(( QUEUE_LIMIT_KB / 4 + 1 )) ] && [ \"$stuck\" -eq 0 ] && [ \"$starting\" -lt 20 ]; then\n"
+                + "    if [ -n \"$kb\" ] && [ \"$kb\" -lt \"$GOOD_KB\" ] && [ \"$stuck\" -eq 0 ] && [ \"$starting\" -lt 20 ]; then\n"
                 + "      case \"$now\" in ''|*N/A) good=0 ;; *) good=$((good + 2)) ;; esac\n"
                 + "    else\n"
                 + "      good=0\n"
