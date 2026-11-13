@@ -71,7 +71,8 @@ final class StreamScripts {
                 return "-f whip -authorization \"drone:$PASSWORD\" \"http://$SERVER_IP:$UPLOAD_PORT/live/"
                         + nameVar + "/whip\"";
             default:
-                return "-f flv \"rtmp://$SERVER_IP:$UPLOAD_PORT/live/" + nameVar + "?user=drone&pass=$PASSWORD\"";
+                // -rw_timeout: a server that does not answer is given up on after 5 s, so the next try comes sooner
+                return "-rw_timeout 5000000 -f flv \"rtmp://$SERVER_IP:$UPLOAD_PORT/live/" + nameVar + "?user=drone&pass=$PASSWORD\"";
             }
         }
     }
@@ -355,7 +356,8 @@ final class StreamScripts {
                 + "UP_AFTER=60\n"
                 + "UP_AFTER_MAX=600\n"
                 + "# set_level N: picture size, frame rate, bit rate and upload queue limit of size N (0 = smallest).\n"
-                + "# More than 2 s of video waiting to upload, for QUEUE_SECONDS, means the internet is not keeping up.\n"
+                + "# More than 6 s of video (at least 96 KB) waiting to upload, for QUEUE_SECONDS, means the internet is\n"
+                + "# not keeping up. A smaller limit restarted healthy 240p streams again and again (field log 2026-11-13).\n"
                 + "set_level() {\n"
                 + "  local spec=${LEVELS[$1]}\n"
                 + "  WIDTH=${spec%%x*}; spec=${spec#*x}\n"
@@ -364,7 +366,8 @@ final class StreamScripts {
                 + "  KBIT=${spec#*:}\n"
                 + "  BITRATE=${KBIT}k\n"
                 + "  BUFSIZE=$(( KBIT / 2 ))k\n"
-                + "  QUEUE_LIMIT_KB=$(( KBIT / 4 ))\n"
+                + "  QUEUE_LIMIT_KB=$(( KBIT * 6 / 8 ))\n"
+                + "  [ \"$QUEUE_LIMIT_KB\" -lt 96 ] && QUEUE_LIMIT_KB=96\n"
                 + "}\n"
                 + "set_level \"$TOP_LEVEL\"\n"
                 + "\n"
@@ -394,6 +397,7 @@ final class StreamScripts {
                 + "}\n"
                 + "STALL_SECONDS=8\n"
                 + "QUEUE_SECONDS=4\n"
+                + "START_GRACE=15\n"
                 + "FFMPEG_PID=\"\"\n"
                 + "LOOP_PIDS=\"\"\n"
                 + "# ffmpeg stuck writing to a dead connection may ignore a polite stop, so it is forced after 3 s\n"
@@ -458,9 +462,11 @@ final class StreamScripts {
                     : "server_ms() { echo n/a; }\n")
                 + "\n"
                 + "# ffmpeg_to_log NAME: ffmpeg's errors and warnings go to the log file, with the server password hidden;\n"
-                + "# its progress line and the description of the video do not\n"
+                + "# its progress line and the description of the video do not, nor the two H.265 messages it prints for\n"
+                + "# every frame until the camera's next full picture after connecting\n"
                 + "ffmpeg_to_log() {\n"
                 + "  tr '\\r' '\\n' \\\n"
+                + "    | grep --line-buffered -v -e 'Error constructing the frame RPS' -e 'Skipping invalid undecodable NALU' \\\n"
                 + "    | grep --line-buffered -i -E 'error|fail|refused|reset|timed out|timeout|broken|unreachable|no route|invalid|corrupt|missing|drop|non-monotonic|past duration|Exiting|Conversion' \\\n"
                 + "    | sed -u -e \"s/pass=[^&' ]*/pass=****/g\" -e \"s/drone:[^&@' ]*/drone:****/g\" -e \"s/^/$1 ffmpeg: /\" >> \"$LOG\"\n"
                 + "}\n"
@@ -481,8 +487,10 @@ final class StreamScripts {
                       + "  ffmpeg -nostdin -hide_banner -stats -progress \"$PROGRESS\" -flags2 +fast \\\n"
                       + "    -re -stream_loop -1 -i \"$VIDEO\" \\\n"
                     : "  # -timeout: give up on the camera after 5 s without data, so the loop reconnects\n"
+                      + "  # -use_wallclock_as_timestamps: frames are timed as they arrive. The camera sends several seconds\n"
+                      + "  # of stored video at once on connecting; with its own times that all went into the upload at once\n"
                       + "  ffmpeg -nostdin -hide_banner -stats -progress \"$PROGRESS\" -fflags nobuffer -flags low_delay -flags2 +fast \\\n"
-                      + "    -timeout 5000000 -rtsp_transport tcp -i \"$CAMERA\" \\\n")
+                      + "    -timeout 5000000 -rtsp_transport tcp -use_wallclock_as_timestamps 1 -i \"$CAMERA\" \\\n")
                 + "    -an -vf \"$FILTER\" \\\n"
                 + "    -c:v libx264 -preset ultrafast -tune zerolatency -profile:v baseline -pix_fmt yuv420p \\\n"
                 + "    -b:v \"$BITRATE\" -maxrate \"$BITRATE\" -bufsize \"$BUFSIZE\" \\\n"
@@ -494,6 +502,7 @@ final class StreamScripts {
                 + "  # waiting to upload for QUEUE_SECONDS, restart at once.\n"
                 + "  # The video waiting behind the stall is dropped, so viewers get live video back instead of a growing delay.\n"
                 + "  last=\"\"; stuck=0; slow=0; queued=0; starting=0; restarted=0; good=0; resized=0; ticks=0\n"
+                + "  started_at=$SECONDS\n"
                 + "  while kill -0 \"$FFMPEG_PID\" 2>/dev/null; do\n"
                 + "    sleep 2\n"
                 + "    if [ \"$LABEL\" != night ] && [ -n \"$TELEMETRY_PID\" ] && ! kill -0 \"$TELEMETRY_PID\" 2>/dev/null; then\n"
@@ -514,7 +523,12 @@ final class StreamScripts {
                 + "    *) if awk -v s=\"$speed\" 'BEGIN { exit !(s < 0.8) }'; then slow=$((slow + 2)); else slow=0; fi ;;\n"
                 + "    esac\n"
                 + "    kb=$(queued_kb)\n"
-                + "    if [ -n \"$kb\" ] && [ \"$kb\" -ge \"$QUEUE_LIMIT_KB\" ]; then queued=$((queued + 2)); else queued=0; fi\n"
+                + "    # The first START_GRACE seconds do not count: connecting itself leaves video waiting for a moment\n"
+                + "    if [ -n \"$kb\" ] && [ \"$kb\" -ge \"$QUEUE_LIMIT_KB\" ] && [ $(( SECONDS - started_at )) -ge \"$START_GRACE\" ]; then\n"
+                + "      queued=$((queued + 2))\n"
+                + "    else\n"
+                + "      queued=0\n"
+                + "    fi\n"
                 + "    # Every 10 s one line of numbers goes to the log file (not to this window)\n"
                 + "    ticks=$((ticks + 1))\n"
                 + "    if [ $((ticks % 5)) -eq 0 ]; then\n"
