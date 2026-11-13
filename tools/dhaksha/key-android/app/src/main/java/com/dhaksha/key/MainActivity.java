@@ -539,7 +539,8 @@ public class MainActivity extends Activity {
             liveAt = slowAt = cameraAt = netAt = dropAt = uploadAt = 0;
             liveHeight = 0;
             showBanner("Starting " + text(dayName) + " at " + quality().label + " with " + upload().name
-                    + ". The Termux window shows its progress.", GREY);
+                    + ". The Termux window shows its progress. A log of this run is saved in the phone's Download/"
+                    + StreamScripts.LOG_FOLDER + " folder.", GREY);
         }
     }
 

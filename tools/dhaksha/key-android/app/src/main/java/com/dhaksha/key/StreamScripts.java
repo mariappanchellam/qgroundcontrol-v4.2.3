@@ -27,6 +27,8 @@ final class StreamScripts {
     static final int STATUS_PORT = 14446;
     static final String SHEBANG = "#!/data/data/com.termux/files/usr/bin/bash";
     static final String HOME_SCRIPT = "~/stream_aws_home.sh";
+    /** Folder of the stream logs inside the phone's Download folder (Termux home when that cannot be written). */
+    static final String LOG_FOLDER = "DhakshaKeyLogs";
     static final String TEST_VIDEO = "test.mp4";
 
     private static final String HEREDOC_END = "DHAKSHAKEY_END_OF_SCRIPT";
@@ -369,6 +371,7 @@ final class StreamScripts {
                 + stopPrevious()
                 + "echo $$ > " + PID_FILE + "\n"
                 + "termux-wake-lock 2>/dev/null\n"
+                + logSetup(home ? "home test video" : camera.name, quality, adapt, upload)
                 + "echo \"Watch this drone at http://$SERVER_IP:" + watch.port + "/live/$DRONE\"\n"
                 + (dual ? "echo \"Night camera at    http://$SERVER_IP:" + watch.port + "/live/$NIGHT_DRONE\"\n" : "")
                 + "\n"
@@ -404,6 +407,7 @@ final class StreamScripts {
                 + "  stop_ffmpeg\n"
                 + "  [ -n \"$LOOP_PIDS\" ] && kill $LOOP_PIDS 2>/dev/null && wait $LOOP_PIDS 2>/dev/null\n"
                 + "  kill $TELEMETRY_PID $(cat " + TELEMETRY_PID_FILE + " 2>/dev/null) 2>/dev/null\n"
+                + "  log \"stopped\"\n"
                 + "  rm -f " + PID_FILE + " " + TELEMETRY_PID_FILE + "; exit 0\n"
                 + "}\n"
                 + "trap cleanup INT TERM\n"
@@ -417,12 +421,12 @@ final class StreamScripts {
                 + "    hp=${hp%%/*}; hp=${hp##*@}\n"
                 + "    case \"$hp\" in *:*) port=${hp##*:} ;; esac\n"
                 + "    if ! timeout 3 bash -c \"exec 3<>/dev/tcp/${hp%%:*}/$port\" 2>/dev/null; then\n"
-                + "      echo \"$(date '+%F %T') camera not reachable at ${hp%%:*}:$port\"; report \"CAMERA $DRONE\"; return\n"
+                + "      log \"camera not reachable at ${hp%%:*}:$port\"; report \"CAMERA $DRONE\"; return\n"
                 + "    fi\n"
                 + "  fi\n"
                 + (upload.tcpPort
                     ? "  if ! timeout 3 bash -c \"exec 3<>/dev/tcp/$SERVER_IP/$UPLOAD_PORT\" 2>/dev/null; then\n"
-                      + "    echo \"$(date '+%F %T') server not reachable at $SERVER_IP:$UPLOAD_PORT (internet, server IP or port)\"\n"
+                      + "    log \"server not reachable at $SERVER_IP:$UPLOAD_PORT (internet, server IP or port)\"\n"
                       + "    report \"NET $DRONE\"; return\n"
                       + "  fi\n"
                     : "")
@@ -439,7 +443,28 @@ final class StreamScripts {
                     : "# (" + upload.name + " sends the video over UDP, which has no upload queue to read)\n"
                       + "queued_kb() { :; }\n")
                 + "\n"
-                + "# One camera to one stream name, restarted by its own watchdog:\n"
+                + "# progress_value KEY: the newest value of KEY in this stream's ffmpeg progress file\n"
+                + "progress_value() { grep \"^$1=\" \"$PROGRESS\" 2>/dev/null | tail -n 1 | sed \"s/^$1=//; s/ //g\"; }\n"
+                + "# How long the server takes to answer on the upload port, e.g. 85ms, or FAIL\n"
+                + (upload.tcpPort
+                    ? "server_ms() {\n"
+                      + "  local t=$(date +%s%N)\n"
+                      + "  if timeout 3 bash -c \"exec 3<>/dev/tcp/$SERVER_IP/$UPLOAD_PORT\" 2>/dev/null; then\n"
+                      + "    echo \"$(( ($(date +%s%N) - t) / 1000000 ))ms\"\n"
+                      + "  else\n"
+                      + "    echo FAIL\n"
+                      + "  fi\n"
+                      + "}\n"
+                    : "server_ms() { echo n/a; }\n")
+                + "\n"
+                + "# ffmpeg_to_log NAME: ffmpeg's errors and warnings go to the log file, with the server password hidden;\n"
+                + "# its progress line and the description of the video do not\n"
+                + "ffmpeg_to_log() {\n"
+                + "  tr '\\r' '\\n' \\\n"
+                + "    | grep --line-buffered -i -E 'error|fail|refused|reset|timed out|timeout|broken|unreachable|no route|invalid|corrupt|missing|drop|non-monotonic|past duration|Exiting|Conversion' \\\n"
+                + "    | sed -u -e \"s/pass=[^&' ]*/pass=****/g\" -e \"s/drone:[^&@' ]*/drone:****/g\" -e \"s/^/$1 ffmpeg: /\" >> \"$LOG\"\n"
+                + "}\n"
+                + "\n"                + "# One camera to one stream name, restarted by its own watchdog:\n"
                 + "# stream_loop CAMERA NAME PROGRESS_FILE LABEL   (LABEL day or night, empty for the only stream)\n"
                 + "stream_loop() {\n"
                 + "local CAMERA=\"$1\" DRONE=\"$2\" PROGRESS=\"$3\" LABEL=\"$4\" FILTER\n"
@@ -449,29 +474,30 @@ final class StreamScripts {
                 + "while true; do\n"
                 + "  set_level \"$level\"\n"
                 + "  FILTER=$(build_filter \"$LABEL\")\n"
-                + "  echo \"$(date '+%F %T') sending to $SERVER_IP ($DRONE, ${HEIGHT}p, $KBIT kbit/s)\"\n"
+                + "  log \"sending to $SERVER_IP ($DRONE, ${HEIGHT}p, $KBIT kbit/s)\"\n"
                 + "  : > \"$PROGRESS\"\n"
                 + (home
                     ? "  # -re: send the file at its real speed, like a camera; -stream_loop -1: play it again and again\n"
-                      + "  ffmpeg -nostdin -stats -progress \"$PROGRESS\" -flags2 +fast \\\n"
+                      + "  ffmpeg -nostdin -hide_banner -stats -progress \"$PROGRESS\" -flags2 +fast \\\n"
                       + "    -re -stream_loop -1 -i \"$VIDEO\" \\\n"
                     : "  # -timeout: give up on the camera after 5 s without data, so the loop reconnects\n"
-                      + "  ffmpeg -nostdin -stats -progress \"$PROGRESS\" -fflags nobuffer -flags low_delay -flags2 +fast \\\n"
+                      + "  ffmpeg -nostdin -hide_banner -stats -progress \"$PROGRESS\" -fflags nobuffer -flags low_delay -flags2 +fast \\\n"
                       + "    -timeout 5000000 -rtsp_transport tcp -i \"$CAMERA\" \\\n")
                 + "    -an -vf \"$FILTER\" \\\n"
                 + "    -c:v libx264 -preset ultrafast -tune zerolatency -profile:v baseline -pix_fmt yuv420p \\\n"
                 + "    -b:v \"$BITRATE\" -maxrate \"$BITRATE\" -bufsize \"$BUFSIZE\" \\\n"
                 + "    -g \"$FPS\" -keyint_min \"$FPS\" -sc_threshold 0 \\\n"
-                + "    " + upload.ffmpegOutput("$DRONE") + " &\n"
+                + "    " + upload.ffmpegOutput("$DRONE") + " \\\n"
+                + "    2> >(tee >(ffmpeg_to_log \"$DRONE\") >&2) &\n"
                 + "  FFMPEG_PID=$!\n"
                 + "  # Watchdog: when the video stops moving or runs below 0.8x for STALL_SECONDS, or piles up\n"
                 + "  # waiting to upload for QUEUE_SECONDS, restart at once.\n"
                 + "  # The video waiting behind the stall is dropped, so viewers get live video back instead of a growing delay.\n"
-                + "  last=\"\"; stuck=0; slow=0; queued=0; starting=0; restarted=0; good=0; resized=0\n"
+                + "  last=\"\"; stuck=0; slow=0; queued=0; starting=0; restarted=0; good=0; resized=0; ticks=0\n"
                 + "  while kill -0 \"$FFMPEG_PID\" 2>/dev/null; do\n"
                 + "    sleep 2\n"
                 + "    if [ \"$LABEL\" != night ] && [ -n \"$TELEMETRY_PID\" ] && ! kill -0 \"$TELEMETRY_PID\" 2>/dev/null; then\n"
-                + "      echo \"$(date '+%F %T') position reader stopped: starting it again\"\n"
+                + "      log \"position reader stopped: starting it again\"\n"
                 + "      start_reader\n"
                 + "    fi\n"
                 + "    now=$(grep '^out_time_us=' \"$PROGRESS\" | tail -n 1)\n"
@@ -489,6 +515,12 @@ final class StreamScripts {
                 + "    esac\n"
                 + "    kb=$(queued_kb)\n"
                 + "    if [ -n \"$kb\" ] && [ \"$kb\" -ge \"$QUEUE_LIMIT_KB\" ]; then queued=$((queued + 2)); else queued=0; fi\n"
+                + "    # Every 10 s one line of numbers goes to the log file (not to this window)\n"
+                + "    ticks=$((ticks + 1))\n"
+                + "    if [ $((ticks % 5)) -eq 0 ]; then\n"
+                + "      log_only \"$DRONE STAT size=${HEIGHT}p speed=${speed:-?} fps=$(progress_value fps) \"\\\n"
+                + "\"bitrate=$(progress_value bitrate) waiting=${kb:-?}KB server=$(server_ms)\"\n"
+                + "    fi\n"
                 + "    # Video moving and almost nothing waiting to upload: the internet has room\n"
                 + "    if [ -n \"$kb\" ] && [ \"$kb\" -lt $(( QUEUE_LIMIT_KB / 4 + 1 )) ] && [ \"$stuck\" -eq 0 ] && [ \"$starting\" -lt 20 ]; then\n"
                 + "      case \"$now\" in ''|*N/A) good=0 ;; *) good=$((good + 2)) ;; esac\n"
@@ -497,7 +529,7 @@ final class StreamScripts {
                 + "    fi\n"
                 + "    if [ \"$level\" -lt \"$TOP_LEVEL\" ] && [ \"$good\" -ge \"$up_after\" ]; then\n"
                 + "      level=$((level + 1)); went_up_at=$SECONDS; set_level \"$level\"\n"
-                + "      echo \"$(date '+%F %T') internet kept up for $good s: trying ${HEIGHT}p\"\n"
+                + "      log \"internet kept up for $good s: trying ${HEIGHT}p\"\n"
                 + "      report \"AUTO $DRONE $HEIGHT up\"\n"
                 + "      restarted=1; resized=1\n"
                 + "      stop_ffmpeg\n"
@@ -511,13 +543,13 @@ final class StreamScripts {
                 + "          up_after=$(( up_after * 2 )); [ \"$up_after\" -gt \"$UP_AFTER_MAX\" ] && up_after=$UP_AFTER_MAX\n"
                 + "        fi\n"
                 + "        level=$((level - 1)); set_level \"$level\"; resized=1\n"
-                + "        echo \"$(date '+%F %T') internet not keeping up ($kb KB waiting to upload): down to ${HEIGHT}p\"\n"
+                + "        log \"internet not keeping up ($kb KB waiting to upload): down to ${HEIGHT}p\"\n"
                 + "        report \"AUTO $DRONE $HEIGHT down\"\n"
                 + "      elif [ -n \"$kb\" ] && [ \"$kb\" -ge \"$QUEUE_LIMIT_KB\" ]; then\n"
-                + "        echo \"$(date '+%F %T') internet stalled ($kb KB waiting to upload): restarting\"\n"
+                + "        log \"internet stalled ($kb KB waiting to upload): restarting\"\n"
                 + "        report \"SLOW $DRONE $kb\"\n"
                 + "      else\n"
-                + "        echo \"$(date '+%F %T') " + (home ? "test video" : "camera / radio link")
+                + "        log \"" + (home ? "test video" : "camera / radio link")
                 + " stalled: restarting\"\n"
                 + "        report \"CAMERA $DRONE\"\n"
                 + "      fi\n"
@@ -531,7 +563,7 @@ final class StreamScripts {
                 + "  [ \"$restarted\" = 1 ] || why_stopped \"$CAMERA\"\n"
                 + "  # A change of size starts again at once; anything else waits 3 s\n"
                 + "  if [ \"$resized\" = 1 ]; then sleep 1; continue; fi\n"
-                + "  echo \"$(date '+%F %T') $DRONE stopped, retrying in 3 s\"\n"
+                + "  log \"$DRONE stopped, retrying in 3 s\"\n"
                 + "  sleep 3\n"
                 + "done\n"
                 + "}\n"
@@ -564,6 +596,34 @@ final class StreamScripts {
                 + "pkill -x ffmpeg 2>/dev/null\n"
                 + "sleep 1\n"
                 + "pkill -9 -x ffmpeg 2>/dev/null\n";
+    }
+
+    /**
+     * Opens the log file of this run and defines log (window and file) and log_only (file). The file is
+     * Download/DhakshaKeyLogs/dhakshakey_DATE_TIME_NAME.log on the phone, so it can be copied off with any file
+     * manager; in the Termux home when Termux has no access to the phone's files. The newest 30 are kept.
+     */
+    private static String logSetup(String source, Quality quality, boolean adapt, Upload upload) {
+        return "# Log of this run, for finding out afterwards why a stream broke\n"
+                + "LOG_DIR=\"\"\n"
+                + "for d in \"$HOME/storage/shared/Download\" /sdcard/Download \"$HOME\"; do\n"
+                + "  if [ -d \"$d\" ] && mkdir -p \"$d/" + LOG_FOLDER + "\" 2>/dev/null && [ -w \"$d/" + LOG_FOLDER + "\" ]; then\n"
+                + "    LOG_DIR=\"$d/" + LOG_FOLDER + "\"; break\n"
+                + "  fi\n"
+                + "done\n"
+                + "LOG=\"${LOG_DIR:-$HOME}/dhakshakey_$(date '+%F_%H-%M-%S')_$DRONE.log\"\n"
+                + "ls -t \"${LOG_DIR:-$HOME}\"/dhakshakey_*.log 2>/dev/null | tail -n +30 | while read -r old; do rm -f \"$old\"; done\n"
+                + "log() { local line=\"$(date '+%F %T') $*\"; echo \"$line\"; echo \"$line\" >> \"$LOG\"; }\n"
+                + "log_only() { echo \"$(date '+%F %T') $*\" >> \"$LOG\"; }\n"
+                + "echo \"Log of this run: $LOG\"\n"
+                + "case \"$LOG\" in \"$HOME\"/dhakshakey_*) echo \"(Run  termux-setup-storage  once to get the logs in the "
+                + "phone's Download/" + LOG_FOLDER + " folder.)\" ;; esac\n"
+                + "log_only \"=== DhakshaKey stream: " + source + " -> $SERVER_IP:$UPLOAD_PORT as $DRONE, "
+                + quality.label + " (" + quality.fps + " fps, " + quality.kbps + " kbit/s), Auto "
+                + (adapt ? "on" : "off") + ", " + upload.name + "\"\n"
+                + "log_only \"phone: $(getprop ro.product.model 2>/dev/null), Android $(getprop ro.build.version.release 2>/dev/null), "
+                + "$(ffmpeg -version 2>/dev/null | head -n 1)\"\n"
+                + "\n";
     }
 
     /** Stops with a clear message when this phone's ffmpeg cannot upload this way, instead of retrying forever. */
