@@ -304,22 +304,35 @@ final class StreamScripts {
     static String streamScript(Camera camera, String cameraRtsp, String serverIp, int droneNumber,
                                String password, Quality quality, boolean showPosition) {
         return streamScript(camera, cameraRtsp, null, serverIp, droneName(droneNumber), null, password, quality,
-                            showPosition, UPLOADS[0], UPLOADS[0].defaultPort, WATCHES[0]);
+                            false, showPosition, UPLOADS[0], UPLOADS[0].defaultPort, WATCHES[0]);
     }
 
     /**
      * With nightRtsp, the night (thermal) camera is sent at the same time as nightName: two ffmpeg
      * loops, each with its own watchdog, and one position reader feeding the text on both.
+     *
+     * quality is the size the operator chose and is never exceeded. With auto, the script drops to the next
+     * smaller size while the internet cannot keep up and goes back up, one size at a time, when it can.
      */
     static String streamScript(Camera camera, String cameraRtsp, String nightRtsp, String serverIp, String dayName,
-                               String nightName, String password, Quality quality, boolean showPosition,
+                               String nightName, String password, Quality quality, boolean auto, boolean showPosition,
                                Upload upload, int uploadPort, Watch watch) {
         boolean home = camera == null;
         boolean dual = !home && nightRtsp != null;
+        // Only uploads whose waiting video can be measured (TCP) can tell a slow internet from a slow camera
+        boolean adapt = auto && upload.tcpVideo;
+        StringBuilder levels = new StringBuilder();
+        for (Quality q : QUALITIES) {
+            if (q == quality || (adapt && q.kbps < quality.kbps)) {
+                levels.append(levels.length() > 0 ? " " : "").append(q.width()).append('x').append(q.height)
+                        .append('@').append(q.fps).append(':').append(q.kbps);
+            }
+        }
         return SHEBANG + "\n"
                 + "# Made by DhakshaKey: " + (home ? "home test video " + TEST_VIDEO : camera.name + " camera")
                 + " -> Dhaksha video server, "
-                + quality.height + "p, about " + quality.kbps + " kbit/s, low delay.\n"
+                + quality.height + "p, about " + quality.kbps + " kbit/s, low delay"
+                + (adapt ? ", smaller while the internet is slow.\n" : ".\n")
                 + "# Upload: " + upload.name + "\n"
                 + "# Watch: " + watchUrl(serverIp, watch, dayName) + "\n"
                 + (dual ? "# Night: " + watchUrl(serverIp, watch, nightName) + "\n" : "")
@@ -332,11 +345,26 @@ final class StreamScripts {
                 + (dual ? "NIGHT_DRONE=" + shellQuote(nightName) + "\n" : "")
                 + (home ? "" : "CAMERA=" + shellQuote(cameraRtsp) + "\n")
                 + (dual ? "NIGHT_CAMERA=" + shellQuote(nightRtsp) + "\n" : "")
-                + "WIDTH=" + quality.width() + "\n"
-                + "HEIGHT=" + quality.height + "\n"
-                + "FPS=" + quality.fps + "\n"
-                + "BITRATE=" + quality.kbps + "k\n"
-                + "BUFSIZE=" + (quality.kbps / 2) + "k\n"
+                + "# Video sizes as WIDTHxHEIGHT@FPS:KBIT, smallest first. The last is the size chosen in DhakshaKey and\n"
+                + "# is never exceeded" + (adapt ? "; the smaller ones are used while the internet cannot keep up.\n" : ".\n")
+                + "LEVELS=(" + levels + ")\n"
+                + "TOP_LEVEL=$(( ${#LEVELS[@]} - 1 ))\n"
+                + "# After this many seconds of video uploading without waiting, the next larger size is tried\n"
+                + "UP_AFTER=60\n"
+                + "UP_AFTER_MAX=600\n"
+                + "# set_level N: picture size, frame rate, bit rate and upload queue limit of size N (0 = smallest).\n"
+                + "# More than 2 s of video waiting to upload, for QUEUE_SECONDS, means the internet is not keeping up.\n"
+                + "set_level() {\n"
+                + "  local spec=${LEVELS[$1]}\n"
+                + "  WIDTH=${spec%%x*}; spec=${spec#*x}\n"
+                + "  HEIGHT=${spec%%@*}; spec=${spec#*@}\n"
+                + "  FPS=${spec%%:*}\n"
+                + "  KBIT=${spec#*:}\n"
+                + "  BITRATE=${KBIT}k\n"
+                + "  BUFSIZE=$(( KBIT / 2 ))k\n"
+                + "  QUEUE_LIMIT_KB=$(( KBIT / 4 ))\n"
+                + "}\n"
+                + "set_level \"$TOP_LEVEL\"\n"
                 + "\n"
                 + stopPrevious()
                 + "echo $$ > " + PID_FILE + "\n"
@@ -346,17 +374,22 @@ final class StreamScripts {
                 + "\n"
                 + (upload.needs == null ? "" : uploadCheck(upload))
                 + (home ? findTestVideo() : "")
-                + "# The width is written out: ffmpeg 8 turned scale=-2:360 into a 2-pixel-wide picture\n"
-                + "FILTER=\"scale=$WIDTH:$HEIGHT,fps=$FPS\"\n"
+                + "TEXT=\"\"\n"
                 + (showPosition || home ? positionOverlay(home) : "")
-                + (dual
-                    // The thermal picture is not 16:9: fit it and pad with black instead of stretching it
-                    ? "NIGHT_FILTER=\"scale=$WIDTH:$HEIGHT:force_original_aspect_ratio=decrease,"
-                      + "pad=$WIDTH:$HEIGHT:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=$FPS${FILTER#scale=$WIDTH:$HEIGHT,fps=$FPS}\"\n"
-                    : "")
+                + "# build_filter day|night: the picture filter for the current size\n"
+                + "build_filter() {\n"
+                + "  local f\n"
+                + "  if [ \"$1\" = night ]; then\n"
+                + "    # The thermal picture is not 16:9: fit it and pad with black instead of stretching it\n"
+                + "    f=\"scale=$WIDTH:$HEIGHT:force_original_aspect_ratio=decrease,pad=$WIDTH:$HEIGHT:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=$FPS\"\n"
+                + "  else\n"
+                + "    # The width is written out: ffmpeg 8 turned scale=-2:360 into a 2-pixel-wide picture\n"
+                + "    f=\"scale=$WIDTH:$HEIGHT,fps=$FPS\"\n"
+                + "  fi\n"
+                + "  [ -n \"$TEXT\" ] && f=\"$f,${TEXT/FONTSIZE/$(( HEIGHT / 18 ))}\"\n"
+                + "  echo \"$f\"\n"
+                + "}\n"
                 + "STALL_SECONDS=8\n"
-                + "# More than 2 s of video waiting to upload, for QUEUE_SECONDS, means the internet is not keeping up\n"
-                + "QUEUE_LIMIT_KB=$(( ${BITRATE%k} / 4 ))\n"
                 + "QUEUE_SECONDS=4\n"
                 + "FFMPEG_PID=\"\"\n"
                 + "LOOP_PIDS=\"\"\n"
@@ -407,13 +440,16 @@ final class StreamScripts {
                       + "queued_kb() { :; }\n")
                 + "\n"
                 + "# One camera to one stream name, restarted by its own watchdog:\n"
-                + "# stream_loop CAMERA NAME PROGRESS_FILE FILTER LABEL   (LABEL empty for the only stream)\n"
+                + "# stream_loop CAMERA NAME PROGRESS_FILE LABEL   (LABEL day or night, empty for the only stream)\n"
                 + "stream_loop() {\n"
-                + "local CAMERA=\"$1\" DRONE=\"$2\" PROGRESS=\"$3\" FILTER=\"$4\" LABEL=\"$5\"\n"
+                + "local CAMERA=\"$1\" DRONE=\"$2\" PROGRESS=\"$3\" LABEL=\"$4\" FILTER\n"
+                + "local level=$TOP_LEVEL up_after=$UP_AFTER went_up_at=-1000\n"
                 + "# Run in the background next to another stream: stop its own ffmpeg when stopped\n"
                 + "[ -n \"$LABEL\" ] && trap 'stop_ffmpeg; exit 0' INT TERM\n"
                 + "while true; do\n"
-                + "  echo \"$(date '+%F %T') sending to $SERVER_IP ($DRONE)\"\n"
+                + "  set_level \"$level\"\n"
+                + "  FILTER=$(build_filter \"$LABEL\")\n"
+                + "  echo \"$(date '+%F %T') sending to $SERVER_IP ($DRONE, ${HEIGHT}p, $KBIT kbit/s)\"\n"
                 + "  : > \"$PROGRESS\"\n"
                 + (home
                     ? "  # -re: send the file at its real speed, like a camera; -stream_loop -1: play it again and again\n"
@@ -431,7 +467,7 @@ final class StreamScripts {
                 + "  # Watchdog: when the video stops moving or runs below 0.8x for STALL_SECONDS, or piles up\n"
                 + "  # waiting to upload for QUEUE_SECONDS, restart at once.\n"
                 + "  # The video waiting behind the stall is dropped, so viewers get live video back instead of a growing delay.\n"
-                + "  last=\"\"; stuck=0; slow=0; queued=0; starting=0; restarted=0\n"
+                + "  last=\"\"; stuck=0; slow=0; queued=0; starting=0; restarted=0; good=0; resized=0\n"
                 + "  while kill -0 \"$FFMPEG_PID\" 2>/dev/null; do\n"
                 + "    sleep 2\n"
                 + "    if [ \"$LABEL\" != night ] && [ -n \"$TELEMETRY_PID\" ] && ! kill -0 \"$TELEMETRY_PID\" 2>/dev/null; then\n"
@@ -446,16 +482,38 @@ final class StreamScripts {
                 + "    *) stuck=0 ;;\n"
                 + "    esac\n"
                 + "    last=\"$now\"\n"
-                + "    case \"$now\" in ''|*N/A) ;; *) [ \"$stuck\" -eq 0 ] && report \"LIVE $DRONE\" ;; esac\n"
+                + "    case \"$now\" in ''|*N/A) ;; *) [ \"$stuck\" -eq 0 ] && report \"LIVE $DRONE $HEIGHT\" ;; esac\n"
                 + "    case \"$speed\" in\n"
                 + "    ''|N/A|*[!0-9.]*) slow=0 ;;\n"
                 + "    *) if awk -v s=\"$speed\" 'BEGIN { exit !(s < 0.8) }'; then slow=$((slow + 2)); else slow=0; fi ;;\n"
                 + "    esac\n"
                 + "    kb=$(queued_kb)\n"
                 + "    if [ -n \"$kb\" ] && [ \"$kb\" -ge \"$QUEUE_LIMIT_KB\" ]; then queued=$((queued + 2)); else queued=0; fi\n"
+                + "    # Video moving and almost nothing waiting to upload: the internet has room\n"
+                + "    if [ -n \"$kb\" ] && [ \"$kb\" -lt $(( QUEUE_LIMIT_KB / 4 + 1 )) ] && [ \"$stuck\" -eq 0 ] && [ \"$starting\" -lt 20 ]; then\n"
+                + "      case \"$now\" in ''|*N/A) good=0 ;; *) good=$((good + 2)) ;; esac\n"
+                + "    else\n"
+                + "      good=0\n"
+                + "    fi\n"
+                + "    if [ \"$level\" -lt \"$TOP_LEVEL\" ] && [ \"$good\" -ge \"$up_after\" ]; then\n"
+                + "      level=$((level + 1)); went_up_at=$SECONDS; set_level \"$level\"\n"
+                + "      echo \"$(date '+%F %T') internet kept up for $good s: trying ${HEIGHT}p\"\n"
+                + "      report \"AUTO $DRONE $HEIGHT up\"\n"
+                + "      restarted=1; resized=1\n"
+                + "      stop_ffmpeg\n"
+                + "      break\n"
+                + "    fi\n"
                 + "    if [ \"$stuck\" -ge \"$STALL_SECONDS\" ] || [ \"$slow\" -ge \"$STALL_SECONDS\" ] \\\n"
                 + "        || [ \"$queued\" -ge \"$QUEUE_SECONDS\" ] || [ \"$starting\" -ge 20 ]; then\n"
-                + "      if [ -n \"$kb\" ] && [ \"$kb\" -ge \"$QUEUE_LIMIT_KB\" ]; then\n"
+                + "      if [ -n \"$kb\" ] && [ \"$kb\" -ge \"$QUEUE_LIMIT_KB\" ] && [ \"$level\" -gt 0 ]; then\n"
+                + "        # A larger size that failed soon after it was tried is tried again only after twice as long\n"
+                + "        if [ $(( SECONDS - went_up_at )) -lt 60 ]; then\n"
+                + "          up_after=$(( up_after * 2 )); [ \"$up_after\" -gt \"$UP_AFTER_MAX\" ] && up_after=$UP_AFTER_MAX\n"
+                + "        fi\n"
+                + "        level=$((level - 1)); set_level \"$level\"; resized=1\n"
+                + "        echo \"$(date '+%F %T') internet not keeping up ($kb KB waiting to upload): down to ${HEIGHT}p\"\n"
+                + "        report \"AUTO $DRONE $HEIGHT down\"\n"
+                + "      elif [ -n \"$kb\" ] && [ \"$kb\" -ge \"$QUEUE_LIMIT_KB\" ]; then\n"
                 + "        echo \"$(date '+%F %T') internet stalled ($kb KB waiting to upload): restarting\"\n"
                 + "        report \"SLOW $DRONE $kb\"\n"
                 + "      else\n"
@@ -471,18 +529,20 @@ final class StreamScripts {
                 + "  wait \"$FFMPEG_PID\" 2>/dev/null\n"
                 + "  FFMPEG_PID=\"\"\n"
                 + "  [ \"$restarted\" = 1 ] || why_stopped \"$CAMERA\"\n"
+                + "  # A change of size starts again at once; anything else waits 3 s\n"
+                + "  if [ \"$resized\" = 1 ]; then sleep 1; continue; fi\n"
                 + "  echo \"$(date '+%F %T') $DRONE stopped, retrying in 3 s\"\n"
                 + "  sleep 3\n"
                 + "done\n"
                 + "}\n"
                 + "\n"
                 + (dual
-                    ? "stream_loop \"$CAMERA\" \"$DRONE\" \"$HOME/.dhakshakey_progress\" \"$FILTER\" day &\n"
+                    ? "stream_loop \"$CAMERA\" \"$DRONE\" \"$HOME/.dhakshakey_progress\" day &\n"
                       + "LOOP_PIDS=\"$!\"\n"
-                      + "stream_loop \"$NIGHT_CAMERA\" \"$NIGHT_DRONE\" \"$HOME/.dhakshakey_progress_night\" \"$NIGHT_FILTER\" night &\n"
+                      + "stream_loop \"$NIGHT_CAMERA\" \"$NIGHT_DRONE\" \"$HOME/.dhakshakey_progress_night\" night &\n"
                       + "LOOP_PIDS=\"$LOOP_PIDS $!\"\n"
                       + "while true; do wait; sleep 1; done\n"
-                    : "stream_loop \"" + (home ? "$VIDEO" : "$CAMERA") + "\" \"$DRONE\" \"$HOME/.dhakshakey_progress\" \"$FILTER\" \"\"\n");
+                    : "stream_loop \"" + (home ? "$VIDEO" : "$CAMERA") + "\" \"$DRONE\" \"$HOME/.dhakshakey_progress\" \"\"\n");
     }
 
     /**
@@ -559,11 +619,12 @@ final class StreamScripts {
                 + "elif [ -z \"$FONT\" ] || ! ffmpeg -hide_banner -filters 2>/dev/null | grep -q drawtext; then\n"
                 + "  echo \"No position on the video: this ffmpeg cannot draw text\"\n"
                 + "else\n"
-                + "  TEXT=\"drawtext=fontfile=$FONT:textfile=$TEXT_FILE:reload=1:fontsize=$((HEIGHT / 18))"
+                + "  # FONTSIZE is filled in for each video size by build_filter\n"
+                + "  DRAW=\"drawtext=fontfile=$FONT:textfile=$TEXT_FILE:reload=1:fontsize=FONTSIZE"
                 + ":fontcolor=white:box=1:boxcolor=black@0.55:boxborderw=6:x=10:y=h-th-12\"\n"
                 + "  # Try the text on a tiny test picture first, so it can never stop the real video\n"
                 + "  if ffmpeg -nostdin -hide_banner -loglevel error -f lavfi -i color=size=320x180:duration=0.2 "
-                + "-vf \"$TEXT\" -f null - ; then\n"
+                + "-vf \"${DRAW/FONTSIZE/12}\" -f null - ; then\n"
                 + "    start_reader() {\n"
                 + "      python3 " + TELEMETRY_SCRIPT + " \"${DRONE^^}\" \"$TEXT_FILE\" " + TELEMETRY_PORT
                 + (fake ? " --fake" : "") + " &\n"
@@ -571,7 +632,7 @@ final class StreamScripts {
                 + "      echo $TELEMETRY_PID > " + TELEMETRY_PID_FILE + "\n"
                 + "    }\n"
                 + "    start_reader\n"
-                + "    FILTER=\"$FILTER,$TEXT\"\n"
+                + "    TEXT=\"$DRAW\"\n"
                 + "  else\n"
                 + "    echo \"No position on the video: ffmpeg could not draw the text. Sending the video without it.\"\n"
                 + "  fi\n"

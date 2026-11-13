@@ -24,6 +24,7 @@ import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -85,6 +86,9 @@ public class MainActivity extends Activity {
     private TextView banner;
     private Spinner cameraSpinner;
     private Spinner qualitySpinner;
+    private CheckBox autoQuality;
+    /** Picture height the script last reported it is sending; 0 before the first report. */
+    private int liveHeight;
     private EditText cameraIp;
     private Button saveCameraIp;
     private TextView cameraAddress;
@@ -202,6 +206,10 @@ public class MainActivity extends Activity {
             qualities[i] = StreamScripts.QUALITIES[i].label;
         }
         qualitySpinner = addSpinner(right, qualities, prefs.getInt("quality", StreamScripts.DEFAULT_QUALITY));
+        autoQuality = new CheckBox(this);
+        autoQuality.setText("Auto: go lower while the internet is slow, never above this quality");
+        autoQuality.setChecked(prefs.getBoolean("autoQuality", true));
+        right.addView(autoQuality, fullWidth(0));
 
         addLabel(right, "Server IP");
         LinearLayout serverRow = row(right);
@@ -321,6 +329,7 @@ public class MainActivity extends Activity {
                 .putString("cameraTag", camera().fileTag)
                 .putInt("drone", droneSpinner.getSelectedItemPosition())
                 .putInt("quality", qualitySpinner.getSelectedItemPosition())
+                .putBoolean("autoQuality", autoQuality.isChecked())
                 .putString("upload", upload().tag)
                 .putInt("watch", watchSpinner.getSelectedItemPosition())
                 .apply();
@@ -518,7 +527,7 @@ public class MainActivity extends Activity {
         String scriptPath = camera.scriptPath();
         String nightRtsp = camera.nightRtsp(text(cameraIp));
         String stream = StreamScripts.streamScript(camera, rtsp, nightRtsp, text(serverIp), text(dayName),
-                nightStream(), password(), quality(), true, upload(), port(), watch());
+                nightStream(), password(), quality(), autoQuality.isChecked(), true, upload(), port(), watch());
         String reader = readAsset("dhaksha_telemetry.py");
         if (reader == null) {
             showBanner("The position reader is missing from this app.", RED);
@@ -528,6 +537,7 @@ public class MainActivity extends Activity {
             startAnyway.setVisibility(View.GONE);
             streaming = true;
             liveAt = slowAt = cameraAt = netAt = dropAt = uploadAt = 0;
+            liveHeight = 0;
             showBanner("Starting " + text(dayName) + " at " + quality().label + " with " + upload().name
                     + ". The Termux window shows its progress.", GREY);
         }
@@ -582,6 +592,13 @@ public class MainActivity extends Activity {
         switch (parts[0]) {
         case "LIVE":
             liveAt = now;
+            // The day stream's size is the one shown
+            if (parts.length > 2 && parts[1].equals(text(dayName))) {
+                liveHeight = parseHeight(parts[2]);
+            }
+            break;
+        case "AUTO":
+            // The script changed size by itself; the next LIVE line carries the new one
             break;
         case "SLOW":
             slowAt = now;
@@ -632,10 +649,23 @@ public class MainActivity extends Activity {
         } else if (dropAt > 0 && now - dropAt < LIVE_SHOWN_MS) {
             showBanner(which + "The stream dropped. Reconnecting...", ORANGE);
         } else if (liveAt > 0 && now - liveAt < LIVE_SHOWN_MS) {
-            showBanner("Live: " + text(dayName) + " is on the server (" + quality().label + ", "
-                    + upload().name + ").", GREEN);
+            if (liveHeight > 0 && liveHeight < quality().height) {
+                showBanner("Live: " + text(dayName) + " is on the server at " + liveHeight + "p: the internet is too "
+                        + "slow for " + quality().label + " right now. It goes back up by itself.", ORANGE);
+            } else {
+                showBanner("Live: " + text(dayName) + " is on the server (" + quality().label + ", "
+                        + upload().name + ").", GREEN);
+            }
         } else if (liveAt > 0) {
             showBanner("No news from the stream for a few seconds. Check the Termux window.", ORANGE);
+        }
+    }
+
+    private static int parseHeight(String text) {
+        try {
+            return Integer.parseInt(text);
+        } catch (NumberFormatException e) {
+            return 0;
         }
     }
 
