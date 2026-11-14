@@ -189,6 +189,8 @@ final class StreamScripts {
         new Quality("Exceptional - 720p", 720, 20, 800),
     };
     static final int DEFAULT_QUALITY = 1;
+    /** The size Auto can fall to below the menu's smallest, as WIDTHxHEIGHT@FPS:KBIT. */
+    static final String AUTO_FLOOR = "256x144@5:40";
 
     private StreamScripts() {}
 
@@ -334,7 +336,9 @@ final class StreamScripts {
         boolean dual = !home && nightRtsp != null;
         // Only uploads whose waiting video can be measured (TCP) can tell a slow internet from a slow camera
         boolean adapt = auto && upload.tcpVideo;
-        StringBuilder levels = new StringBuilder();
+        // Below the smallest size on the menu, for Auto only: about what a link that carries 40 to 50 kbit/s
+        // between outages can take (field logs of 2026-11-14)
+        StringBuilder levels = new StringBuilder(adapt ? AUTO_FLOOR : "");
         for (Quality q : QUALITIES) {
             if (q == quality || (adapt && q.kbps < quality.kbps)) {
                 levels.append(levels.length() > 0 ? " " : "").append(q.width()).append('x').append(q.height)
@@ -383,6 +387,11 @@ final class StreamScripts {
                 + "  [ \"$QUEUE_LIMIT_KB\" -lt 96 ] && QUEUE_LIMIT_KB=96\n"
                 + "  # Less than 1.5 s of video waiting counts as the internet keeping up\n"
                 + "  GOOD_KB=$(( KBIT * 3 / 16 + 1 ))\n"
+                + "  # Small pictures cost the phone little, so they get the encoder setting that makes a better picture\n"
+                + "  # from the same bits; below 240p a full picture only every 3 s leaves more bits for the rest\n"
+                + "  PRESET=ultrafast; GOP=$FPS\n"
+                + "  [ \"$HEIGHT\" -le 240 ] && PRESET=veryfast\n"
+                + "  [ \"$HEIGHT\" -lt 240 ] && GOP=$(( FPS * 3 ))\n"
                 + "}\n"
                 + "set_level \"$TOP_LEVEL\"\n"
                 + "\n"
@@ -432,7 +441,8 @@ final class StreamScripts {
                 + "trap cleanup INT TERM\n"
                 + "# Tells DhakshaKey how the stream is doing (shown on its screen); nothing happens when it is closed\n"
                 + "report() { { echo \"$*\" > /dev/udp/127.0.0.1/" + STATUS_PORT + "; } 2>/dev/null; }\n"
-                + "# ffmpeg ended by itself: tell whether the camera, the server or neither can be reached\n"
+                + "# ffmpeg ended by itself: tell whether the camera, the server or neither can be reached.\n"
+                + "# Returns 0 when the camera is the problem, 1 when the upload is.\n"
                 + "# why_stopped CAMERA_ADDRESS (an rtsp:// address, or the test video file)\n"
                 + "why_stopped() {\n"
                 + "  local hp=${1#rtsp://} port=554\n"
@@ -440,16 +450,21 @@ final class StreamScripts {
                 + "    hp=${hp%%/*}; hp=${hp##*@}\n"
                 + "    case \"$hp\" in *:*) port=${hp##*:} ;; esac\n"
                 + "    if ! timeout 3 bash -c \"exec 3<>/dev/tcp/${hp%%:*}/$port\" 2>/dev/null; then\n"
-                + "      log \"camera not reachable at ${hp%%:*}:$port\"; report \"CAMERA $DRONE\"; return\n"
+                + "      log \"camera not reachable at ${hp%%:*}:$port\"; report \"CAMERA $DRONE\"; return 0\n"
                 + "    fi\n"
                 + "  fi\n"
                 + (upload.tcpPort
                     ? "  if ! timeout 3 bash -c \"exec 3<>/dev/tcp/$SERVER_IP/$UPLOAD_PORT\" 2>/dev/null; then\n"
-                      + "    log \"server not reachable at $SERVER_IP:$UPLOAD_PORT (internet, server IP or port)\"\n"
-                      + "    report \"NET $DRONE\"; return\n"
+                      + "    if [ \"$(internet_ms)\" = FAIL ]; then\n"
+                      + "      log \"this phone's internet is down (no answer from the server or from " + INTERNET_CHECK_HOST + ")\"\n"
+                      + "    else\n"
+                      + "      log \"server not reachable at $SERVER_IP:$UPLOAD_PORT, the internet works (server IP, port, or the server is down)\"\n"
+                      + "    fi\n"
+                      + "    report \"NET $DRONE\"; return 1\n"
                       + "  fi\n"
                     : "")
                 + "  report \"DROP $DRONE\"\n"
+                + "  return 1\n"
                 + "}\n"
                 + "\n"
                 + "# KB of video waiting in this phone's upload queue to the server; empty when it cannot be read\n"
@@ -511,9 +526,9 @@ final class StreamScripts {
                       + "  ffmpeg -nostdin -hide_banner -stats -progress \"$PROGRESS\" -fflags nobuffer -flags low_delay -flags2 +fast \\\n"
                       + "    -timeout 5000000 -rtsp_transport tcp -use_wallclock_as_timestamps 1 -i \"$CAMERA\" \\\n")
                 + "    -an -vf \"$FILTER\" \\\n"
-                + "    -c:v libx264 -preset ultrafast -tune zerolatency -profile:v baseline -pix_fmt yuv420p \\\n"
+                + "    -c:v libx264 -preset \"$PRESET\" -tune zerolatency -profile:v baseline -pix_fmt yuv420p \\\n"
                 + "    -b:v \"$BITRATE\" -maxrate \"$BITRATE\" -bufsize \"$BUFSIZE\" \\\n"
-                + "    -g \"$FPS\" -keyint_min \"$FPS\" -sc_threshold 0 \\\n"
+                + "    -g \"$GOP\" -keyint_min \"$GOP\" -sc_threshold 0 \\\n"
                 + "    " + upload.ffmpegOutput("$DRONE") + " \\\n"
                 + "    2> >(tee >(ffmpeg_to_log \"$DRONE\") >&2) &\n"
                 + "  FFMPEG_PID=$!\n"
@@ -593,7 +608,13 @@ final class StreamScripts {
                 + "  done\n"
                 + "  wait \"$FFMPEG_PID\" 2>/dev/null\n"
                 + "  FFMPEG_PID=\"\"\n"
-                + "  [ \"$restarted\" = 1 ] || why_stopped \"$CAMERA\"\n"
+                + "  if [ \"$restarted\" != 1 ] && ! why_stopped \"$CAMERA\" && [ \"$level\" -gt 0 ]; then\n"
+                + "    # The upload broke or could not connect: a smaller size needs less from the link. Only the\n"
+                + "    # upload queue stepped down before, which a stream that never stays connected does not reach.\n"
+                + "    level=$((level - 1)); set_level \"$level\"\n"
+                + "    log \"upload failed: down to ${HEIGHT}p\"\n"
+                + "    report \"AUTO $DRONE $HEIGHT down\"\n"
+                + "  fi\n"
                 + "  # A change of size starts again at once; anything else waits 3 s\n"
                 + "  if [ \"$resized\" = 1 ]; then sleep 1; continue; fi\n"
                 + "  log \"$DRONE stopped, retrying in 3 s\"\n"

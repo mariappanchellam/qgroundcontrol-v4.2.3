@@ -54,6 +54,10 @@ fi
 
 cat > "$INSTALL_DIR/mediamtx.yml" <<EOF
 logLevel: info
+# A drone on a slow mobile link can go silent for more than the default 10 s and still recover: wait 30 s
+# before closing its connection
+readTimeout: 30s
+writeTimeout: 30s
 # Plain MPEG-TS HLS plays on every phone browser (the low-latency variant breaks on iPhones)
 hlsVariant: mpegts
 # Lets WebRTC viewers on mobile networks reach the server through the cloud NAT
