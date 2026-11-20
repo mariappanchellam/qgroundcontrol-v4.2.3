@@ -32,16 +32,43 @@ Button {
 
     QGCPalette { id: qgcPal; colorGroupEnabled: enabled }
 
-    background: Rectangle {
-        id:             backRect
+    // Dhaksha skin: a raised, 3D button. The face is lit from above (lighter at the top, darker at the
+    // bottom) and stands on a dark edge; pressing it pushes the face down onto the edge.
+    readonly property real  _depth:     Math.max(2, Math.round(ScreenTools.defaultFontPixelHeight * 0.18))
+    readonly property bool  _down:      pressed || checked
+    readonly property color _faceColor: _showHighlight ?
+                                            qgcPal.buttonHighlight :
+                                            (primary ? qgcPal.primaryButton : qgcPal.button)
+
+    transform: Translate { y: control._down ? control._depth : 0 }
+
+    background: Item {
         implicitWidth:  ScreenTools.implicitButtonWidth
         implicitHeight: ScreenTools.implicitButtonHeight
-        radius:         backRadius
-        border.width:   showBorder ? 1 : 0
-        border.color:   qgcPal.buttonBorder
-        color:          _showHighlight ?
-                            qgcPal.buttonHighlight :
-                            (primary ? qgcPal.primaryButton : qgcPal.button)
+
+        // The edge the face stands on; hidden under the face while the button is down
+        Rectangle {
+            anchors.fill:       parent
+            anchors.topMargin:  control._depth
+            anchors.bottomMargin: control._down ? 0 : -control._depth
+            radius:             backRect.radius
+            color:              Qt.darker(control._faceColor, 2.4)
+            visible:            control.enabled
+        }
+
+        Rectangle {
+            id:             backRect
+            anchors.fill:   parent
+            radius:         backRadius > 0 ? backRadius : Math.max(3, Math.round(ScreenTools.defaultFontPixelHeight * 0.25))
+            border.width:   1
+            border.color:   showBorder ? qgcPal.buttonBorder : Qt.darker(control._faceColor, 1.7)
+            gradient: Gradient {
+                GradientStop { position: 0.0;  color: Qt.lighter(control._faceColor, control._down ? 1.05 : 1.45) }
+                GradientStop { position: 0.12; color: Qt.lighter(control._faceColor, control._down ? 1.0 : 1.15) }
+                GradientStop { position: 0.6;  color: control._faceColor }
+                GradientStop { position: 1.0;  color: Qt.darker(control._faceColor, control._down ? 1.05 : 1.3) }
+            }
+        }
     }
 
     contentItem: Item {
