@@ -59,16 +59,20 @@ TextField {
 
             property bool showHelp: control.showHelp && control.activeFocus
 
+            property real cornerRadius: Math.round(ScreenTools.defaultFontPixelHeight * 0.3)
+
             Rectangle {
                 anchors.fill:           parent
                 anchors.bottomMargin:   -1
+                radius:                 backgroundItem.cornerRadius
                 color:                  "#44ffffff"
             }
 
             Rectangle {
                 anchors.fill:           parent
+                radius:                 backgroundItem.cornerRadius
                 border.width:           enabled ? 1 : 0
-                border.color:           root.activeFocus ? "#47b" : "#999"
+                border.color:           root.activeFocus ? "#47b" : (control.hovered ? qgcPal.buttonHighlight : "#999")
                 color:                  qgcPal.textField
             }
 

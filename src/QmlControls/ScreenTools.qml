@@ -118,7 +118,59 @@ Item {
     }
 
     onRealPixelDensityChanged: {
-        _setBasePointSize(defaultFontPointSize)
+        _setBasePointSize(_basePointSize)
+    }
+
+    //-- Auto fit: scales the whole interface with the main window so the same layout fits any screen size.
+    //   Everything in the ui is sized from the default font, so scaling the font scales the ui.
+    //   Desktop only. Mobile sizing is based on physical touch sizes and is left alone.
+
+    /// Scale currently applied on top of the font size chosen by the user (1.0 when auto fit is off)
+    property real autoFitScale:             1.0
+
+    readonly property real _fitColumns:     180     ///< Window width, in default font character widths, which the ui is laid out for
+    readonly property real _fitRows:        50      ///< Window height, in default font character heights, which the ui is laid out for
+    readonly property real _fitMinScale:    0.7
+    readonly property real _fitMaxScale:    2.0
+
+    property real _basePointSize:           10      ///< Font size from settings, before auto fit
+    property real _fitWidth:                0
+    property real _fitHeight:               0
+    property bool _autoFitEnabled:          QGroundControl.settingsManager.appSettings.autoFitUI.rawValue
+
+    on_AutoFitEnabledChanged: _applyPointSize()
+
+    /// Called by the main window whenever its size changes
+    function setFitSize(width, height) {
+        if (width === _fitWidth && height === _fitHeight) {
+            return
+        }
+        _fitWidth  = width
+        _fitHeight = height
+        // Wait for the size to settle so a window drag does not rescale on every pixel
+        _fitTimer.restart()
+    }
+
+    Timer {
+        id:             _fitTimer
+        interval:       200
+        onTriggered:    _applyPointSize()
+    }
+
+    /// \private
+    function _calcAutoFitScale() {
+        if (!_autoFitEnabled || isMobile || _fitWidth <= 0 || _fitHeight <= 0) {
+            return 1.0
+        }
+        _textMeasure.font.pointSize = _basePointSize
+        if (_textMeasure.fontWidth <= 0 || _textMeasure.fontHeight <= 0) {
+            return 1.0
+        }
+        var scale = Math.min(_fitWidth  / (_textMeasure.fontWidth  * _fitColumns),
+                             _fitHeight / (_textMeasure.fontHeight * _fitRows))
+        scale = Math.max(_fitMinScale, Math.min(_fitMaxScale, scale))
+        // Steps of 5% so small size changes do not keep relaying out the ui
+        return Math.round(scale * 20) / 20
     }
 
     function printScreenStats() {
@@ -137,6 +189,14 @@ Item {
 
     /// \private
     function _setBasePointSize(pointSize) {
+        _basePointSize = pointSize
+        _applyPointSize()
+    }
+
+    /// \private
+    function _applyPointSize() {
+        autoFitScale = _calcAutoFitScale()
+        var pointSize = _basePointSize * autoFitScale
         _textMeasure.font.pointSize = pointSize
         defaultFontPointSize    = pointSize
         defaultFontPixelHeight  = Math.round(_textMeasure.fontHeight/2.0)*2

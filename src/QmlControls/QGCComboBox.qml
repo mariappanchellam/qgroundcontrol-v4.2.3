@@ -19,6 +19,7 @@ import QGroundControl.Controls      1.0
 
 T.ComboBox {
     id:             control
+    hoverEnabled:   true
     padding:        ScreenTools.comboBoxPadding
     spacing:        ScreenTools.defaultFontPixelWidth
     font.pointSize: ScreenTools.defaultFontPointSize
@@ -125,7 +126,8 @@ T.ComboBox {
         implicitWidth:  ScreenTools.implicitComboBoxWidth
         implicitHeight: ScreenTools.implicitComboBoxHeight
         color:          _qgcPal.window
-        border.color:   _qgcPal.text
+        radius:         Math.round(ScreenTools.defaultFontPixelHeight * 0.3)
+        border.color:   (control.hovered && control.enabled) ? _qgcPal.buttonHighlight : _qgcPal.text
     }
 
     popup: T.Popup {

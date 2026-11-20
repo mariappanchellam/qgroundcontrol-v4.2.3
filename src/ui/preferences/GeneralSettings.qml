@@ -38,7 +38,11 @@ Rectangle {
     property Fact _virtualJoystick:                     QGroundControl.settingsManager.appSettings.virtualJoystick
     property Fact _virtualJoystickAutoCenterThrottle:   QGroundControl.settingsManager.appSettings.virtualJoystickAutoCenterThrottle
 
-    property real   _labelWidth:                ScreenTools.defaultFontPixelWidth * 20
+    // Every label column is at least this wide so the fields line up down the whole page
+    property real   _labelWidth:                ScreenTools.defaultFontPixelWidth * 32
+    property real   _cardRadius:                Math.round(ScreenTools.defaultFontPixelHeight * 0.5)
+    property color  _cardBorderColor:           Qt.rgba(qgcPal.text.r, qgcPal.text.g, qgcPal.text.b, 0.25)
+    property real   _cardTitlePointSize:        ScreenTools.mediumFontPointSize
     property real   _comboFieldWidth:           ScreenTools.defaultFontPixelWidth * 30
     // DhakshaGroundControl: the fast camera player is chosen (Android)
     readonly property bool _fastPlayer: DhakshaCameraManager.nativeVideo && DhakshaCameraManager.nativeVideoSupported
@@ -75,31 +79,40 @@ Rectangle {
 
             Item {
                 id:     outerItem
-                width:  Math.max(_root.width, settingsColumn.width)
+                width:  Math.max(_root.width, settingsColumn.implicitWidth)
                 height: settingsColumn.height
 
                 ColumnLayout {
-                    id:                         settingsColumn
-                    anchors.horizontalCenter:   parent.horizontalCenter
+                    id:             settingsColumn
+                    anchors.left:   parent.left
+                    anchors.right:  parent.right
 
-                    QGCLabel {
-                        id:         flyViewSectionLabel
-                        color:      QGroundControl.globalPalette.buttonBorder   // Dhaksha skin: yellow section headings
-                        text:       qsTr("Fly View")
-                        visible:    QGroundControl.settingsManager.flyViewSettings.visible
-                    }
                     Rectangle {
-                        Layout.preferredHeight: flyViewCol.height + (_margins * 2)
+                        Layout.preferredHeight: flyViewCol.y + flyViewCol.height + _margins
                         Layout.preferredWidth:  flyViewCol.width + (_margins * 2)
                         color:                  qgcPal.windowShade
-                        visible:                flyViewSectionLabel.visible
+                        radius:                 _cardRadius
+                        border.width:           1
+                        border.color:           _cardBorderColor
+                        visible:                QGroundControl.settingsManager.flyViewSettings.visible
                         Layout.fillWidth:       true
+
+                        QGCLabel {
+                            id:                 flyViewSectionLabel
+                            anchors.margins:    _margins
+                            anchors.top:        parent.top
+                            anchors.left:       parent.left
+                            text:               qsTr("Fly View")
+                            font.bold:          true
+                            font.pointSize:     _cardTitlePointSize
+                            color:              QGroundControl.globalPalette.buttonBorder   // Dhaksha skin: yellow section headings
+                        }
 
                         ColumnLayout {
                             id:                         flyViewCol
                             anchors.margins:            _margins
-                            anchors.top:                parent.top
-                            anchors.horizontalCenter:   parent.horizontalCenter
+                            anchors.top:                flyViewSectionLabel.bottom
+                            anchors.left:               parent.left
                             spacing:                    _margins
 
                             FactCheckBox {
@@ -186,17 +199,19 @@ Rectangle {
                             }
 
                             GridLayout {
-                                columns: 2
+                                columns:        2
+                                columnSpacing:  _margins
 
                                 QGCLabel {
                                     text:               qsTr("Guided Command Settings")
                                     Layout.columnSpan:  2
-                                    Layout.alignment:   Qt.AlignHCenter
+                                    Layout.alignment:   Qt.AlignLeft
                                 }
 
                                 QGCLabel {
-                                    text:       qsTr("Minimum Altitude")
-                                    visible:    guidedMinAltField.visible
+                                    text:                   qsTr("Minimum Altitude")
+                                    visible:                guidedMinAltField.visible
+                                    Layout.minimumWidth:    _labelWidth
                                 }
                                 FactTextField {
                                     id:                     guidedMinAltField
@@ -206,8 +221,9 @@ Rectangle {
                                 }
 
                                 QGCLabel {
-                                    text:       qsTr("Maximum Altitude")
-                                    visible:    guidedMaxAltField.visible
+                                    text:                   qsTr("Maximum Altitude")
+                                    visible:                guidedMaxAltField.visible
+                                    Layout.minimumWidth:    _labelWidth
                                 }
                                 FactTextField {
                                     id:                     guidedMaxAltField
@@ -217,8 +233,9 @@ Rectangle {
                                 }
 
                                 QGCLabel {
-                                    text:       qsTr("Go To Location Max Distance")
-                                    visible:    maxGotoDistanceField.visible
+                                    text:                   qsTr("Go To Location Max Distance")
+                                    visible:                maxGotoDistanceField.visible
+                                    Layout.minimumWidth:    _labelWidth
                                 }
                                 FactTextField {
                                     id:                     maxGotoDistanceField
@@ -229,14 +246,15 @@ Rectangle {
                             }
 
                             GridLayout {
-                                id:         videoGrid
-                                columns:    2
-                                visible:    _videoSettings.visible
+                                id:             videoGrid
+                                columns:        2
+                                columnSpacing:  _margins
+                                visible:        _videoSettings.visible
 
                                 QGCLabel {
                                     text:               qsTr("Video Settings")
                                     Layout.columnSpan:  2
-                                    Layout.alignment:   Qt.AlignHCenter
+                                    Layout.alignment:   Qt.AlignLeft
                                 }
 
                                 QGCLabel {
@@ -330,21 +348,21 @@ Rectangle {
                                     indexModel:             false
                                 }
 
-                                Item { width: 1; height: 1}
+                                Item { width: _labelWidth; height: 1 }
                                 FactCheckBox {
                                     text:       qsTr("Disable When Disarmed")
                                     fact:       _videoSettings.disableWhenDisarmed
                                     visible:    !_videoAutoStreamConfig && _isGst && fact.visible
                                 }
 
-                                Item { width: 1; height: 1}
+                                Item { width: _labelWidth; height: 1 }
                                 FactCheckBox {
                                     text:       qsTr("Low Latency Mode")
                                     fact:       _videoSettings.lowLatencyMode
                                     visible:    !_videoAutoStreamConfig && _isGst && fact.visible
                                 }
 
-                                Item { width: 1; height: 1}
+                                Item { width: _labelWidth; height: 1 }
                                 FactCheckBox {
                                     text:       qsTr("Auto-Delete Saved Recordings")
                                     fact:       _videoSettings.enableStorageLimit
@@ -356,27 +374,36 @@ Rectangle {
 
                     // DhakshaGroundControl: gimbal camera vendor / stream selection
                     Item { width: 1; height: _margins }
-                    QGCLabel {
-                        id:         gimbalCameraSectionLabel
-                        color:      QGroundControl.globalPalette.buttonBorder   // Dhaksha skin: yellow section headings
-                        text:       qsTr("Gimbal Camera")
-                    }
                     Rectangle {
-                        Layout.preferredHeight: gimbalCameraGrid.height + (_margins * 2)
+                        Layout.preferredHeight: gimbalCameraGrid.y + gimbalCameraGrid.height + _margins
                         Layout.preferredWidth:  gimbalCameraGrid.width + (_margins * 2)
                         color:                  qgcPal.windowShade
+                        radius:                 _cardRadius
+                        border.width:           1
+                        border.color:           _cardBorderColor
                         Layout.fillWidth:       true
+
+                        QGCLabel {
+                            id:                 gimbalCameraSectionLabel
+                            anchors.margins:    _margins
+                            anchors.top:        parent.top
+                            anchors.left:       parent.left
+                            text:               qsTr("Gimbal Camera")
+                            font.bold:          true
+                            font.pointSize:     _cardTitlePointSize
+                            color:              QGroundControl.globalPalette.buttonBorder   // Dhaksha skin: yellow section headings
+                        }
 
                         GridLayout {
                             id:                         gimbalCameraGrid
                             anchors.margins:            _margins
-                            anchors.top:                parent.top
-                            anchors.horizontalCenter:   parent.horizontalCenter
+                            anchors.top:                gimbalCameraSectionLabel.bottom
+                            anchors.left:               parent.left
                             columns:                    2
                             rowSpacing:                 _margins
                             columnSpacing:              _margins
 
-                            QGCLabel { text: qsTr("Camera Vendor") }
+                            QGCLabel { text: qsTr("Camera Vendor"); Layout.minimumWidth: _labelWidth }
                             QGCComboBox {
                                 Layout.preferredWidth:  _comboFieldWidth
                                 // The fleet's two cameras: Skydroid (vendor 1) and SIYI ZR10 (vendor 2)
@@ -525,33 +552,42 @@ Rectangle {
                         }
                     }
 
-                    Item { width: 1; height: _margins; visible: planViewSectionLabel.visible }
-                    QGCLabel {
-                        id:         planViewSectionLabel
-                        color:      QGroundControl.globalPalette.buttonBorder   // Dhaksha skin: yellow section headings
-                        text:       qsTr("Plan View")
-                        visible:    _planViewSettings.visible
-                    }
+                    Item { width: 1; height: _margins; visible: planViewCard.visible }
                     Rectangle {
-                        Layout.preferredHeight: planViewCol.height + (_margins * 2)
+                        id:                     planViewCard
+                        Layout.preferredHeight: planViewCol.y + planViewCol.height + _margins
                         Layout.preferredWidth:  planViewCol.width + (_margins * 2)
                         color:                  qgcPal.windowShade
-                        visible:                planViewSectionLabel.visible
+                        radius:                 _cardRadius
+                        border.width:           1
+                        border.color:           _cardBorderColor
+                        visible:                _planViewSettings.visible
                         Layout.fillWidth:       true
+
+                        QGCLabel {
+                            id:                 planViewSectionLabel
+                            anchors.margins:    _margins
+                            anchors.top:        parent.top
+                            anchors.left:       parent.left
+                            text:               qsTr("Plan View")
+                            font.bold:          true
+                            font.pointSize:     _cardTitlePointSize
+                            color:              QGroundControl.globalPalette.buttonBorder   // Dhaksha skin: yellow section headings
+                        }
 
                         ColumnLayout {
                             id:                         planViewCol
                             anchors.margins:            _margins
-                            anchors.top:                parent.top
-                            anchors.horizontalCenter:   parent.horizontalCenter
+                            anchors.top:                planViewSectionLabel.bottom
+                            anchors.left:               parent.left
                             spacing:                    _margins
 
                             GridLayout {
                                 columns:            2
-                                columnSpacing:      ScreenTools.defaultFontPixelWidth
+                                columnSpacing:      _margins
                                 visible:            QGroundControl.settingsManager.appSettings.defaultMissionItemAltitude.visible
 
-                                QGCLabel { text: qsTr("Default Mission Altitude") }
+                                QGCLabel { text: qsTr("Default Mission Altitude"); Layout.minimumWidth: _labelWidth }
                                 FactTextField {
                                     Layout.preferredWidth:  _valueFieldWidth
                                     fact:                   QGroundControl.settingsManager.appSettings.defaultMissionItemAltitude
@@ -577,32 +613,42 @@ Rectangle {
                         }
                     }
 
-                    Item { width: 1; height: _margins; visible: unitsSectionLabel.visible }
-                    QGCLabel {
-                        id:         unitsSectionLabel
-                        color:      QGroundControl.globalPalette.buttonBorder   // Dhaksha skin: yellow section headings
-                        text:       qsTr("Units")
-                        visible:    QGroundControl.settingsManager.unitsSettings.visible
-                    }
+                    Item { width: 1; height: _margins; visible: unitsCard.visible }
                     Rectangle {
-                        Layout.preferredHeight: unitsGrid.height + (_margins * 2)
+                        id:                     unitsCard
+                        Layout.preferredHeight: unitsGrid.y + unitsGrid.height + _margins
                         Layout.preferredWidth:  unitsGrid.width + (_margins * 2)
                         color:                  qgcPal.windowShade
-                        visible:                miscSectionLabel.visible
+                        radius:                 _cardRadius
+                        border.width:           1
+                        border.color:           _cardBorderColor
+                        visible:                QGroundControl.settingsManager.unitsSettings.visible
                         Layout.fillWidth:       true
+
+                        QGCLabel {
+                            id:                 unitsSectionLabel
+                            anchors.margins:    _margins
+                            anchors.top:        parent.top
+                            anchors.left:       parent.left
+                            text:               qsTr("Units")
+                            font.bold:          true
+                            font.pointSize:     _cardTitlePointSize
+                            color:              QGroundControl.globalPalette.buttonBorder   // Dhaksha skin: yellow section headings
+                        }
 
                         GridLayout {
                             id:                         unitsGrid
-                            anchors.topMargin:          _margins
-                            anchors.top:                parent.top
+                            anchors.margins:            _margins
+                            anchors.top:                unitsSectionLabel.bottom
                             Layout.fillWidth:           false
-                            anchors.horizontalCenter:   parent.horizontalCenter
+                            anchors.left:               parent.left
                             flow:                       GridLayout.TopToBottom
                             rows:                       5
+                            columnSpacing:              _margins
 
                             Repeater {
                                 model: [ qsTr("Horizontal Distance"), qsTr("Vertical Distance"), qsTr("Area"), qsTr("Speed"), qsTr("Temperature") ]
-                                QGCLabel { text: modelData }
+                                QGCLabel { text: modelData; Layout.minimumWidth: _labelWidth }
                             }
                             Repeater {
                                 model:  [ QGroundControl.settingsManager.unitsSettings.horizontalDistanceUnits, QGroundControl.settingsManager.unitsSettings.verticalDistanceUnits, QGroundControl.settingsManager.unitsSettings.areaUnits, QGroundControl.settingsManager.unitsSettings.speedUnits, QGroundControl.settingsManager.unitsSettings.temperatureUnits ]
@@ -615,32 +661,42 @@ Rectangle {
                         }
                     }
 
-                    Item { width: 1; height: _margins; visible: miscSectionLabel.visible }
-                    QGCLabel {
-                        id:         miscSectionLabel
-                        color:      QGroundControl.globalPalette.buttonBorder   // Dhaksha skin: yellow section headings
-                        text:       qsTr("Miscellaneous")
-                        visible:    QGroundControl.settingsManager.appSettings.visible
-                    }
+                    Item { width: 1; height: _margins; visible: miscCard.visible }
                     Rectangle {
+                        id:                     miscCard
                         Layout.preferredWidth:  Math.max(comboGrid.width, miscCol.width) + (_margins * 2)
                         Layout.preferredHeight: (pathRow.visible ? pathRow.y + pathRow.height : miscColItem.y + miscColItem.height)  + (_margins * 2)
                         Layout.fillWidth:       true
                         color:                  qgcPal.windowShade
-                        visible:                miscSectionLabel.visible
+                        radius:                 _cardRadius
+                        border.width:           1
+                        border.color:           _cardBorderColor
+                        visible:                QGroundControl.settingsManager.appSettings.visible
+
+                        QGCLabel {
+                            id:                 miscSectionLabel
+                            anchors.margins:    _margins
+                            anchors.top:        parent.top
+                            anchors.left:       parent.left
+                            text:               qsTr("Miscellaneous")
+                            font.bold:          true
+                            font.pointSize:     _cardTitlePointSize
+                            color:              QGroundControl.globalPalette.buttonBorder   // Dhaksha skin: yellow section headings
+                        }
 
                         Item {
                             id:                 comboGridItem
                             anchors.margins:    _margins
-                            anchors.top:        parent.top
+                            anchors.top:        miscSectionLabel.bottom
                             anchors.left:       parent.left
                             anchors.right:      parent.right
                             height:             comboGrid.height
 
                             GridLayout {
                                 id:                         comboGrid
-                                anchors.horizontalCenter:   parent.horizontalCenter
+                                anchors.left:               parent.left
                                 columns:                    2
+                                columnSpacing:              _margins
 
                                 QGCLabel {
                                     text:           qsTr("Language")
@@ -665,8 +721,8 @@ Rectangle {
                                 }
 
                                 QGCLabel {
-                                    text:       qsTr("Map Provider")
-                                    width:      _labelWidth
+                                    text:                   qsTr("Map Provider")
+                                    Layout.minimumWidth:    _labelWidth
                                 }
 
                                 QGCComboBox {
@@ -685,8 +741,8 @@ Rectangle {
                                     }
                                 }
                                 QGCLabel {
-                                    text:       qsTr("Map Type")
-                                    width:      _labelWidth
+                                    text:                   qsTr("Map Type")
+                                    Layout.minimumWidth:    _labelWidth
                                 }
                                 QGCComboBox {
                                     id:             mapTypeCombo
@@ -761,6 +817,16 @@ Rectangle {
                                         }
                                     }
                                 }
+
+                                QGCLabel {
+                                    text:       qsTr("Auto Fit")
+                                    visible:    !ScreenTools.isMobile
+                                }
+                                FactCheckBox {
+                                    text:       qsTr("Scale the interface to fit the window")
+                                    fact:       QGroundControl.settingsManager.appSettings.autoFitUI
+                                    visible:    !ScreenTools.isMobile
+                                }
                             }
                         }
 
@@ -775,7 +841,7 @@ Rectangle {
 
                             ColumnLayout {
                                 id:                         miscCol
-                                anchors.horizontalCenter:   parent.horizontalCenter
+                                anchors.left:               parent.left
                                 spacing:                    _margins
 
                                 FactCheckBox {
@@ -835,8 +901,9 @@ Rectangle {
                             anchors.right:      parent.right
                             anchors.top:        miscColItem.bottom
                             visible:            _savePath.visible && !ScreenTools.isMobile
+                            spacing:            _margins
 
-                            QGCLabel { text: qsTr("Application Load/Save Path") }
+                            QGCLabel { text: qsTr("Application Load/Save Path"); Layout.minimumWidth: _labelWidth }
                             QGCTextField {
                                 Layout.fillWidth:   true
                                 readOnly:           true
@@ -857,25 +924,34 @@ Rectangle {
                         }
                     }
 
-                    Item { width: 1; height: _margins; visible: telemetryLogSectionLabel.visible }
-                    QGCLabel {
-                        id:         telemetryLogSectionLabel
-                        color:      QGroundControl.globalPalette.buttonBorder   // Dhaksha skin: yellow section headings
-                        text:       qsTr("Telemetry Logs from Vehicle")
-                        visible:    telemetryRect.visible
-                    }
+                    Item { width: 1; height: _margins; visible: telemetryRect.visible }
                     Rectangle {
                         id:                     telemetryRect
-                        Layout.preferredHeight: loggingCol.height + (_margins * 2)
+                        Layout.preferredHeight: loggingCol.y + loggingCol.height + _margins
                         Layout.preferredWidth:  loggingCol.width + (_margins * 2)
                         color:                  qgcPal.windowShade
+                        radius:                 _cardRadius
+                        border.width:           1
+                        border.color:           _cardBorderColor
                         Layout.fillWidth:       true
                         visible:                promptSaveLog._telemetrySave.visible || logIfNotArmed._telemetrySaveNotArmed.visible || promptSaveCsv._saveCsvTelemetry.visible
+
+                        QGCLabel {
+                            id:                 telemetryLogSectionLabel
+                            anchors.margins:    _margins
+                            anchors.top:        parent.top
+                            anchors.left:       parent.left
+                            text:               qsTr("Telemetry Logs from Vehicle")
+                            font.bold:          true
+                            font.pointSize:     _cardTitlePointSize
+                            color:              QGroundControl.globalPalette.buttonBorder   // Dhaksha skin: yellow section headings
+                        }
+
                         ColumnLayout {
                             id:                         loggingCol
                             anchors.margins:            _margins
-                            anchors.top:                parent.top
-                            anchors.horizontalCenter:   parent.horizontalCenter
+                            anchors.top:                telemetryLogSectionLabel.bottom
+                            anchors.left:               parent.left
                             spacing:                    _margins
                             FactCheckBox {
                                 id:         promptSaveLog
@@ -904,28 +980,38 @@ Rectangle {
                         }
                     }
 
-                    Item { width: 1; height: _margins; visible: autoConnectSectionLabel.visible }
-                    QGCLabel {
-                        id:         autoConnectSectionLabel
-                        color:      QGroundControl.globalPalette.buttonBorder   // Dhaksha skin: yellow section headings
-                        text:       qsTr("AutoConnect to the following devices")
-                        visible:    QGroundControl.settingsManager.autoConnectSettings.visible
-                    }
+                    Item { width: 1; height: _margins; visible: autoConnectCard.visible }
                     Rectangle {
+                        id:                     autoConnectCard
                         Layout.preferredWidth:  autoConnectCol.width + (_margins * 2)
-                        Layout.preferredHeight: autoConnectCol.height + (_margins * 2)
+                        Layout.preferredHeight: autoConnectCol.y + autoConnectCol.height + _margins
                         color:                  qgcPal.windowShade
-                        visible:                autoConnectSectionLabel.visible
+                        radius:                 _cardRadius
+                        border.width:           1
+                        border.color:           _cardBorderColor
+                        visible:                QGroundControl.settingsManager.autoConnectSettings.visible
                         Layout.fillWidth:       true
+
+                        QGCLabel {
+                            id:                 autoConnectSectionLabel
+                            anchors.margins:    _margins
+                            anchors.top:        parent.top
+                            anchors.left:       parent.left
+                            text:               qsTr("AutoConnect to the following devices")
+                            font.bold:          true
+                            font.pointSize:     _cardTitlePointSize
+                            color:              QGroundControl.globalPalette.buttonBorder   // Dhaksha skin: yellow section headings
+                        }
 
                         ColumnLayout {
                             id:                 autoConnectCol
                             anchors.margins:    _margins
                             anchors.left:       parent.left
-                            anchors.top:        parent.top
+                            anchors.top:        autoConnectSectionLabel.bottom
                             spacing:            _margins
 
-                            RowLayout {
+                            // Listed vertically so the page never grows wider than the window
+                            ColumnLayout {
                                 spacing: _margins
 
                                 Repeater {
@@ -951,14 +1037,16 @@ Rectangle {
 
                             GridLayout {
                                 Layout.fillWidth:   false
-                                Layout.alignment:   Qt.AlignHCenter
+                                Layout.alignment:   Qt.AlignLeft
                                 columns:            2
+                                columnSpacing:      _margins
                                 visible:            !ScreenTools.isMobile
                                                     && QGroundControl.settingsManager.autoConnectSettings.autoConnectNmeaPort.visible
                                                     && QGroundControl.settingsManager.autoConnectSettings.autoConnectNmeaBaud.visible
 
                                 QGCLabel {
-                                    text: qsTr("NMEA GPS Device")
+                                    text:                   qsTr("NMEA GPS Device")
+                                    Layout.minimumWidth:    _labelWidth
                                 }
                                 QGCComboBox {
                                     id:                     nmeaPortCombo
@@ -1021,27 +1109,37 @@ Rectangle {
                         }
                     }
 
-                    Item { width: 1; height: _margins; visible: rtkSectionLabel.visible }
-                    QGCLabel {
-                        id:         rtkSectionLabel
-                        color:      QGroundControl.globalPalette.buttonBorder   // Dhaksha skin: yellow section headings
-                        text:       qsTr("RTK GPS")
-                        visible:    QGroundControl.settingsManager.rtkSettings.visible
-                    }
+                    Item { width: 1; height: _margins; visible: rtkCard.visible }
                     Rectangle {
-                        Layout.preferredHeight: rtkGrid.height + (_margins * 2)
+                        id:                     rtkCard
+                        Layout.preferredHeight: rtkGrid.y + rtkGrid.height + _margins
                         Layout.preferredWidth:  rtkGrid.width + (_margins * 2)
                         color:                  qgcPal.windowShade
-                        visible:                rtkSectionLabel.visible
+                        radius:                 _cardRadius
+                        border.width:           1
+                        border.color:           _cardBorderColor
+                        visible:                QGroundControl.settingsManager.rtkSettings.visible
                         Layout.fillWidth:       true
+
+                        QGCLabel {
+                            id:                 rtkSectionLabel
+                            anchors.margins:    _margins
+                            anchors.top:        parent.top
+                            anchors.left:       parent.left
+                            text:               qsTr("RTK GPS")
+                            font.bold:          true
+                            font.pointSize:     _cardTitlePointSize
+                            color:              QGroundControl.globalPalette.buttonBorder   // Dhaksha skin: yellow section headings
+                        }
 
                         GridLayout {
                             id:                         rtkGrid
-                            anchors.topMargin:          _margins
-                            anchors.top:                parent.top
+                            anchors.margins:            _margins
+                            anchors.top:                rtkSectionLabel.bottom
                             Layout.fillWidth:           true
-                            anchors.horizontalCenter:   parent.horizontalCenter
+                            anchors.left:               parent.left
                             columns:                    3
+                            columnSpacing:              _margins
 
                             property var  rtkSettings:      QGroundControl.settingsManager.rtkSettings
                             property bool useFixedPosition: rtkSettings.useFixedBasePosition.rawValue
@@ -1060,6 +1158,8 @@ Rectangle {
                                 text:               rtkGrid.rtkSettings.surveyInAccuracyLimit.shortDescription
                                 visible:            rtkGrid.rtkSettings.surveyInAccuracyLimit.visible
                                 enabled:            !rtkGrid.useFixedPosition
+                                // The indent column sits in front of this one, so take it off the shared label width
+                                Layout.minimumWidth: _labelWidth - rtkGrid.firstColWidth - _margins
                             }
                             FactTextField {
                                 fact:               rtkGrid.rtkSettings.surveyInAccuracyLimit
@@ -1156,24 +1256,33 @@ Rectangle {
                         }
                     }
 
-                    Item { width: 1; height: _margins; visible: adsbSectionLabel.visible }
-                    QGCLabel {
-                        id:         adsbSectionLabel
-                        color:      QGroundControl.globalPalette.buttonBorder   // Dhaksha skin: yellow section headings
-                        text:       qsTr("ADSB Server")
-                        visible:    QGroundControl.settingsManager.adsbVehicleManagerSettings.visible
-                    }
+                    Item { width: 1; height: _margins; visible: adsbCard.visible }
                     Rectangle {
+                        id:                     adsbCard
                         Layout.preferredHeight: adsbGrid.y + adsbGrid.height + _margins
                         Layout.preferredWidth:  adsbGrid.width + (_margins * 2)
                         color:                  qgcPal.windowShade
-                        visible:                adsbSectionLabel.visible
+                        radius:                 _cardRadius
+                        border.width:           1
+                        border.color:           _cardBorderColor
+                        visible:                QGroundControl.settingsManager.adsbVehicleManagerSettings.visible
                         Layout.fillWidth:       true
+
+                        QGCLabel {
+                            id:                 adsbSectionLabel
+                            anchors.margins:    _margins
+                            anchors.top:        parent.top
+                            anchors.left:       parent.left
+                            text:               qsTr("ADSB Server")
+                            font.bold:          true
+                            font.pointSize:     _cardTitlePointSize
+                            color:              QGroundControl.globalPalette.buttonBorder   // Dhaksha skin: yellow section headings
+                        }
 
                         QGCLabel {
                             id:                 warningLabel
                             anchors.margins:    _margins
-                            anchors.top:        parent.top
+                            anchors.top:        adsbSectionLabel.bottom
                             anchors.left:       parent.left
                             anchors.right:      parent.right
                             font.pointSize:     ScreenTools.smallFontPointSize
@@ -1183,11 +1292,12 @@ Rectangle {
 
                         GridLayout {
                             id:                         adsbGrid
-                            anchors.topMargin:          _margins
+                            anchors.margins:            _margins
                             anchors.top:                warningLabel.bottom
                             Layout.fillWidth:           true
-                            anchors.horizontalCenter:   parent.horizontalCenter
+                            anchors.left:               parent.left
                             columns:                    2
+                            columnSpacing:              _margins
 
                             property var  adsbSettings:    QGroundControl.settingsManager.adsbVehicleManagerSettings
 
@@ -1199,8 +1309,9 @@ Rectangle {
                             }
 
                             QGCLabel {
-                                text:               adsbGrid.adsbSettings.adsbServerHostAddress.shortDescription
-                                visible:            adsbGrid.adsbSettings.adsbServerHostAddress.visible
+                                text:                   adsbGrid.adsbSettings.adsbServerHostAddress.shortDescription
+                                visible:                adsbGrid.adsbSettings.adsbServerHostAddress.visible
+                                Layout.minimumWidth:    _labelWidth
                             }
                             FactTextField {
                                 fact:                   adsbGrid.adsbSettings.adsbServerHostAddress
@@ -1220,31 +1331,42 @@ Rectangle {
                         }
                     }
 
-                    Item { width: 1; height: _margins; visible: brandImageSectionLabel.visible }
-                    QGCLabel {
-                        id:         brandImageSectionLabel
-                        color:      QGroundControl.globalPalette.buttonBorder   // Dhaksha skin: yellow section headings
-                        text:       qsTr("Brand Image")
-                        visible:    QGroundControl.settingsManager.brandImageSettings.visible && !ScreenTools.isMobile
-                    }
+                    Item { width: 1; height: _margins; visible: brandImageCard.visible }
                     Rectangle {
+                        id:                     brandImageCard
                         Layout.preferredWidth:  brandImageGrid.width + (_margins * 2)
-                        Layout.preferredHeight: brandImageGrid.height + (_margins * 2)
+                        Layout.preferredHeight: brandImageGrid.y + brandImageGrid.height + _margins
                         Layout.fillWidth:       true
                         color:                  qgcPal.windowShade
-                        visible:                brandImageSectionLabel.visible
+                        radius:                 _cardRadius
+                        border.width:           1
+                        border.color:           _cardBorderColor
+                        visible:                QGroundControl.settingsManager.brandImageSettings.visible && !ScreenTools.isMobile
+
+                        QGCLabel {
+                            id:                 brandImageSectionLabel
+                            anchors.margins:    _margins
+                            anchors.top:        parent.top
+                            anchors.left:       parent.left
+                            text:               qsTr("Brand Image")
+                            font.bold:          true
+                            font.pointSize:     _cardTitlePointSize
+                            color:              QGroundControl.globalPalette.buttonBorder   // Dhaksha skin: yellow section headings
+                        }
 
                         GridLayout {
                             id:                 brandImageGrid
                             anchors.margins:    _margins
-                            anchors.top:        parent.top
+                            anchors.top:        brandImageSectionLabel.bottom
                             anchors.left:       parent.left
                             anchors.right:      parent.right
                             columns:            3
+                            columnSpacing:      _margins
 
                             QGCLabel {
-                                text:           qsTr("Indoor Image")
-                                visible:        _userBrandImageIndoor.visible
+                                text:                   qsTr("Indoor Image")
+                                visible:                _userBrandImageIndoor.visible
+                                Layout.minimumWidth:    _labelWidth
                             }
                             QGCTextField {
                                 readOnly:           true
@@ -1288,7 +1410,7 @@ Rectangle {
                             QGCButton {
                                 text:               qsTr("Reset Default Brand Image")
                                 Layout.columnSpan:  3
-                                Layout.alignment:   Qt.AlignHCenter
+                                Layout.alignment:   Qt.AlignLeft
                                 onClicked:  {
                                     _userBrandImageIndoor.rawValue = ""
                                     _userBrandImageOutdoor.rawValue = ""
@@ -1300,11 +1422,11 @@ Rectangle {
                     Item { width: 1; height: _margins }
                     QGCLabel {
                         text:               qsTr("%1 Version").arg(QGroundControl.appName)
-                        Layout.alignment:   Qt.AlignHCenter
+                        Layout.alignment:   Qt.AlignLeft
                     }
                     QGCLabel {
                         text:               QGroundControl.qgcVersion
-                        Layout.alignment:   Qt.AlignHCenter
+                        Layout.alignment:   Qt.AlignLeft
                     }
                 } // settingsColumn
             }

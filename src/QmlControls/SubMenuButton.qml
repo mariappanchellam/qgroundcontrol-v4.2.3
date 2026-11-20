@@ -35,9 +35,16 @@ Button {
 
         property bool showHighlight: control.pressed | control.checked
 
+        property bool showHover: control.hovered && control.enabled && !showHighlight
+
         background: Rectangle {
-            id:     innerRect
-            color:  showHighlight ? qgcPal.buttonHighlight : qgcPal.windowShade
+            id:             innerRect
+            radius:         Math.round(ScreenTools.defaultFontPixelHeight * 0.4)
+            border.width:   showHover ? 1 : 0
+            border.color:   qgcPal.buttonHighlight
+            color:          showHighlight ? qgcPal.buttonHighlight : (showHover ? Qt.lighter(qgcPal.windowShade, 1.4) : qgcPal.windowShade)
+
+            Behavior on color { ColorAnimation { duration: 120 } }
 
             implicitWidth: titleBar.x + titleBar.contentWidth + ScreenTools.defaultFontPixelWidth
 
