@@ -156,6 +156,13 @@
     "default":         0
 },
 {
+    "name":             "autoFitUI",
+    "shortDesc": "Scale the interface to fit the window",
+    "longDesc":  "If this option is enabled the size of the user interface follows the size of the application window.",
+    "type":             "bool",
+    "default":     true
+},
+{
     "name":             "indoorPalette",
     "shortDesc": "Application color scheme",
     "longDesc":  "The color scheme for the user interface.",

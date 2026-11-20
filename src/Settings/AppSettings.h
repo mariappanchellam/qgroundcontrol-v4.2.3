@@ -41,6 +41,7 @@ public:
     DEFINE_SETTINGFACT(virtualJoystick)
     DEFINE_SETTINGFACT(virtualJoystickAutoCenterThrottle)
     DEFINE_SETTINGFACT(appFontPointSize)
+    DEFINE_SETTINGFACT(autoFitUI)
     DEFINE_SETTINGFACT(indoorPalette)
     DEFINE_SETTINGFACT(showLargeCompass)
     DEFINE_SETTINGFACT(savePath)

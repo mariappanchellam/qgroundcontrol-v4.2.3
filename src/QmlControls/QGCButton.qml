@@ -18,30 +18,74 @@ Button {
     property real   pointSize:      ScreenTools.defaultFontPointSize    ///< Point size for button text
     property bool   showBorder:     qgcPal.globalTheme === QGCPalette.Light
     property bool   iconLeft:       false
-    property real   backRadius:     0
+    property real   backRadius:     Math.round(ScreenTools.defaultFontPixelHeight * 0.4)
     property real   heightFactor:   0.5
     property string iconSource
 
     property alias wrapMode:            text.wrapMode
     property alias horizontalAlignment: text.horizontalAlignment
 
-    property bool   _showHighlight:     pressed | hovered | checked
+    // Pressed and checked use the highlight colour. Hover only lifts the button (lighter face, highlight border).
+    property bool   _showHighlight:     pressed | checked
+    property bool   _hoverLift:         hovered && enabled && !_showHighlight
+    property bool   _pushedIn:          pressed | checked
 
     property int _horizontalPadding:    ScreenTools.defaultFontPixelWidth
     property int _verticalPadding:      Math.round(ScreenTools.defaultFontPixelHeight * heightFactor)
 
+    // 3D look: the face sits _depth pixels above a darker base and drops onto it when pushed in
+    property int    _depth:             Math.max(2, Math.round(ScreenTools.defaultFontPixelHeight * 0.15))
+    property real   _contentOffset:     _pushedIn ? _depth / 2 : -_depth / 2
+    property color  _baseColor:         _showHighlight ?
+                                            qgcPal.buttonHighlight :
+                                            (primary ? qgcPal.primaryButton : qgcPal.button)
+    property color  _faceColor:         _hoverLift ? Qt.lighter(_baseColor, 1.25) : _baseColor
+
+    Behavior on _faceColor { ColorAnimation { duration: 120 } }
+
     QGCPalette { id: qgcPal; colorGroupEnabled: enabled }
 
-    background: Rectangle {
-        id:             backRect
+    background: Item {
         implicitWidth:  ScreenTools.implicitButtonWidth
         implicitHeight: ScreenTools.implicitButtonHeight
-        radius:         backRadius
-        border.width:   showBorder ? 1 : 0
-        border.color:   qgcPal.buttonText
-        color:          _showHighlight ?
-                            qgcPal.buttonHighlight :
-                            (primary ? qgcPal.primaryButton : qgcPal.button)
+
+        // Darker base which shows below the face as the button's edge
+        Rectangle {
+            anchors.fill:       parent
+            anchors.topMargin:  control._depth
+            radius:             control.backRadius
+            color:              Qt.darker(control._faceColor, 1.8)
+        }
+
+        Rectangle {
+            id:                     backRect
+            anchors.fill:           parent
+            anchors.topMargin:      control._pushedIn ? control._depth : 0
+            anchors.bottomMargin:   control._pushedIn ? 0 : control._depth
+            radius:                 control.backRadius
+            border.width:           (control.showBorder || control._hoverLift) ? 1 : 0
+            border.color:           control._hoverLift ? qgcPal.buttonHighlight : qgcPal.buttonText
+            gradient: Gradient {
+                GradientStop { position: 0; color: control._pushedIn ? Qt.darker(control._faceColor, 1.15) : Qt.lighter(control._faceColor, 1.2) }
+                GradientStop { position: 1; color: control._pushedIn ? control._faceColor : Qt.darker(control._faceColor, 1.15) }
+            }
+
+            Behavior on anchors.topMargin    { NumberAnimation { duration: 60 } }
+            Behavior on anchors.bottomMargin { NumberAnimation { duration: 60 } }
+
+            // Light line along the top edge
+            Rectangle {
+                anchors.top:            parent.top
+                anchors.left:           parent.left
+                anchors.right:          parent.right
+                anchors.topMargin:      1
+                anchors.leftMargin:     parent.radius
+                anchors.rightMargin:    parent.radius
+                height:                 1
+                color:                  Qt.rgba(1, 1, 1, 0.25)
+                visible:                !control._pushedIn
+            }
+        }
     }
 
     contentItem: Item {
@@ -62,11 +106,13 @@ Button {
             anchors.right:          !control.iconLeft ? parent.right : undefined
             anchors.rightMargin:    !control.iconLeft ? ScreenTools.defaultFontPixelWidth : undefined
             anchors.verticalCenter: parent.verticalCenter
+            anchors.verticalCenterOffset: control._contentOffset
         }
 
         Text {
             id:                     text
             anchors.centerIn:       parent
+            anchors.verticalCenterOffset: control._contentOffset
             antialiasing:           true
             text:                   control.text
             font.pointSize:         pointSize

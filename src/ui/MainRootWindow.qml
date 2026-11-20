@@ -28,14 +28,22 @@ ApplicationWindow {
     minimumHeight:  ScreenTools.isMobile ? Screen.height : Math.min(ScreenTools.defaultFontPixelWidth * 50, Screen.height)
     visible:        true
 
+    // Auto fit: the ui scales with the window size
+    onWidthChanged:     ScreenTools.setFitSize(width, height)
+    onHeightChanged:    ScreenTools.setFitSize(width, height)
+
     Component.onCompleted: {
         //-- Full screen on mobile or tiny screens
         if (ScreenTools.isMobile || Screen.height / ScreenTools.realPixelDensity < 120) {
             mainWindow.showFullScreen()
         } else {
+            // Size used when the window is restored from maximized
             width   = ScreenTools.isMobile ? Screen.width  : Math.min(250 * Screen.pixelDensity, Screen.width)
             height  = ScreenTools.isMobile ? Screen.height : Math.min(150 * Screen.pixelDensity, Screen.height)
+            // Start filling the screen so the ui is fitted to it
+            mainWindow.showMaximized()
         }
+        ScreenTools.setFitSize(width, height)
 
         // First run prompt(s) start once the boot animation has finished
     }
