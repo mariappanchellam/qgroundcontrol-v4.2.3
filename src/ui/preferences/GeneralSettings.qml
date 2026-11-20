@@ -39,7 +39,9 @@ Rectangle {
     property Fact _virtualJoystickAutoCenterThrottle:   QGroundControl.settingsManager.appSettings.virtualJoystickAutoCenterThrottle
 
     property real   _labelWidth:                ScreenTools.defaultFontPixelWidth * 20
-    property real   _comboFieldWidth:           ScreenTools.defaultFontPixelWidth * 30
+    // Fields shrink on a narrow screen so that a label and its field always fit side by side
+    property real   _comboFieldWidth:           Math.min(ScreenTools.defaultFontPixelWidth * 30,
+                                                         Math.max(ScreenTools.defaultFontPixelWidth * 12, (_root.width - _labelWidth - _margins * 6) / 1.6))
     // DhakshaGroundControl: the fast camera player is chosen (Android)
     readonly property bool _fastPlayer: DhakshaCameraManager.nativeVideo && DhakshaCameraManager.nativeVideoSupported
     property real   _valueFieldWidth:           ScreenTools.defaultFontPixelWidth * 10
@@ -71,16 +73,19 @@ Rectangle {
             clip:               true
             anchors.fill:       parent
             contentHeight:      outerItem.height
-            contentWidth:       outerItem.width
+            // The page moves up and down only: everything is laid out inside the width of the screen
+            contentWidth:       width
+            flickableDirection: Flickable.VerticalFlick
 
             Item {
                 id:     outerItem
-                width:  Math.max(_root.width, settingsColumn.width)
+                width:  _root.width
                 height: settingsColumn.height
 
                 ColumnLayout {
                     id:                         settingsColumn
-                    anchors.horizontalCenter:   parent.horizontalCenter
+                    anchors.left:               parent.left
+                    anchors.right:              parent.right
 
                     QGCLabel {
                         id:         flyViewSectionLabel
@@ -99,7 +104,7 @@ Rectangle {
                             id:                         flyViewCol
                             anchors.margins:            _margins
                             anchors.top:                parent.top
-                            anchors.horizontalCenter:   parent.horizontalCenter
+                            anchors.left:               parent.left
                             spacing:                    _margins
 
                             FactCheckBox {
@@ -191,7 +196,7 @@ Rectangle {
                                 QGCLabel {
                                     text:               qsTr("Guided Command Settings")
                                     Layout.columnSpan:  2
-                                    Layout.alignment:   Qt.AlignHCenter
+                                    Layout.alignment:   Qt.AlignLeft
                                 }
 
                                 QGCLabel {
@@ -236,7 +241,7 @@ Rectangle {
                                 QGCLabel {
                                     text:               qsTr("Video Settings")
                                     Layout.columnSpan:  2
-                                    Layout.alignment:   Qt.AlignHCenter
+                                    Layout.alignment:   Qt.AlignLeft
                                 }
 
                                 QGCLabel {
@@ -371,7 +376,7 @@ Rectangle {
                             id:                         gimbalCameraGrid
                             anchors.margins:            _margins
                             anchors.top:                parent.top
-                            anchors.horizontalCenter:   parent.horizontalCenter
+                            anchors.left:               parent.left
                             columns:                    2
                             rowSpacing:                 _margins
                             columnSpacing:              _margins
@@ -543,7 +548,7 @@ Rectangle {
                             id:                         planViewCol
                             anchors.margins:            _margins
                             anchors.top:                parent.top
-                            anchors.horizontalCenter:   parent.horizontalCenter
+                            anchors.left:               parent.left
                             spacing:                    _margins
 
                             GridLayout {
@@ -594,9 +599,10 @@ Rectangle {
                         GridLayout {
                             id:                         unitsGrid
                             anchors.topMargin:          _margins
+                            anchors.leftMargin:         _margins
                             anchors.top:                parent.top
                             Layout.fillWidth:           false
-                            anchors.horizontalCenter:   parent.horizontalCenter
+                            anchors.left:               parent.left
                             flow:                       GridLayout.TopToBottom
                             rows:                       5
 
@@ -639,7 +645,7 @@ Rectangle {
 
                             GridLayout {
                                 id:                         comboGrid
-                                anchors.horizontalCenter:   parent.horizontalCenter
+                                anchors.left:               parent.left
                                 columns:                    2
 
                                 QGCLabel {
@@ -775,7 +781,7 @@ Rectangle {
 
                             ColumnLayout {
                                 id:                         miscCol
-                                anchors.horizontalCenter:   parent.horizontalCenter
+                                anchors.left:               parent.left
                                 spacing:                    _margins
 
                                 FactCheckBox {
@@ -875,7 +881,7 @@ Rectangle {
                             id:                         loggingCol
                             anchors.margins:            _margins
                             anchors.top:                parent.top
-                            anchors.horizontalCenter:   parent.horizontalCenter
+                            anchors.left:               parent.left
                             spacing:                    _margins
                             FactCheckBox {
                                 id:         promptSaveLog
@@ -925,7 +931,8 @@ Rectangle {
                             anchors.top:        parent.top
                             spacing:            _margins
 
-                            RowLayout {
+                            // One device per line, so the list never grows wider than the screen
+                            ColumnLayout {
                                 spacing: _margins
 
                                 Repeater {
@@ -951,7 +958,7 @@ Rectangle {
 
                             GridLayout {
                                 Layout.fillWidth:   false
-                                Layout.alignment:   Qt.AlignHCenter
+                                Layout.alignment:   Qt.AlignLeft
                                 columns:            2
                                 visible:            !ScreenTools.isMobile
                                                     && QGroundControl.settingsManager.autoConnectSettings.autoConnectNmeaPort.visible
@@ -1038,9 +1045,10 @@ Rectangle {
                         GridLayout {
                             id:                         rtkGrid
                             anchors.topMargin:          _margins
+                            anchors.leftMargin:         _margins
                             anchors.top:                parent.top
                             Layout.fillWidth:           true
-                            anchors.horizontalCenter:   parent.horizontalCenter
+                            anchors.left:               parent.left
                             columns:                    3
 
                             property var  rtkSettings:      QGroundControl.settingsManager.rtkSettings
@@ -1184,9 +1192,10 @@ Rectangle {
                         GridLayout {
                             id:                         adsbGrid
                             anchors.topMargin:          _margins
+                            anchors.leftMargin:         _margins
                             anchors.top:                warningLabel.bottom
                             Layout.fillWidth:           true
-                            anchors.horizontalCenter:   parent.horizontalCenter
+                            anchors.left:               parent.left
                             columns:                    2
 
                             property var  adsbSettings:    QGroundControl.settingsManager.adsbVehicleManagerSettings
@@ -1288,7 +1297,7 @@ Rectangle {
                             QGCButton {
                                 text:               qsTr("Reset Default Brand Image")
                                 Layout.columnSpan:  3
-                                Layout.alignment:   Qt.AlignHCenter
+                                Layout.alignment:   Qt.AlignLeft
                                 onClicked:  {
                                     _userBrandImageIndoor.rawValue = ""
                                     _userBrandImageOutdoor.rawValue = ""
@@ -1300,11 +1309,11 @@ Rectangle {
                     Item { width: 1; height: _margins }
                     QGCLabel {
                         text:               qsTr("%1 Version").arg(QGroundControl.appName)
-                        Layout.alignment:   Qt.AlignHCenter
+                        Layout.alignment:   Qt.AlignLeft
                     }
                     QGCLabel {
                         text:               QGroundControl.qgcVersion
-                        Layout.alignment:   Qt.AlignHCenter
+                        Layout.alignment:   Qt.AlignLeft
                     }
                 } // settingsColumn
             }

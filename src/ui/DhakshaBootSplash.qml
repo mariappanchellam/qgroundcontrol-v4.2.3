@@ -9,6 +9,7 @@
  ****************************************************************************/
 
 import QtQuick 2.12
+import QtQuick.Window 2.12
 
 Rectangle {
     id:     root
@@ -21,6 +22,26 @@ Rectangle {
 
     property real   _progress:  0
     property bool   _finishing: false
+    property bool   _started:   false
+
+    // The window is given its real size a moment after it is created (Android: once it covers the whole
+    // screen). The flight path is worked out from the size at the start, so the animation waits until the
+    // size has stopped changing; started sooner, the drone flew a path made for the wrong size and the
+    // picture jumped when the window grew.
+    onWidthChanged:     sizeSettle.restart()
+    onHeightChanged:    sizeSettle.restart()
+
+    Timer {
+        id:             sizeSettle
+        interval:       150
+        running:        true
+        onTriggered: {
+            if (!root._started && !root._finishing && root.width > 0 && root.height > 0) {
+                root._started = true
+                bootSequence.start()
+            }
+        }
+    }
     readonly property real _minDim: Math.min(width, height)
 
     function finish() {
@@ -38,12 +59,13 @@ Rectangle {
         onClicked:      root.finish()
     }
 
-    // Matches android/res/drawable-nodpi/splash_logo.png (420 x 364 px, centred)
-    // so the hand-over from the static launch image is seamless.
+    // Matches android/res/drawable-nodpi/splash_logo.png (420 x 364 screen pixels, centred)
+    // so the hand-over from the static launch image is seamless. On a screen where one unit here is
+    // more than one screen pixel, the size is divided down so the logo does not jump at the hand-over.
     Image {
         id:                 logo
         anchors.centerIn:   parent
-        width:              Math.min(420, root.width * 0.8, root.height * 0.55 * 420 / 364)
+        width:              Math.min(420 / Screen.devicePixelRatio, root.width * 0.8, root.height * 0.55 * 420 / 364)
         height:             width * 364 / 420
         source:             "/res/DhakshaSplashLogo.svg"
         sourceSize.width:   width
@@ -181,7 +203,7 @@ Rectangle {
 
     SequentialAnimation {
         id:         bootSequence
-        running:    true
+        running:    false
 
         // Hold the static frame briefly so the switch from the launch image is invisible.
         PauseAnimation { duration: 250 }

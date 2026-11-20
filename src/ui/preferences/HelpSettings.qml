@@ -26,8 +26,9 @@ Rectangle {
     QGCFlickable {
         anchors.margins:    _margins
         anchors.fill:       parent
-        contentWidth:       grid.width
+        contentWidth:       width
         contentHeight:      grid.height
+        flickableDirection: Flickable.VerticalFlick
         clip:               true
 
         GridLayout {
