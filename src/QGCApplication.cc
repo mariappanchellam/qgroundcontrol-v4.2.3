@@ -563,7 +563,7 @@ bool QGCApplication::_initForNormalAppBoot()
     const QString previousRun = DhakshaFlightLog::previousRunReport();
     if (previousRun.contains(QStringLiteral("=== CRASH"))) {
         QTimer::singleShot(9000, this, [this, previousRun]() {
-            showAppMessage(previousRun, tr("The last run crashed. Please send a photo of this to support"));
+            showAppMessage(previousRun, tr("The last run crashed. Nothing was sent: please share a photo of this with the developer"));
         });
     }
 

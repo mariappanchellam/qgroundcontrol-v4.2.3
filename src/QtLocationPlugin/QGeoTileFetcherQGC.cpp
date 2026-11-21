@@ -48,14 +48,26 @@
 #include "QGeoTileFetcherQGC.h"
 #include "QGeoMapReplyQGC.h"
 
+#include <QtCore/QCoreApplication>
 #include <QtCore/QLocale>
 #include <QtNetwork/QNetworkRequest>
 #include <QtLocation/private/qgeotilespec_p.h>
 
 //-----------------------------------------------------------------------------
+// Tile replies are detached from their manager and can outlive the map that asked for them.
+// Qt 5.15 dereferences the manager when such a reply finishes, so a manager owned by one map
+// crashed the app some time after that map (e.g. the Offline Maps page) was closed. All maps
+// share one manager that lives as long as the application.
+static QNetworkAccessManager* sharedNetworkManager()
+{
+    static QNetworkAccessManager* manager = new QNetworkAccessManager(QCoreApplication::instance());
+    return manager;
+}
+
+//-----------------------------------------------------------------------------
 QGeoTileFetcherQGC::QGeoTileFetcherQGC(QGeoTiledMappingManagerEngine *parent)
     : QGeoTileFetcher(parent)
-    , _networkManager(new QNetworkAccessManager(this))
+    , _networkManager(sharedNetworkManager())
 {
     //-- Check internet status every 30 seconds or so
     connect(&_timer, &QTimer::timeout, this, &QGeoTileFetcherQGC::timeout);

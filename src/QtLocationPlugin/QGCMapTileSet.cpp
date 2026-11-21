@@ -61,6 +61,10 @@ QGCCachedTileSet::QGCCachedTileSet(const QString& name)
 //-----------------------------------------------------------------------------
 QGCCachedTileSet::~QGCCachedTileSet()
 {
+    // Replies are detached from the manager: delete the pending ones first, Qt 5.15 crashes
+    // when a reply finishes after its manager was deleted
+    qDeleteAll(_replies);
+    _replies.clear();
     delete _networkManager;
     _networkManager = nullptr;
 }
