@@ -559,6 +559,14 @@ bool QGCApplication::_initForNormalAppBoot()
     // Load the configured gimbal camera and point the video stream at its RTSP URL before the UI starts
     DhakshaCameraManager::instance()->start();
 
+    // After a crash, the report is shown once the boot animation is over
+    const QString previousRun = DhakshaFlightLog::previousRunReport();
+    if (previousRun.contains(QStringLiteral("=== CRASH"))) {
+        QTimer::singleShot(9000, this, [this, previousRun]() {
+            showAppMessage(previousRun, tr("The last run crashed. Please send a photo of this to support"));
+        });
+    }
+
     _qmlAppEngine = toolbox()->corePlugin()->createQmlApplicationEngine(this);
     toolbox()->corePlugin()->createRootWindow(_qmlAppEngine);
 

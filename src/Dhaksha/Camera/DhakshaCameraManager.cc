@@ -20,6 +20,8 @@
 
 #include <QQmlEngine>
 #include <QSettings>
+#include <QFile>
+#include <QTimer>
 
 namespace {
     const char* kSettingsGroup  = "DhakshaCamera";
@@ -327,6 +329,32 @@ void DhakshaCameraManager::start()
     _startVideoStream();
     _updatePipVideo();
     emit videoRestartRequested();
+
+#ifndef DHAKSHA_CAMERA_NO_QGC
+    // The app's memory goes into the flight log every 30 s: when Android closes the app for using too much,
+    // no crash report is written, and the rising numbers are the only trace
+    QTimer* memoryTimer = new QTimer(this);
+    memoryTimer->setInterval(30000);
+    connect(memoryTimer, &QTimer::timeout, this, []() {
+        QFile statm(QStringLiteral("/proc/self/statm"));
+        if (statm.open(QIODevice::ReadOnly)) {
+            const QList<QByteArray> fields = statm.readAll().split(' ');
+            if (fields.size() > 1) {
+                DhakshaFlightLog::write(QStringLiteral("Memory: %1 MB in use").arg(fields.at(1).toLongLong() * 4096 / (1024 * 1024)));
+            }
+        }
+    });
+    memoryTimer->start();
+#endif
+}
+
+QString DhakshaCameraManager::lastRunReport()
+{
+#ifndef DHAKSHA_CAMERA_NO_QGC
+    return DhakshaFlightLog::previousRunReport();
+#else
+    return QString();
+#endif
 }
 
 QString DhakshaCameraManager::flightLogPath()

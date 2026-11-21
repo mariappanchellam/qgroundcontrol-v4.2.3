@@ -35,6 +35,7 @@ QFile* gFile = nullptr;
 qint64 gBytes = 0;
 bool gFull = false;
 std::atomic<int> gFd{-1};
+QString gPreviousReport;
 
 void writeLocked(const QByteArray& text)
 {
@@ -62,7 +63,30 @@ QString previousRunSummary(const QDir& dir)
     if (tail.contains(kCleanExit)) {
         return QStringLiteral("Previous run (%1) ended cleanly").arg(files.last());
     }
-    if (tail.contains(kCrashMark)) {
+    // What the operator is shown at the next start, so a photo of the screen is enough to report the fault:
+    // the last lines the run logged and, after a crash, where it crashed
+    const QList<QByteArray> lines = tail.split('\n');
+    int crashAt = -1;
+    for (int i = lines.size() - 1; i >= 0; --i) {
+        if (lines.at(i).startsWith(kCrashMark)) {
+            crashAt = i;
+            break;
+        }
+    }
+    QStringList shown;
+    const int lastLogged = (crashAt >= 0) ? crashAt : lines.size();
+    for (int i = qMax(0, lastLogged - 8); i < lastLogged; ++i) {
+        if (!lines.at(i).trimmed().isEmpty()) {
+            shown << QString::fromUtf8(lines.at(i)).left(160);
+        }
+    }
+    if (crashAt >= 0) {
+        for (int i = crashAt; (i < lines.size()) && (i < crashAt + 16); ++i) {
+            shown << QString::fromUtf8(lines.at(i)).left(160);
+        }
+    }
+    gPreviousReport = QStringLiteral("%1\n\n%2").arg(files.last(), shown.join(QLatin1Char('\n')));
+    if (crashAt >= 0) {
         return QStringLiteral("Previous run (%1) CRASHED: its crash report is at the end of that file").arg(files.last());
     }
     return QStringLiteral("Previous run (%1) did not end cleanly and recorded no crash: the app was swiped away or "
@@ -322,6 +346,12 @@ void start(const QString& directory, const QString& appVersion)
 #endif
         return;
     }
+}
+
+QString previousRunReport()
+{
+    std::lock_guard<std::mutex> locker(gMutex);
+    return gPreviousReport;
 }
 
 void write(const QString& line)

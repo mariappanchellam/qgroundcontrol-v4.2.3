@@ -13,6 +13,10 @@ namespace DhakshaFlightLog {
 /// written); the newest 20 files are kept.
 void start(const QString& directory, const QString& appVersion);
 
+/// Empty when the previous run ended cleanly. Otherwise that run's log file name, the last lines it logged
+/// and, after a crash, the start of its crash report: shown to the operator at start-up.
+QString previousRunReport();
+
 /// Appends one time-stamped line; safe from any thread, a no-op before start().
 void write(const QString& line);
 

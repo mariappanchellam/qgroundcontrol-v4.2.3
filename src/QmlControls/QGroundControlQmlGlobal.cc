@@ -11,6 +11,8 @@
 #include "LinkManager.h"
 
 #include <QSettings>
+#include <QDateTime>
+#include <QLocale>
 #include <QLineF>
 #include <QPointF>
 
@@ -255,6 +257,12 @@ QString QGroundControlQmlGlobal::qgcVersion(void) const
 #elif __androidArm64__
     versionStr += QStringLiteral(" %1").arg(tr("64 bit"));
 #endif
+    // When this build was made (the build servers' clock is UTC), so the installed build can be told apart
+    const QDateTime built = QLocale::c().toDateTime(QStringLiteral(__DATE__ " " __TIME__).simplified(),
+                                                    QStringLiteral("MMM d yyyy hh:mm:ss"));
+    versionStr += QStringLiteral("\n%1").arg(tr("Build: %1 UTC").arg(built.isValid()
+                                                                        ? built.toString(QStringLiteral("yyyy-MM-dd hh:mm"))
+                                                                        : QStringLiteral(__DATE__ " " __TIME__)));
     return versionStr;
 }
 

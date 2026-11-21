@@ -517,6 +517,19 @@ Rectangle {
                                 text:                   DhakshaCameraManager.flightLogPath !== "" ? DhakshaCameraManager.flightLogPath : qsTr("Not available")
                             }
 
+                            // How the previous run ended, when it did not end cleanly: a photo of this is a fault report
+                            QGCLabel {
+                                text:       qsTr("Last Run")
+                                visible:    DhakshaCameraManager.lastRunReport !== ""
+                            }
+                            QGCLabel {
+                                Layout.maximumWidth:    _comboFieldWidth * 1.6
+                                wrapMode:               Text.WrapAnywhere
+                                font.pointSize:         ScreenTools.smallFontPointSize
+                                visible:                DhakshaCameraManager.lastRunReport !== ""
+                                text:                   DhakshaCameraManager.lastRunReport
+                            }
+
                             QGCButton {
                                 text:       qsTr("Restore Defaults")
                                 enabled:    DhakshaCameraManager.vendor !== 0

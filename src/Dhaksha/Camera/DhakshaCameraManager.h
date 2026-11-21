@@ -74,6 +74,7 @@ public:
     Q_PROPERTY(int  nativeMaxFps    READ nativeMaxFps   WRITE setNativeMaxFps   NOTIFY nativeMaxFpsChanged)    ///< Fast player: pictures drawn per second at most, 0 for all; saved
     Q_PROPERTY(QString nativeVideoStatus READ nativeVideoStatus WRITE setNativeVideoStatus NOTIFY nativeVideoStatusChanged) ///< What the fast player receives, set by the Fly View
     Q_PROPERTY(QString flightLogPath     READ flightLogPath     CONSTANT)   ///< This run's flight log file (opened before the UI)
+    Q_PROPERTY(QString lastRunReport     READ lastRunReport     CONSTANT)   ///< Empty when the previous run ended cleanly; else its last log lines and crash report
 
     static DhakshaCameraManager* instance();
     static QObject* qmlSingletonFactory(QQmlEngine*, QJSEngine*);
@@ -114,6 +115,7 @@ public:
     void                    setNativeMaxFps(int maxFps);
     QString                 nativeVideoStatus() const { return _nativeVideoStatus; }
     static QString          flightLogPath();
+    static QString          lastRunReport();
     void                    setNativeVideoStatus(const QString& status);
 
     /// Changing the vendor loads that vendor's saved IP / RTSP URL; call apply() to use them.
