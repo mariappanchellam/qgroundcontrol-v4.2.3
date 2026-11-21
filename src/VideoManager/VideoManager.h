@@ -156,6 +156,7 @@ protected:
     void _restartAllVideos          ();
     void _restartVideo              (unsigned id);
     void _startReceiver             (unsigned id);
+    void _startReceiverLater        (unsigned id);
     void _stopReceiver              (unsigned id);
 
 protected:
@@ -174,6 +175,8 @@ protected:
     // 3) Qt rendering thread (during video sink creation process which should happen in this thread)
     // It works for now but...
     bool                    _videoStarted[2]        = { false, false };
+    QTimer*                 _restartTimer[2]        = { nullptr, nullptr };
+    static constexpr int    kRestartDelayMs         = 2000;
     bool                    _lowLatencyStreaming[2] = { false, false };
     QAtomicInteger<bool>    _streaming              = false;
     QAtomicInteger<bool>    _decoding               = false;

@@ -137,13 +137,13 @@ VideoManager::setToolbox(QGCToolbox *toolbox)
         } else if (status == VideoReceiver::STATUS_INVALID_STATE) {
             // Already running
         } else {
-            _restartVideo(0);
+            _startReceiverLater(0);
         }
     });
 
     connect(_videoReceiver[0], &VideoReceiver::onStopComplete, this, [this](VideoReceiver::STATUS) {
         _videoStarted[0] = false;
-        _startReceiver(0);
+        _startReceiverLater(0);
     });
 
     connect(_videoReceiver[0], &VideoReceiver::decodingChanged, this, [this](bool active){
@@ -187,13 +187,13 @@ VideoManager::setToolbox(QGCToolbox *toolbox)
             } else if (status == VideoReceiver::STATUS_INVALID_STATE) {
                 // Already running
             } else {
-                _restartVideo(1);
+                _startReceiverLater(1);
             }
         });
 
         connect(_videoReceiver[1], &VideoReceiver::onStopComplete, this, [this](VideoReceiver::STATUS) {
             _videoStarted[1] = false;
-            _startReceiver(1);
+            _startReceiverLater(1);
         });
     }
 #endif
@@ -831,6 +831,25 @@ VideoManager::_startReceiver(unsigned id)
 #else
     Q_UNUSED(id);
 #endif
+}
+
+//----------------------------------------------------------------------------------------
+// A receiver that stopped is started again after a pause, not at once. With a camera that cannot be reached
+// (drone off, wrong address) the start fails in a fraction of a millisecond: restarted at once, it failed
+// about 1,700 times a second, which kept a processor core busy and flooded the logs.
+void
+VideoManager::_startReceiverLater(unsigned id)
+{
+    if (id > 1) {
+        return;
+    }
+    if (!_restartTimer[id]) {
+        _restartTimer[id] = new QTimer(this);
+        _restartTimer[id]->setSingleShot(true);
+        _restartTimer[id]->setInterval(kRestartDelayMs);
+        connect(_restartTimer[id], &QTimer::timeout, this, [this, id]() { _startReceiver(id); });
+    }
+    _restartTimer[id]->start();
 }
 
 //----------------------------------------------------------------------------------------

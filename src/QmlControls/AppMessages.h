@@ -32,6 +32,10 @@ signals:
     void writeStarted();
     void writeFinished(bool success);
 
+private:
+    static constexpr int kMaxLines  = 5000;     ///< lines kept for the Console page
+    static constexpr int kTrimLines = 1000;     ///< oldest lines dropped when the limit is reached
+
 private slots:
     void threadsafeLog(const QString message);
 

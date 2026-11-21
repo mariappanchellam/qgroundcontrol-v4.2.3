@@ -97,6 +97,11 @@ void AppLogModel::log(const QString message)
 
 void AppLogModel::threadsafeLog(const QString message)
 {
+    // Only the newest lines are kept. Without a limit, a fault that repeats many times a second (a camera
+    // that cannot be reached) filled the device's memory within minutes and the app was closed by Android.
+    if (rowCount() >= kMaxLines) {
+        removeRows(0, kTrimLines);
+    }
     const int line = rowCount();
     insertRows(line, 1);
     setData(index(line), message, Qt::DisplayRole);
