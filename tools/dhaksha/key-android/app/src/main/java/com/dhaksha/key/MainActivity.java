@@ -47,7 +47,7 @@ import java.nio.charset.StandardCharsets;
  *
  * One screen: the camera and the video quality, the camera IP and the server IP (filled in, editable, kept
  * with their Save buttons), the drone number, the stream name(s), how the video is uploaded (RTMP, RTSP, SRT
- * or WebRTC / WHIP, with its port) and how viewers watch it (HLS or WebRTC), and Start / Stop streaming.
+ * or WebRTC / WHIP, with its port) and how viewers watch it (HLS or WebRTC pages, or RTSP, RTMP or SRT for a player), and Start / Stop streaming.
  * Start checks that the camera
  * answers, writes the tested streaming script with these values to ~/stream_aws_<camera>.sh in Termux and
  * runs it in a Termux window. The script retries by itself when the camera or the internet drops, and reports
@@ -88,6 +88,7 @@ public class MainActivity extends Activity {
     private Spinner cameraSpinner;
     private Spinner qualitySpinner;
     private CheckBox autoQuality;
+    private CheckBox fullLog;
     /** Picture height the script last reported it is sending; 0 before the first report. */
     private int liveHeight;
     private TextView cameraIpLabel;
@@ -219,6 +220,10 @@ public class MainActivity extends Activity {
         autoQuality.setText("Auto: go lower while the internet is slow, never above this quality");
         autoQuality.setChecked(prefs.getBoolean("autoQuality", true));
         right.addView(autoQuality, fullWidth(0));
+        fullLog = new CheckBox(this);
+        fullLog.setText("Full log: save everything Termux shows to the log file (from the next Start)");
+        fullLog.setChecked(prefs.getBoolean("fullLog", false));
+        right.addView(fullLog, fullWidth(0));
 
         addLabel(right, "Server IP");
         LinearLayout serverRow = row(right);
@@ -262,6 +267,10 @@ public class MainActivity extends Activity {
         startAnyway = addBigButton(page, "Start anyway (camera not answering yet)", ORANGE, 0, v -> start(true));
         ((LinearLayout.LayoutParams) startAnyway.getLayoutParams()).topMargin = dp(8);
         startAnyway.setVisibility(View.GONE);
+
+        LinearLayout logRow = row(page);
+        addButton(logRow, "Send the latest log", v -> shareLatestLog());
+        addButton(logRow, "Copy the log folder", v -> copy("Download/" + StreamScripts.LOG_FOLDER));
 
         // Setup and less used things, folded away
         TextView setupToggle = new TextView(this);
@@ -341,6 +350,7 @@ public class MainActivity extends Activity {
                 .putInt("drone", droneSpinner.getSelectedItemPosition())
                 .putInt("quality", qualitySpinner.getSelectedItemPosition())
                 .putBoolean("autoQuality", autoQuality.isChecked())
+                .putBoolean("fullLog", fullLog.isChecked())
                 .putString("upload", upload().tag)
                 .putInt("watch", watchSpinner.getSelectedItemPosition())
                 .apply();
@@ -564,7 +574,8 @@ public class MainActivity extends Activity {
         String scriptPath = home() ? StreamScripts.HOME_SCRIPT : camera.scriptPath();
         String nightRtsp = home() ? null : camera.nightRtsp(text(cameraIp));
         String stream = StreamScripts.streamScript(camera, rtsp, nightRtsp, text(serverIp), text(dayName),
-                nightStream(), password(), quality(), autoQuality.isChecked(), true, upload(), port(), watch());
+                nightStream(), password(), quality(), autoQuality.isChecked(), true, upload(), port(), watch(),
+                fullLog.isChecked());
         String reader = readAsset("dhaksha_telemetry.py");
         if (reader == null) {
             showBanner("The position reader is missing from this app.", RED);
@@ -737,6 +748,19 @@ public class MainActivity extends Activity {
             return;
         }
         startActivity(launch);
+    }
+
+    /** Opens Android's share sheet with the newest stream log, so it can go out by mail or a chat app. */
+    private void shareLatestLog() {
+        String folder = StreamScripts.LOG_FOLDER;
+        String script = "f=$(ls -t \"$HOME/storage/shared/Download/" + folder + "\"/dhakshakey_*.log "
+                + "/sdcard/Download/" + folder + "/dhakshakey_*.log \"$HOME\"/dhakshakey_*.log 2>/dev/null | head -n 1)\n"
+                + "if [ -z \"$f\" ]; then echo 'No DhakshaKey log yet. Press Start streaming once first.'; sleep 6; exit 0; fi\n"
+                + "echo \"Sending $f\"\n"
+                + "termux-open --send \"$f\" || { echo 'Could not open the share window. The file is at:'; echo \"$f\"; sleep 10; }\n";
+        if (runInTermux(script, false)) {
+            showBanner("Choose the app to send the log with. Logs are kept in Download/" + folder + ".", GREY);
+        }
     }
 
     private boolean runInTermux(String script, boolean background) {

@@ -9,7 +9,7 @@ import java.util.regex.Pattern;
  * The script is the tested stream_aws.sh with the operator's choices filled in: camera stream, server,
  * stream names, password, video size and how it uploads (RTMP, RTSP, SRT or WebRTC / WHIP, on an editable
  * port). It is saved as ~/stream_aws_<camera>.sh, e.g. ~/stream_aws_zr10.sh. Whatever it uploads with, the
- * server lets viewers watch over HLS (port 8888) or WebRTC (port 8889).
+ * server lets viewers watch over HLS (port 8888), WebRTC (8889), RTSP (8554), RTMP (1935) or SRT (8890).
  * For testing at home without a camera, it loops test.mp4 from the Download folder instead and is saved as
  * ~/stream_aws_home.sh.
  */
@@ -68,6 +68,11 @@ final class StreamScripts {
             case "srt":
                 return "-f mpegts \"srt://$SERVER_IP:$UPLOAD_PORT?streamid=publish:live/" + nameVar
                         + ":drone:$PASSWORD&pkt_size=1316\"";
+            case "srtweak":
+                // latency is in microseconds: 2 s for the receiver to ask again for lost packets, against the
+                // 120 ms default that suits a good link only
+                return "-f mpegts \"srt://$SERVER_IP:$UPLOAD_PORT?streamid=publish:live/" + nameVar
+                        + ":drone:$PASSWORD&pkt_size=1316&latency=2000000\"";
             case "whip":
                 // MediaMTX takes the WHIP login as a Bearer token "user:password"
                 return "-f whip -authorization \"drone:$PASSWORD\" \"http://$SERVER_IP:$UPLOAD_PORT/live/"
@@ -84,24 +89,32 @@ final class StreamScripts {
         new Upload("RTMP (port 1935)", "rtmp", 1935, true, true, null),
         new Upload("RTSP (port 8554)", "rtsp", 8554, true, true, null),
         new Upload("SRT (port 8890, UDP)", "srt", 8890, false, false, "-protocols srt"),
+        new Upload("SRT for a weak link (2 s buffer)", "srtweak", 8890, false, false, "-protocols srt"),
         // ffmpeg 8 and newer, built with WebRTC (DTLS) support
         new Upload("WebRTC / WHIP (port 8889)", "whip", 8889, false, true, "-muxers whip"),
     };
 
-    /** How viewers watch the stream on the server: the page at http://SERVER:PORT/live/NAME. */
+    /**
+     * How viewers watch the stream on the server. The first two are pages for a browser; the others are
+     * addresses for a player such as VLC (Media > Open Network Stream).
+     */
     static final class Watch {
         final String name;
-        final int port;
+        /** The address, with %1$s for the server and %2$s for the stream name. */
+        final String address;
 
-        Watch(String name, int port) {
+        Watch(String name, String address) {
             this.name = name;
-            this.port = port;
+            this.address = address;
         }
     }
 
     static final Watch[] WATCHES = {
-        new Watch("HLS (port 8888)", 8888),
-        new Watch("WebRTC (port 8889)", 8889),
+        new Watch("HLS (port 8888)", "http://%1$s:8888/live/%2$s"),
+        new Watch("WebRTC (port 8889)", "http://%1$s:8889/live/%2$s"),
+        new Watch("RTSP in VLC (port 8554)", "rtsp://%1$s:8554/live/%2$s"),
+        new Watch("RTMP in VLC (port 1935)", "rtmp://%1$s:1935/live/%2$s"),
+        new Watch("SRT in VLC (port 8890, UDP)", "srt://%1$s:8890?streamid=read:live/%2$s"),
     };
 
     /** A camera model: its default IP and how its RTSP address is built from the IP. */
@@ -223,7 +236,7 @@ final class StreamScripts {
     }
 
     static String watchUrl(String serverIp, Watch watch, String streamName) {
-        return "http://" + serverIp + ":" + watch.port + "/live/" + streamName;
+        return String.format(watch.address, serverIp, streamName);
     }
 
     /** The upload address shown to the operator, with the password hidden. */
@@ -319,7 +332,7 @@ final class StreamScripts {
     static String streamScript(Camera camera, String cameraRtsp, String serverIp, int droneNumber,
                                String password, Quality quality, boolean showPosition) {
         return streamScript(camera, cameraRtsp, null, serverIp, droneName(droneNumber), null, password, quality,
-                            false, showPosition, UPLOADS[0], UPLOADS[0].defaultPort, WATCHES[0]);
+                            false, showPosition, UPLOADS[0], UPLOADS[0].defaultPort, WATCHES[0], false);
     }
 
     /**
@@ -328,10 +341,12 @@ final class StreamScripts {
      *
      * quality is the size the operator chose and is never exceeded. With auto, the script drops to the next
      * smaller size while the internet cannot keep up and goes back up, one size at a time, when it can.
+     *
+     * With fullLog, everything ffmpeg prints in the Termux window goes to the log file, not only its errors.
      */
     static String streamScript(Camera camera, String cameraRtsp, String nightRtsp, String serverIp, String dayName,
                                String nightName, String password, Quality quality, boolean auto, boolean showPosition,
-                               Upload upload, int uploadPort, Watch watch) {
+                               Upload upload, int uploadPort, Watch watch, boolean fullLog) {
         boolean home = camera == null;
         boolean dual = !home && nightRtsp != null;
         // Only uploads whose waiting video can be measured (TCP) can tell a slow internet from a slow camera
@@ -358,6 +373,8 @@ final class StreamScripts {
                 + "SERVER_IP=" + shellQuote(serverIp) + "\n"
                 + "PASSWORD=" + shellQuote(password) + "\n"
                 + "UPLOAD_PORT=" + uploadPort + "\n"
+                + "# 1: the log file gets everything ffmpeg prints; 0: only its errors and warnings\n"
+                + "FULL_LOG=" + (fullLog ? 1 : 0) + "\n"
                 + "DRONE=" + shellQuote(dayName) + "\n"
                 + (dual ? "NIGHT_DRONE=" + shellQuote(nightName) + "\n" : "")
                 + (home ? "" : "CAMERA=" + shellQuote(cameraRtsp) + "\n")
@@ -399,8 +416,8 @@ final class StreamScripts {
                 + "echo $$ > " + PID_FILE + "\n"
                 + "termux-wake-lock 2>/dev/null\n"
                 + logSetup(home ? "home test video" : camera.name, quality, adapt, upload)
-                + "echo \"Watch this drone at http://$SERVER_IP:" + watch.port + "/live/$DRONE\"\n"
-                + (dual ? "echo \"Night camera at    http://$SERVER_IP:" + watch.port + "/live/$NIGHT_DRONE\"\n" : "")
+                + "echo \"Watch this drone at " + watchUrl("$SERVER_IP", watch, "$DRONE") + "\"\n"
+                + (dual ? "echo \"Night camera at    " + watchUrl("$SERVER_IP", watch, "$NIGHT_DRONE") + "\"\n" : "")
                 + "\n"
                 + (upload.needs == null ? "" : uploadCheck(upload))
                 + (home ? findTestVideo() : "")
@@ -495,13 +512,13 @@ final class StreamScripts {
                 + "# the phone's internet is fine and the way to the server is the problem\n"
                 + "internet_ms() { connect_ms " + INTERNET_CHECK_HOST + " 443; }\n"
                 + "\n"
-                + "# ffmpeg_to_log NAME: ffmpeg's errors and warnings go to the log file, with the server password hidden;\n"
+                + "# ffmpeg_to_log NAME: ffmpeg's errors and warnings (everything with FULL_LOG=1) go to the log file, with the server password hidden;\n"
                 + "# its progress line and the description of the video do not, nor the two H.265 messages it prints for\n"
                 + "# every frame until the camera's next full picture after connecting\n"
                 + "ffmpeg_to_log() {\n"
                 + "  tr '\\r' '\\n' \\\n"
                 + "    | grep --line-buffered -v -e 'Error constructing the frame RPS' -e 'Skipping invalid undecodable NALU' \\\n"
-                + "    | grep --line-buffered -i -E 'error|fail|refused|reset|timed out|timeout|broken|unreachable|no route|invalid|corrupt|missing|drop|non-monotonic|past duration|Exiting|Conversion' \\\n"
+                + "    | if [ \"$FULL_LOG\" = 1 ]; then cat; else grep --line-buffered -i -E 'error|fail|refused|reset|timed out|timeout|broken|unreachable|no route|invalid|corrupt|missing|drop|non-monotonic|past duration|Exiting|Conversion'; fi \\\n"
                 + "    | sed -u -e \"s/pass=[^&' ]*/pass=****/g\" -e \"s/drone:[^&@' ]*/drone:****/g\" -e \"s#://[^/@ ]*@#://****@#g\" -e \"s/^/$1 ffmpeg: /\" >> \"$LOG\"\n"
                 + "}\n"
                 + "\n"                + "# One camera to one stream name, restarted by its own watchdog:\n"
