@@ -13,7 +13,8 @@
 #   view-password     optional; without it anyone with the link can watch
 #
 # Open these ports in the cloud firewall / security group:
-#   1935/tcp (RTMP from the drone), 8889/tcp + 8189/udp (WebRTC), 8888/tcp (HLS), 8554/tcp (RTSP)
+#   1935/tcp (RTMP from the drone), 8889/tcp + 8189/udp (WebRTC), 8888/tcp (HLS), 8554/tcp (RTSP),
+#   8890/udp (SRT from the drone or to a player; it is UDP, a TCP rule for 8890 does nothing)
 
 set -euo pipefail
 
@@ -96,7 +97,7 @@ systemctl enable --now dhaksha-stream.service
 systemctl restart dhaksha-stream.service
 
 if command -v ufw >/dev/null && ufw status | grep -q "Status: active"; then
-    ufw allow 1935/tcp; ufw allow 8889/tcp; ufw allow 8189/udp; ufw allow 8888/tcp; ufw allow 8554/tcp
+    ufw allow 1935/tcp; ufw allow 8889/tcp; ufw allow 8189/udp; ufw allow 8888/tcp; ufw allow 8554/tcp; ufw allow 8890/udp
 fi
 
 cat <<EOF
@@ -112,6 +113,7 @@ Watch on a phone (any network):
   Browser, low delay : http://$PUBLIC_IP:8889/live/drone1
   Browser, HLS       : http://$PUBLIC_IP:8888/live/drone1
   VLC                : rtsp://$PUBLIC_IP:8554/live/drone1
+  VLC over SRT       : srt://$PUBLIC_IP:8890?streamid=read:live/drone1
 $( [[ -n "$VIEW_PASS" ]] && echo "  Viewers log in as user 'viewer', password '$VIEW_PASS'." || echo "  Anyone with these links can watch. Re-run with a view password to restrict it." )
 
 Logs: journalctl -u dhaksha-stream -f
